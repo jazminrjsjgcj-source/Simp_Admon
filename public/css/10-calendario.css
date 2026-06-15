@@ -1,0 +1,268 @@
+/* ===========================================
+   Calendario de Agenda SyD + Bitácora
+   Extraído de 08-screens.css para separar dominios
+   =========================================== */
+
+/* ===== Calendario de Agenda SyD ===== */
+
+.cal-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.cal-kpi {
+  background: #fff;
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  text-align: center;
+}
+
+.cal-kpi h3 { font-size: 24px; margin: 0; color: var(--text); }
+.cal-kpi p { font-size: 11px; font-weight: 700; margin: 2px 0 0; color: #6b7280; }
+.cal-kpi small { font-size: 10px; color: #9ca3af; }
+
+.cal-kpi-sim { border-left: 3px solid var(--accent); }
+.cal-kpi-dig { border-left: 3px solid #2563eb; }
+.cal-kpi-vencido { border-left: 3px solid #dc2626; }
+.cal-kpi-cumplido { border-left: 3px solid #16a34a; }
+.cal-kpi-reg { border-left: 3px solid #ca8a04; }
+
+.cal-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cal-nav strong {
+  min-width: 140px;
+  text-align: center;
+  font-size: 15px;
+}
+
+.cal-filtros,
+.cal-vistas {
+  display: flex;
+  gap: 6px;
+}
+
+.cal-filtro-chip {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--surface-high);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+/* Hover: fondo vino y texto blanco, igual que los KPI del dashboard. */
+.cal-filtro-chip:hover {
+  background: var(--primary-container);
+  color: white;
+  border-color: var(--primary-container);
+}
+
+/* Seleccionado: también vino sólido, para que se note cuál filtro está activo. */
+.cal-filtro-chip.active {
+  background: var(--primary-container);
+  color: white;
+  border-color: var(--primary-container);
+}
+
+.cal-vista-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--surface-high);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.cal-vista-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+/* Grid mensual */
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.cal-header {
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #6b7280;
+  background: var(--surface-low);
+  border-bottom: 1px solid var(--surface-high);
+}
+
+.cal-cell {
+  min-height: 100px;
+  padding: 6px 8px;
+  border-right: 1px solid var(--surface-high);
+  border-bottom: 1px solid var(--surface-high);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: #fff;
+}
+
+.cal-cell:nth-child(7n) { border-right: none; }
+
+.cal-empty {
+  background: #fafafa;
+}
+
+.cal-today {
+  background: #fffbeb;
+}
+
+.cal-today .cal-day-number {
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cal-day-number {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 2px;
+}
+
+.cal-event-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-size: 10px;
+  line-height: 1.2;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.cal-event-chip.cal-sim {
+  background: #fdf2f8;
+  color: var(--accent);
+}
+
+.cal-event-chip.cal-dig {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.cal-event-chip.cal-reg {
+  background: #fefce8;
+  color: #a16207;
+}
+
+.cal-event-chip.cal-status-vencido { background: #fef2f2; color: #dc2626; }
+.cal-event-chip.cal-status-cumplido { background: #f0fdf4; color: #16a34a; }
+.cal-event-chip.cal-status-observado { background: #faf5ff; color: #7c3aed; }
+
+.cal-event-chip:hover { filter: brightness(0.95); }
+
+.cal-event-tag {
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.cal-event-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.cal-more {
+  font-size: 10px;
+  color: #6b7280;
+  font-weight: 600;
+  padding: 2px 0;
+}
+
+/* Vista lista */
+
+.cal-list { display: flex; flex-direction: column; gap: 0; }
+
+.cal-list-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--surface-low);
+  border-bottom: 1px solid var(--surface-high);
+}
+
+.cal-list-date strong { font-size: 14px; color: var(--text); }
+.cal-list-date span { font-size: 12px; color: #6b7280; }
+
+.cal-list-item {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 20px;
+  border: none;
+  border-bottom: 1px solid var(--surface-high);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.cal-list-item:hover { background: #fafafa; }
+
+.cal-list-tag { text-align: center; }
+
+.cal-list-info strong { display: block; font-size: 13px; color: var(--text); margin-bottom: 2px; }
+.cal-list-info span { display: block; font-size: 12px; color: #6b7280; }
+.cal-list-info small { font-size: 11px; color: #9ca3af; }
+
+.cal-list-status { text-align: right; }
+.cal-list-status small { display: block; font-size: 10px; color: #9ca3af; margin-top: 4px; }
+
+.cal-list-item.cal-sim .cal-event-tag { color: var(--accent); }
+.cal-list-item.cal-dig .cal-event-tag { color: #2563eb; }
+.cal-list-item.cal-reg .cal-event-tag { color: #a16207; }
+
+/* Estado vacío */
+
+.cal-empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: #9ca3af;
+}

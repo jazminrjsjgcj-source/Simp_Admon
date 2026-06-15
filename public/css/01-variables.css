@@ -1,0 +1,32 @@
+/* ===========================================
+   Variables y tokens de diseño
+   =========================================== */
+:root {
+  --bg: #f9f9fb;
+  --surface: #fff;
+  --surface-low: #f3f3f5;
+  --surface-high: #e8e8ea;
+
+  /* Sistema de radios de borde — usar estos en vez de valores sueltos */
+  --radius-sm: 8px;    /* elementos pequeños: chips cuadrados, tags */
+  --radius: 10px;      /* base: cajas, inputs, botones, tarjetas */
+  --radius-lg: 14px;   /* tarjetas destacadas, modales */
+  --radius-pill: 999px;/* pastillas: badges, avatares, botones redondeados */
+  --text: #111827;
+  --muted: #667085;
+  --primary: #750038;
+  --primary-container: #9d0b4f;
+  --sidebar: #7a153d;
+  --secondary-container: #fc7da3;
+  --on-secondary-container: #751039;
+  --primary-fixed: #ffd9e1;
+  --chip-green-bg: #eaf7ee;
+  --chip-green: #1f7a3f;
+  --chip-amber-bg: #fff4df;
+  --chip-amber: #9a5a00;
+  --chip-red-bg: #fdecef;
+  --chip-red: #b42318;
+  --chip-gray-bg: #f2f4f7;
+  --chip-gray: #475467;
+  --shadow: 0 4px 20px rgba(34, 34, 34, .08);
+}

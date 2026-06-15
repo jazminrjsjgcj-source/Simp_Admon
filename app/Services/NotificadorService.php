@@ -1,0 +1,179 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\User;
+use App\Models\Tramite;
+use App\Models\AccionAgenda;
+use App\Models\PropuestaRegulatoria;
+use App\Notifications\AvisoPunta;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Notification;
+
+/**
+ * Punto único que dispara las notificaciones del flujo de trabajo.
+ *
+ * Cada método corresponde a un evento del flujo (observar, reenviar, aprobar)
+ * y resuelve a quién avisar según el diseño confirmado:
+ *
+ *   - Se observa  → creador + enlace/sujeto + jurídico de la dependencia
+ *   - Se reenvía  → revisora(s) + sujeto + jurídico de la dependencia
+ *   - Se aprueba  → creador + enlace/sujeto + jurídico de la dependencia
+ *
+ * Reglas transversales:
+ *   - Al creador del registro se le avisa siempre (es el dueño).
+ *   - A quien ejecuta la acción NUNCA se le avisa (no te avisas a ti mismo).
+ *   - No se duplica: un mismo usuario recibe una sola notificación por evento.
+ *
+ * La bitácora NO se toca aquí: el AuditObserver ya registra el cambio de
+ * estatus automáticamente cuando el registro se actualiza.
+ */
+class NotificadorService
+{
+    /**
+     * La revisora observó el registro: avisa al creador, al enlace/sujeto del
+     * área y al jurídico de la dependencia.
+     */
+    public function observado(Model $registro, User $autor): void
+    {
+        $destinatarios = $this->participantesDelArea($registro)
+            ->push($this->creador($registro))
+            ->merge($this->porRolYDependencia(User::ROL_JURIDICO, $registro));
+
+        $this->enviar(
+            $destinatarios,
+            $autor,
+            'ti-eye',
+            'Nueva observación',
+            'Hay una observación en "' . $this->nombre($registro) . '" que requiere atención.',
+            $registro
+        );
+    }
+
+    /**
+     * El enlace/sujeto reenvió el registro corregido: avisa a la(s) revisora(s),
+     * al sujeto y al jurídico de la dependencia.
+     */
+    public function reenviado(Model $registro, User $autor): void
+    {
+        $destinatarios = $this->todasLasRevisoras()
+            ->merge($this->porRolYDependencia(User::ROL_SUJETO, $registro))
+            ->merge($this->porRolYDependencia(User::ROL_JURIDICO, $registro))
+            ->push($this->creador($registro));
+
+        $this->enviar(
+            $destinatarios,
+            $autor,
+            'ti-writing',
+            'Registro corregido',
+            'El registro "' . $this->nombre($registro) . '" fue corregido y reenviado.',
+            $registro
+        );
+    }
+
+    /**
+     * Se aprobó el registro (pasa a firma): avisa al creador, al enlace/sujeto
+     * del área y al jurídico de la dependencia.
+     */
+    public function aprobado(Model $registro, User $autor): void
+    {
+        $destinatarios = $this->participantesDelArea($registro)
+            ->push($this->creador($registro))
+            ->merge($this->porRolYDependencia(User::ROL_JURIDICO, $registro));
+
+        $this->enviar(
+            $destinatarios,
+            $autor,
+            'ti-check',
+            'Listo para firma',
+            'El registro "' . $this->nombre($registro) . '" fue aprobado y está esperando firma.',
+            $registro
+        );
+    }
+
+    /* ----------------------------------------------------------------------
+     | Resolución de destinatarios
+     |----------------------------------------------------------------------*/
+
+    /** Enlace y sujeto de la dependencia del registro. */
+    private function participantesDelArea(Model $registro)
+    {
+        return $this->porRolYDependencia(User::ROL_ENLACE, $registro)
+            ->merge($this->porRolYDependencia(User::ROL_SUJETO, $registro));
+    }
+
+    /** Usuarios con un rol dado en la dependencia del registro. */
+    private function porRolYDependencia(string $rol, Model $registro)
+    {
+        $depId = $registro->dependencia_id ?? null;
+        if (!$depId) {
+            return collect();
+        }
+
+        return User::where('rol', $rol)
+            ->where('dependencia_id', $depId)
+            ->where('activo', true)
+            ->get();
+    }
+
+    /** Todas las revisoras (la revisora es autoridad evaluadora, ve todo). */
+    private function todasLasRevisoras()
+    {
+        return User::where('rol', User::ROL_REVISORA)
+            ->where('activo', true)
+            ->get();
+    }
+
+    /** El usuario que creó el registro (si existe). */
+    private function creador(Model $registro): ?User
+    {
+        return $registro->created_by ? User::find($registro->created_by) : null;
+    }
+
+    /* ----------------------------------------------------------------------
+     | Envío
+     |----------------------------------------------------------------------*/
+
+    /**
+     * Limpia la lista (sin nulos, sin el autor, sin duplicados) y notifica.
+     */
+    private function enviar($destinatarios, User $autor, string $icono, string $titulo, string $mensaje, Model $registro): void
+    {
+        $limpios = collect($destinatarios)
+            ->filter()                                   // quita nulos
+            ->reject(fn ($u) => $u->id === $autor->id)    // nunca a quien actúa
+            ->unique('id')                                // sin duplicados
+            ->values();
+
+        if ($limpios->isEmpty()) {
+            return;
+        }
+
+        Notification::send($limpios, new AvisoPunta(
+            icono:   $icono,
+            titulo:  $titulo,
+            mensaje: $mensaje,
+            url:     $this->urlDetalle($registro),
+        ));
+    }
+
+    /** Arma la URL del detalle según el tipo de registro. */
+    private function urlDetalle(Model $registro): ?string
+    {
+        return match (true) {
+            $registro instanceof Tramite              => route('tramites.show', $registro->id),
+            $registro instanceof AccionAgenda         => route('agenda.show', $registro->id),
+            $registro instanceof PropuestaRegulatoria => route('propuestas.show', $registro->id),
+            default                                   => null,
+        };
+    }
+
+    /** Nombre legible del registro para el texto del aviso. */
+    private function nombre(Model $registro): string
+    {
+        return $registro->nombre_oficial
+            ?? $registro->nombre
+            ?? $registro->descripcion
+            ?? ('registro #' . $registro->id);
+    }
+}

@@ -1,0 +1,13 @@
+
+/* Validación en vivo de inputs */
+input.input-invalid,
+textarea.input-invalid {
+    border-color: #DC2626;
+    background: #FEF2F2;
+}
+
+.input-error-msg {
+    color: #991B1B;
+    margin-top: 4px;
+    display: block;
+}

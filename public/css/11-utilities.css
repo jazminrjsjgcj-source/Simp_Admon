@@ -1,0 +1,764 @@
+/* ===========================================
+   Utilidades — Helpers, estados, clases renombradas
+   =========================================== */
+
+/* --- Overrides tardíos --- */
+
+.brand-logo {
+  object-fit: cover;
+}
+
+.topbar-action {
+  min-height: 34px;
+  border: 1px solid rgba(117, 0, 56, .18);
+  border-radius: var(--radius-pill);
+  background: #fff;
+  color: var(--primary);
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+.topbar-action:hover {
+  background: var(--surface-low);
+}
+
+.badge::before {
+  display: none;
+}
+
+/* --- Estados --- */
+
+.is-disabled {
+  opacity: .45;
+}
+
+/* --- Utilidades renombradas (antes inline-style-*) --- */
+
+.u-back-btn {
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.u-section-label {
+  margin: 0 0 12px;
+  color: #8b0042;
+}
+
+.u-mt-md {
+  margin-top: 14px;
+}
+
+.u-btn-full {
+  margin-top: 14px;
+  max-width: none;
+  width: 100%;
+}
+
+.u-textarea-lg {
+  min-height: 90px;
+  padding: 12px;
+}
+
+.u-text-center {
+  text-align: center;
+}
+
+.u-icon-success {
+  margin: 0 auto 14px;
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.u-mt-lg {
+  margin-top: 22px;
+}
+
+/* --- Feedback de validación --- */
+
+.u-feedback-valid {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.u-feedback-invalid {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.u-px-0 {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.acuse-document {
+  max-width: 850px;
+  margin: 0 auto;
+  padding: 48px;
+  position: relative;
+  overflow: hidden;
+}
+
+.u-filter-field {
+  margin: 0;
+  min-width: 160px;
+}
+
+.u-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  display: block;
+}
+
+/* Toast / Snackbar */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  background: #1e293b;
+  color: white;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: toastIn .3s ease;
+  max-width: 380px;
+}
+
+.toast.toast-success { border-left: 4px solid #16a34a; }
+.toast.toast-error { border-left: 4px solid #dc2626; }
+.toast.toast-warning { border-left: 4px solid #ca8a04; }
+.toast.toast-info { border-left: 4px solid #2563eb; }
+
+.toast.toast-out { animation: toastOut .3s ease forwards; }
+
+@keyframes toastIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateY(-8px); } }
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,.6);
+  z-index: 9998;
+  display: none;
+  place-items: center;
+}
+.loading-overlay.active { display: grid; }
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid #e5e7eb;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===================================================
+   Clases de layout para reemplazar estilos inline
+   =================================================== */
+
+/* Contenedores de página */
+.page-body    { display: grid; gap: 24px; }
+.page-wide    { display: grid; gap: 24px; width: min(100%, 1320px); margin: 0 auto; }
+.page-default { display: grid; gap: 24px; width: min(100%, 1120px); margin: 0 auto; }
+.page-narrow  { display: grid; gap: 24px; width: min(100%, 900px);  margin: 0 auto; }
+
+/* Utilidades de visibilidad */
+.hidden   { display: none !important; }
+.d-inline { display: inline; }
+.d-flex   { display: flex; }
+.d-grid   { display: grid; }
+
+/* Espaciados comunes */
+.mt-2  { margin-top: 8px; }
+.mt-3  { margin-top: 12px; }
+.mt-4  { margin-top: 16px; }
+.mt-6  { margin-top: 24px; }
+.mb-2  { margin-bottom: 8px; }
+.mb-4  { margin-bottom: 16px; }
+.gap-2 { gap: 8px; }
+.gap-4 { gap: 16px; }
+
+/* Texto */
+.text-center { text-align: center; }
+.text-right  { text-align: right; }
+.text-no-decoration { text-decoration: none; }
+.text-uppercase { text-transform: uppercase; }
+
+/* Etiqueta meta (label pequeño institucional) */
+.label-meta {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #667085;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+/* Acciones a la derecha */
+.actions-right {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+/* Card body con padding estándar */
+.card-body-padded { padding: 20px 24px; }
+.card-body-padded-lg { padding: 24px 28px; }
+
+/* Texto de apoyo */
+.text-muted-sm {
+  margin: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* Highlight primario */
+.text-primary-lg {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+/* Error en lista */
+.error-list {
+  margin: 0;
+  padding-left: 16px;
+  color: #991B1B;
+}
+
+/* ===================================================
+   Clases extra detectadas en auditoria
+   =================================================== */
+
+/* Heading principal de show */
+.title-primary {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+/* Inline flex con gap y align center (header de show) */
+.row-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Card body con padding lateral generoso */
+.card-section { padding: 24px 28px; }
+
+/* Small de ayuda */
+.help-small {
+  color: #667085;
+  font-size: 11px;
+}
+
+/* Sección destacada con border-top */
+.section-divided {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--surface-high);
+}
+
+/* Highlight de texto secundario primario */
+.text-primary-bold {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+/* ===================================================
+   Módulo Revisión: layout con panel lateral
+   =================================================== */
+
+/* Contenedor principal de la pantalla de revisión */
+.revision-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .revision-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Panel lateral (sticky) */
+.revision-panel-lateral {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+/* Lista de secciones con checkbox */
+.seccion-checkbox-list {
+  display: grid;
+  gap: 6px;
+}
+
+.seccion-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.seccion-checkbox-item:hover {
+  background: #fbfcfe;
+  border-color: var(--primary-container);
+}
+
+.seccion-checkbox-item input[type="radio"] {
+  margin: 0;
+}
+
+.seccion-checkbox-item.selected {
+  background: #fff7fb;
+  border-color: var(--primary-container);
+  color: var(--primary-container);
+  font-weight: 700;
+}
+
+/* Indicador de observaciones por sección */
+.seccion-badge {
+  margin-left: auto;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--chip-amber-bg);
+  color: var(--chip-amber);
+  font-size: 11px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.seccion-badge.atendido {
+  background: var(--chip-green-bg);
+  color: var(--chip-green);
+}
+
+/* Card de observación */
+.observacion-card {
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 14px 16px;
+}
+
+.observacion-card.atendida {
+  background: #f8fbf9;
+  border-color: #d1f0d9;
+}
+
+.observacion-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.observacion-meta strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+/* Links sin subrayado para KPIs y accesos rápidos del dashboard */
+.kpi-link {
+  text-decoration: none;
+  color: inherit;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.kpi-link:hover {
+  text-decoration: none;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(117,0,56,.15);
+}
+.kpi-link:visited {
+  color: inherit;
+}
+/* Hover para tarjetas KPI (stat): fondo guinda, texto blanco */
+.kpi-link.stat:hover {
+  background: var(--primary-container);
+  color: white;
+  border-color: var(--primary-container);
+}
+.kpi-link.stat:hover h3 {
+  background: rgba(255,255,255,.2);
+  color: white;
+}
+/* Texto plano dentro del KPI en hover: solo cambia a blanco. */
+.kpi-link.stat:hover p,
+.kpi-link.stat:hover span,
+.kpi-link.stat:hover .stat-value p,
+.kpi-link.stat:hover .stat-value h3,
+.kpi-link.stat:hover strong {
+  color: white !important;
+}
+
+/* Botones y enlaces de acción dentro del KPI: fondo y borde translúcidos. */
+.kpi-link.stat:hover a,
+.kpi-link.stat:hover .btn {
+  color: white !important;
+  border-color: rgba(255,255,255,.25) !important;
+  background: rgba(255,255,255,.12) !important;
+}
+
+/* ─── Utilidades para eliminar estilos inline repetidos ─────── */
+
+/* Tarjetas/enlaces sin decoración */
+.u-card-link          { text-decoration: none; color: inherit; }
+
+/* Encabezados en cards */
+.u-card-title         { margin: 8px 0 4px; }
+.u-meta-label         { font-size: 10px; color: var(--text-muted, #6b7280); text-transform: uppercase; letter-spacing: .04em; }
+.u-text-muted         { color: #6b7280; }
+.u-text-muted-sm      { margin: 0 0 4px; font-size: 14px; }
+.u-text-sm            { font-size: 13px; }
+.u-text-xs            { font-size: 11px; }
+.u-text-xxs           { font-size: 10px; }
+
+/* Campos deshabilitados */
+.u-input-disabled     { background: #f3f4f6; color: #6b7280; }
+.u-input-readonly     { background: #f3f4f6; color: #374151; }
+
+/* Spans/forms inline */
+.u-inline             { display: inline; }
+.u-inline-ml          { display: inline; margin-left: 8px; }
+
+/* Grid helpers */
+.u-span-2             { grid-column: span 2; }
+
+/* Error inline (toast relativo) */
+.u-toast-inline       { position: relative; margin-bottom: 16px; }
+.u-toast-inline-top   { position: relative; margin-top: 16px; }
+
+/* Empty state con padding */
+.u-empty-lg           { padding: 48px 24px; text-align: center; }
+.u-empty-md           { padding: 40px 20px; text-align: center; }
+
+/* Botón compacto */
+.u-btn-xs             { font-size: 11px; padding: 2px 8px; }
+
+/* Observaciones inline (Fase B) */
+.u-obs-warning        { display: block; margin-bottom: 8px; color: #b45309; }
+
+/* Caja de error roja */
+.u-error-box          { background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: var(--radius); }
+
+.u-field-error  { color: #dc2626; font-size: 12px; margin: 4px 0 0; }
+.u-pad-card     { padding: 32px 16px; }
+.u-pad-card-sm  { padding: 16px 24px; }
+
+/* ─── Padding para cards que contienen el header directo ──────
+   El header de las pantallas de detalle (badge + folio + título)
+   va directo dentro de .card, que no tiene padding propio.
+   Esta clase le da el espaciado interno para que el contenido
+   no quede pegado a los bordes. */
+.card-pad { padding: 24px 28px; }
+
+/* ─── Pie de tarjeta con botones de acción ───────────────────
+   Usado en formularios de catálogos y en el panel AIR. Antes no
+   estaba definido: los botones quedaban pegados al borde y a la
+   izquierda. Se alinean a la derecha para ser coherentes con el
+   resto del sistema (igual que .section-actions-end y el topbar). */
+.card-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--surface-high);
+}
+
+/* Cada cambio (campo: viejo -> nuevo) en la pantalla de historial */
+.historial-cambio {
+  font-family: monospace;
+  font-size: 12px;
+  padding: 2px 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+/* ─── Layout de detalle con timeline lateral ─────────────────
+   Dos columnas: contenido (70%) + timeline (30%). En móvil se
+   apilan (el timeline pasa abajo). */
+.detalle-con-timeline {
+  display: grid;
+  grid-template-columns: 70% 30%;
+  gap: 20px;
+  align-items: start;
+}
+.detalle-con-timeline > .detalle-main { min-width: 0; }
+.detalle-con-timeline > .detalle-aside { min-width: 0; }
+
+@media (max-width: 900px) {
+  .detalle-con-timeline {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Timeline vertical ──────────────────────────────────────
+   Eventos uno debajo de otro con línea conectora y punto. */
+.timeline-titulo {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--primary);
+  margin: 0 0 4px;
+}
+.timeline-subtitulo {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0 0 16px;
+}
+.timeline {
+  position: relative;
+  padding: 4px 0 4px 24px;
+}
+/* La línea vertical que conecta los eventos */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--surface-high);
+}
+.timeline-evento {
+  position: relative;
+  padding: 0 0 18px 0;
+}
+.timeline-evento:last-child { padding-bottom: 0; }
+/* El punto de cada evento */
+.timeline-evento::before {
+  content: '';
+  position: absolute;
+  left: -23px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--primary-container);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--surface-high);
+}
+.timeline-evento.es-creacion::before { background: #16a34a; }
+.timeline-evento.es-eliminacion::before { background: #dc2626; }
+.timeline-fecha {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.timeline-accion {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 2px 0;
+}
+.timeline-usuario {
+  font-size: 12px;
+  color: var(--primary);
+  font-weight: 600;
+}
+.timeline-cambios {
+  margin-top: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #4b5563;
+  background: var(--surface-low);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+}
+.timeline-cambio-linea {
+  padding: 1px 0;
+  word-break: break-word;
+}
+.timeline-vacio {
+  font-size: 13px;
+  color: #6b7280;
+  padding: 8px 0;
+}
+
+/* Texto para campos vacíos en tablas (reemplaza el guión suelto) */
+.sin-dato {
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 0.92em;
+}
+
+/* #8 Grupo de costo público: selector + monto + moneda en línea */
+.costo-grupo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.costo-grupo select { flex: 0 0 auto; min-width: 140px; }
+.costo-grupo input { flex: 1 1 auto; min-width: 120px; }
+.costo-moneda {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Lista de pago de derechos (conceptos de cobro del trámite) */
+.derechos-lista { display: flex; flex-direction: column; gap: 8px; }
+.derecho-fila { display: flex; gap: 8px; align-items: center; }
+.derecho-fila input[type="text"] { flex: 1 1 auto; min-width: 0; }
+.derecho-fila input[type="number"] { flex: 0 0 110px; }
+.derecho-fila .btn { flex: 0 0 auto; white-space: nowrap; }
+.derechos-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.derechos-total { font-size: 13px; color: var(--text); }
+.derechos-vacio { font-size: 13px; color: #9ca3af; font-style: italic; margin: 0; }
+
+/* Nota explicativa bajo un campo de formulario */
+.campo-nota {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+/* Componente personalizado de carga de archivos (#17) */
+.carga-archivos { display: flex; flex-direction: column; gap: 10px; }
+.carga-input-oculto { display: none; }
+.carga-control { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.carga-estado { font-size: 13px; color: var(--muted); }
+.carga-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.carga-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--surface-low);
+  border: 0.5px solid var(--surface-high);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.carga-item-error { border-color: #d32f2f; background: #fdecea; }
+.carga-item-error .carga-nombre { color: #b71c1c; }
+.carga-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.carga-reglas { font-size: 12px; color: var(--muted); margin: 0; font-style: italic; }
+
+/* #21 Filtro de catálogos homologado y estado vacío de tablas */
+.filters-card { padding: 16px 20px; }
+.filters-card .field { max-width: 460px; margin: 0; }
+.tabla-vacia {
+  text-align: center;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.tabla-vacia strong { font-size: 15px; color: var(--text); }
+.tabla-vacia p { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+
+/* #18 Acciones agrupadas en el encabezado de sección (badge + botón observar) */
+.panel-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* #18 Observaciones por sección (aviso en el formulario) */
+.obs-aviso {
+  border: 0.5px solid var(--surface-high);
+  border-left: 3px solid #d97706;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: #fffbeb;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+}
+.obs-aviso-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.obs-aviso-head strong { font-size: 13px; color: #92400e; }
+.obs-aviso-conteo { font-size: 12px; background: #d97706; color: white; border-radius: var(--radius-pill); padding: 1px 8px; }
+.obs-aviso-item { padding: 8px 0; border-top: 0.5px solid #fde68a; }
+.obs-aviso-item:first-of-type { border-top: 0; }
+.obs-aviso-item-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.obs-campo { font-size: 12px; font-weight: 700; color: #78350f; }
+.obs-texto { margin: 4px 0; font-size: 13px; color: #44403c; }
+.obs-meta { font-size: 11px; color: #78716c; }
+.obs-aviso-accion { margin-top: 8px; }
+
+/* Badges de estatus de observación */
+.obs-badge { font-size: 11px; border-radius: var(--radius-pill); padding: 1px 8px; white-space: nowrap; }
+.obs-badge-pendiente   { background: #fef3c7; color: #92400e; }
+.obs-badge-en_atencion { background: #dbeafe; color: #1e40af; }
+.obs-badge-atendida    { background: #d1fae5; color: #065f46; }
+.obs-badge-reabierta   { background: #fee2e2; color: #991b1b; }
+.obs-badge-validada    { background: #e0e7ff; color: #3730a3; }
+
+/* Checklist lateral de observaciones */
+.obs-checklist {
+  border: 0.5px solid var(--surface-high);
+  border-radius: var(--radius);
+  background: white;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.obs-checklist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.obs-checklist-head strong { font-size: 14px; }
+.obs-checklist-progreso { font-size: 12px; color: var(--muted); }
+.obs-checklist-grupo { margin-bottom: 12px; }
+.obs-checklist-seccion { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
+.obs-checklist-item { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; }
+.obs-check { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 14px; margin-top: 2px; border: 1.5px solid #d1d5db; }
+.obs-check-ok { background: #10b981; border-color: #10b981; }
+.obs-checklist-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.obs-checklist-campo { font-size: 12px; color: var(--text); }
+.obs-checklist-listo { font-size: 12px; color: #065f46; background: #d1fae5; border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 0; }

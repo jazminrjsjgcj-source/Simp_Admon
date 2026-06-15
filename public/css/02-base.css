@@ -1,0 +1,51 @@
+/* ===========================================
+   Reset y estilos base globales
+   =========================================== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { width: 100%; max-width: 100%; overflow-x: hidden; margin: 0; padding: 0; }
+body { min-height: 100vh; background: var(--bg); color: var(--text); font-family: Montserrat, system-ui, sans-serif; overflow-wrap: break-word; }
+img, svg, video, iframe, canvas { display: block; max-width: 100%; height: auto; }
+main, section, article, aside, header, footer, nav, .container { max-width: 100%; min-width: 0; }
+button, input, select, textarea { font: inherit; max-width: 100%; min-width: 0; }
+button { border: 0; cursor: pointer; appearance: none; }
+input, select, textarea { line-height: 1.35; }
+a { text-decoration: none; color: inherit; }
+a:hover { text-decoration: none; }
+.nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.screen-head .nowrap,
+.panel-head .nowrap,
+.correction-hero .nowrap,
+.review-hero .nowrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.is-hidden { display: none !important; }
+.center-content { display: flex; align-items: center; justify-content: center; text-align: center; }
+.card-body { padding: 24px; min-width: 0; }
+.card-actions,
+.form-actions,
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+.card-actions > .btn,
+.form-actions > .btn,
+.section-actions > .btn {
+  flex: 0 1 auto;
+}
+.card-actions { border-top: 1px solid var(--surface-high); background: #fff; }
+.card-actions-start,
+.form-actions-start,
+.section-actions-start { justify-content: flex-start; }
+.card-actions-end,
+.form-actions-end,
+.section-actions-end { justify-content: flex-end; }
+.card-actions-center,
+.form-actions-center,
+.section-actions-center { justify-content: center; }

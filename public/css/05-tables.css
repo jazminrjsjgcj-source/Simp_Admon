@@ -1,0 +1,125 @@
+/* ===========================================
+   Tablas — Estructura, columnas, acciones
+   =========================================== */
+.table-wrap { display: block; width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
+.data-table, .table, table { width: 100%; border-collapse: collapse; min-width: 920px; table-layout: auto; }
+.data-table th, .data-table td, .table th, .table td, th, td { vertical-align: middle; }
+.data-table th, th { background: var(--surface-low); color: #584146; padding: 16px 20px; text-align: left; font-size: 12px; line-height: 1.25; font-weight: 800; white-space: normal; min-width: 118px; overflow-wrap: normal; }
+.data-table td, td { padding: 16px 20px; border-top: 1px solid var(--surface-high); font-size: 13px; line-height: 1.35; vertical-align: middle; text-align: left; white-space: normal; max-width: 280px; overflow: visible; text-overflow: clip; }
+.data-table td strong { display: block; max-width: 100%; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.data-table td small { display: block; max-width: 100%; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+#tramites table.data-table { min-width: 1340px; table-layout: fixed; }
+#tramites table.data-table th,
+#tramites table.data-table td { overflow: visible; }
+#tramites table.data-table th { white-space: normal; overflow-wrap: break-word; }
+#tramites table.data-table th:nth-child(1), #tramites table.data-table td:nth-child(1) { width: 150px; }
+#tramites table.data-table th:nth-child(2), #tramites table.data-table td:nth-child(2) { width: 285px; }
+#tramites table.data-table th:nth-child(3), #tramites table.data-table td:nth-child(3) { width: 255px; }
+#tramites table.data-table th:nth-child(4), #tramites table.data-table td:nth-child(4) { width: 135px; }
+#tramites table.data-table th:nth-child(5), #tramites table.data-table td:nth-child(5) { width: 185px; }
+#tramites table.data-table th:nth-child(6), #tramites table.data-table td:nth-child(6) { width: 180px; }
+#agenda .data-table { min-width: 1060px; }
+#agenda .data-table th:nth-child(1), #agenda .data-table td:nth-child(1) { width: 140px; }
+#agenda .data-table th:nth-child(2), #agenda .data-table td:nth-child(2) { width: 260px; }
+#agenda .data-table th:nth-child(3), #agenda .data-table td:nth-child(3) { width: 170px; }
+#agenda .data-table th:nth-child(4), #agenda .data-table td:nth-child(4) { width: 190px; }
+#agenda .data-table th:nth-child(5), #agenda .data-table td:nth-child(5) { width: 150px; }
+#agendaRegulatoria .table-wrap { overflow-x: auto; overflow-y: hidden; }
+#agendaRegulatoria .data-table {
+  min-width: 1180px;
+  table-layout: fixed;
+}
+#agendaRegulatoria .data-table th,
+#agendaRegulatoria .data-table td {
+  padding: 14px 16px;
+  overflow: visible;
+}
+#agendaRegulatoria .data-table td strong,
+#agendaRegulatoria .data-table td small {
+  max-width: 100%;
+}
+#agendaRegulatoria .ar-proposals-table th:nth-child(1),
+#agendaRegulatoria .ar-proposals-table td:nth-child(1) { width: 120px; }
+#agendaRegulatoria .ar-proposals-table th:nth-child(2),
+#agendaRegulatoria .ar-proposals-table td:nth-child(2) { width: 240px; }
+#agendaRegulatoria .ar-proposals-table th:nth-child(3),
+#agendaRegulatoria .ar-proposals-table td:nth-child(3) { width: 125px; }
+#agendaRegulatoria .ar-proposals-table th:nth-child(4),
+#agendaRegulatoria .ar-proposals-table td:nth-child(4) { width: 180px; }
+#agendaRegulatoria .ar-proposals-table th:nth-child(5),
+#agendaRegulatoria .ar-proposals-table td:nth-child(5) { width: 170px; }
+#agendaRegulatoria .ar-proposals-table th:nth-child(6),
+#agendaRegulatoria .ar-proposals-table td:nth-child(6) { width: 160px; }
+#agendaRegulatoria .ar-proposals-table th:nth-child(7),
+#agendaRegulatoria .ar-proposals-table td:nth-child(7) { width: 135px; }
+#agendaRegulatoria .ar-proposals-table th:nth-child(8),
+#agendaRegulatoria .ar-proposals-table td:nth-child(8) { width: 105px; }
+#agendaRegulatoria .ar-air-table,
+#agendaRegulatoria .ar-exemptions-table { min-width: 980px; }
+#agendaRegulatoria .data-table th.table-action-cell,
+#agendaRegulatoria .data-table td.table-action-cell {
+  width: 210px;
+  min-width: 210px;
+  max-width: none;
+}
+#agendaRegulatoria .table-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+#agendaRegulatoria .table-action-btn {
+  min-width: 92px;
+  min-height: 34px;
+  padding: 8px 12px;
+}
+.data-table th.table-action-cell,
+.data-table td.table-action-cell,
+.table th.table-action-cell,
+.table td.table-action-cell,
+th.table-action-cell,
+td.table-action-cell {
+  width: 280px;
+  min-width: 240px;
+  max-width: none;
+  overflow: visible;
+  text-align: center;
+  vertical-align: middle;
+}
+.table-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.table-actions .btn {
+  width: auto;
+  max-width: none;
+  flex: 0 1 auto;
+  white-space: normal;
+}
+.table-actions .btn + .btn { margin-left: 0; }
+.signature-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.signature-actions .btn {
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  white-space: normal;
+}
+.table-action-btn {
+  min-width: 122px;
+  min-height: 38px;
+  max-width: none;
+  padding: 9px 14px;
+}
+td strong, td small { display: block; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+td small { color: var(--muted); margin-top: 3px; }

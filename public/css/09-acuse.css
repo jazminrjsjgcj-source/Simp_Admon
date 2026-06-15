@@ -1,0 +1,383 @@
+/* ===========================================
+   Acuse de validación y previews de documento
+   Extraído de 08-screens.css para separar dominios
+   =========================================== */
+
+/* ===========================================
+   Acuse de validación — Estilos del documento
+   =========================================== */
+.acuse-doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 24px;
+  margin-bottom: 32px;
+}
+.acuse-doc-header h2 {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+  margin: 0;
+}
+.acuse-footer {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 16px;
+  text-align: center;
+}
+.acuse-footer .footer-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin-bottom: 4px;
+}
+.acuse-footer .footer-legal {
+  font-size: 9px;
+  color: #888;
+}
+
+/* ===== Documento de acuse (renderAcuseDocument) ===== */
+
+.acuse-p {
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: justify;
+  margin: 0 0 10px;
+  color: #333;
+}
+
+.acuse-doc-header {
+  border-bottom: 3px solid var(--accent);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.acuse-doc-org {
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.acuse-doc-system {
+  font-size: 9px;
+  color: #888;
+  letter-spacing: 1px;
+}
+
+.acuse-doc-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  text-align: center;
+  margin: 0 0 12px;
+}
+
+.acuse-ficha-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.acuse-ficha-card {
+  border: 1px solid #ead5df;
+  border-radius: var(--radius-sm);
+  padding: 10px;
+}
+
+.acuse-ficha-label {
+  font-size: 9px;
+  color: var(--accent);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.acuse-ficha-value {
+  font-size: 12px;
+}
+
+.acuse-folio-bar {
+  background: var(--accent);
+  color: white;
+  border-radius: var(--radius-sm);
+  padding: 8px 20px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.acuse-folio-label {
+  font-size: 11px;
+  opacity: .8;
+}
+
+.acuse-folio-value {
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+.acuse-qr-col {
+  text-align: center;
+}
+
+.acuse-qr-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.acuse-qr-box {
+  width: 80px;
+  height: 80px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 4px;
+}
+
+.acuse-qr-icon {
+  font-size: 44px;
+  color: var(--accent);
+}
+
+.acuse-qr-hint {
+  font-size: 7px;
+  color: #888;
+}
+
+.acuse-divider {
+  border: none;
+  border-top: 2px solid var(--accent);
+  margin: 14px 0;
+}
+
+.acuse-verification-grid {
+  display: grid;
+  grid-template-columns: 100px 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.acuse-hash-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.acuse-hash-value {
+  font-family: monospace;
+  font-size: 8px;
+  color: #666;
+  word-break: break-all;
+  line-height: 1.4;
+  background: #f9f5f7;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--accent);
+}
+
+.acuse-legal-text {
+  font-size: 9px;
+  color: #555;
+  line-height: 1.4;
+}
+
+.acuse-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin: 10px 0;
+}
+
+.acuse-sig-col {
+  text-align: center;
+  border-top: 1px solid var(--accent);
+  padding-top: 8px;
+}
+
+.acuse-sig-space {
+  height: 40px;
+}
+
+.acuse-sig-line {
+  border-bottom: 1px solid #333;
+  margin: 0 20px 4px;
+}
+
+.acuse-sig-role {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.acuse-sig-name {
+  font-size: 8px;
+  color: #999;
+}
+
+.acuse-timestamp {
+  text-align: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.acuse-timestamp-date {
+  font-size: 10px;
+  font-weight: 700;
+  color: #333;
+}
+
+.acuse-timestamp-url {
+  font-size: 9px;
+  color: var(--accent);
+  margin-top: 2px;
+}
+
+.acuse-footer {
+  text-align: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 2px solid var(--accent);
+}
+
+.acuse-footer-system {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+
+.acuse-footer-org {
+  font-size: 8px;
+  color: #888;
+}
+
+/* ===== Modal: previews de acuse y constancia ===== */
+
+.modal-doc-frame {
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.modal-doc-header {
+  text-align: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.modal-doc-header-accent {
+  text-align: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--accent);
+}
+
+.modal-doc-subtitle {
+  color: #6b7280;
+}
+
+.modal-doc-title-accent {
+  margin: 4px 0;
+  color: var(--accent);
+}
+
+.modal-doc-org-accent {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.modal-approved-box {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f0fdf4;
+  border-radius: var(--radius-sm);
+  border-left: 3px solid #16a34a;
+}
+
+.modal-approved-text {
+  color: #166534;
+}
+
+.modal-signatures-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.modal-sig-col {
+  border-top: 1px solid #d1d5db;
+  padding-top: 12px;
+  text-align: center;
+}
+
+.modal-sig-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.modal-sig-line {
+  height: 48px;
+  border-bottom: 1px solid #374151;
+  margin: 8px 24px;
+}
+
+.modal-sig-name {
+  font-size: 11px;
+  color: #9ca3af;
+  margin: 4px 0 0;
+}
+
+.modal-disclaimer {
+  margin-top: 16px;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+}
+
+/* ===== Modal: descargar todo ===== */
+
+.modal-download-item {
+  grid-column: span 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.modal-download-meta {
+  font-size: 12px;
+  color: #888;
+}
+
+.modal-download-available {
+  font-size: 12px;
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.modal-download-missing {
+  font-size: 12px;
+  font-weight: 700;
+  color: #d97706;
+}
+
+.modal-small-note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #888;
+}
