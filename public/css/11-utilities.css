@@ -465,9 +465,9 @@
 .u-text-xs            { font-size: 11px; }
 .u-text-xxs           { font-size: 10px; }
 
-/* Campos deshabilitados */
-.u-input-disabled     { background: #f3f4f6; color: #6b7280; }
-.u-input-readonly     { background: #f3f4f6; color: #374151; }
+/* Campos deshabilitados/autocompletados — fondo gris y borde punteado para indicar que no son editables */
+.u-input-disabled { background: #f3f4f6; color: #9ca3af; border-color: #e5e7eb !important; cursor: not-allowed; font-style: italic; }
+.u-input-readonly { background: #f9fafb; color: #6b7280; border-color: #e5e7eb !important; border-style: dashed !important; cursor: default; }
 
 /* Spans/forms inline */
 .u-inline             { display: inline; }
@@ -535,7 +535,7 @@
   gap: 20px;
   align-items: start;
 }
-.detalle-con-timeline > .detalle-main { min-width: 0; }
+.detalle-con-timeline > .detalle-main { min-width: 0; display: grid; gap: 24px; align-items: start; }
 .detalle-con-timeline > .detalle-aside { min-width: 0; }
 
 @media (max-width: 900px) {
@@ -762,3 +762,46 @@
 .obs-checklist-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .obs-checklist-campo { font-size: 12px; color: var(--text); }
 .obs-checklist-listo { font-size: 12px; color: #065f46; background: #d1fae5; border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0 0; }
+
+/* ─── Observaciones inline por sección (como Jira/Asana) ───────────────── */
+.obs-inline-lista { border-top: 1px solid var(--surface-high); margin-top: 12px; padding-top: 12px; display: grid; gap: 8px; }
+.obs-inline-item-detalle { border-radius: var(--radius-sm); padding: 10px 14px; border-left: 3px solid #fcd34d; background: #fffbeb; }
+.obs-inline-item-detalle.obs-inline-atendida { border-left-color: #86efac; background: #f0fdf4; }
+.obs-inline-item-detalle.obs-inline-validada  { border-left-color: #86efac; background: #f0fdf4; }
+.obs-inline-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+.obs-inline-autor { font-size: 12px; font-weight: 700; color: var(--text); }
+.obs-inline-fecha { font-size: 11px; color: var(--muted); }
+.obs-inline-texto { margin: 0; font-size: 13px; color: #374151; line-height: 1.5; }
+
+/* ─── Hitos de avance de agenda (lista vertical) ───────────────────────── */
+.hitos-avance { display: grid; gap: 4px; }
+.hitos-progreso-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.hitos-progreso-head strong { color: var(--primary-container); font-size: 16px; }
+.hitos-barra { height: 8px; background: var(--surface-high); border-radius: var(--radius-pill); overflow: hidden; margin-bottom: 18px; }
+.hitos-barra-relleno { height: 100%; background: var(--primary-container); border-radius: var(--radius-pill); transition: width .4s ease; }
+
+.hitos-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.hito-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 4px; border-bottom: 1px solid var(--surface-high); position: relative; }
+.hito-item:last-child { border-bottom: none; }
+
+.hito-check { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; border: 2px solid var(--surface-high); background: var(--surface); color: var(--muted); }
+.hito-completado .hito-check { background: #16a34a; border-color: #16a34a; color: #fff; }
+.hito-siguiente  .hito-check { border-color: var(--primary-container); color: var(--primary-container); }
+
+.hito-cuerpo { flex: 1; min-width: 0; }
+.hito-titulo-fila { display: flex; align-items: center; gap: 8px; }
+.hito-nombre { font-size: 14px; font-weight: 600; color: var(--text); }
+.hito-bloqueado .hito-nombre { color: var(--muted); }
+.hito-completado .hito-nombre { color: var(--text); }
+
+.hito-ayuda-icono { position: relative; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--primary); background: transparent; color: var(--primary); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; cursor: help; transition: background .15s, color .15s; }
+.hito-ayuda-icono:hover, .hito-ayuda-icono:focus { background: var(--primary); color: #fff; outline: none; }
+.hito-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 240px; background: var(--primary); color: #fff; font-size: 12px; font-weight: 500; line-height: 1.4; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); box-shadow: 0 4px 14px rgba(117,0,56,.35); opacity: 0; visibility: hidden; transition: opacity .15s, visibility .15s; z-index: 50; pointer-events: none; }
+.hito-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--primary); }
+.hito-ayuda-icono:hover .hito-tooltip, .hito-ayuda-icono:focus .hito-tooltip { opacity: 1; visibility: visible; }
+
+.hito-meta { display: block; margin-top: 3px; font-size: 11px; color: var(--muted); }
+.hito-form { flex-shrink: 0; }
+.hito-btn-marcar { white-space: nowrap; }
+
+.hitos-listo { margin: 14px 0 0; padding: 10px 14px; background: #f0fdf4; border: 1px solid #86efac; border-radius: var(--radius-sm); color: #166534; font-size: 13px; font-weight: 600; text-align: center; }

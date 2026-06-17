@@ -187,6 +187,87 @@ class RegulacionController extends Controller
         return Storage::disk('local')->download($regulacion->archivo_original);
     }
 
+    /**
+     * Descarga masiva: empaqueta en un ZIP los archivos originales de las
+     * regulaciones que cumplen los filtros activos (los mismos del index:
+     * dependencia, estatus y búsqueda). Solo incluye regulaciones que tengan
+     * archivo original existente en disco.
+     */
+    public function descargarZip(Request $request)
+    {
+        // Mismos filtros que el index, para descargar exactamente lo que se ve.
+        $regulaciones = Regulacion::with('dependencia')
+            ->when($request->estatus,     fn ($q, $v) => $q->where('estatus', $v))
+            ->when($request->dependencia, fn ($q, $v) => $q->where('dependencia_id', $v))
+            ->when($request->q, fn ($q, $v) => $q->where(function ($q) use ($v) {
+                $q->where('nombre', 'like', "%{$v}%");
+            }))
+            ->get();
+
+        // Quedarnos solo con las que tienen archivo original existente.
+        $conArchivo = $regulaciones->filter(function ($reg) {
+            return !empty($reg->archivo_original)
+                && Storage::disk('local')->exists($reg->archivo_original);
+        });
+
+        if ($conArchivo->isEmpty()) {
+            return back()->with('error', 'No hay archivos para descargar con los filtros seleccionados.');
+        }
+
+        // Crear el ZIP en una carpeta temporal.
+        $nombreZip = 'regulaciones_' . now()->format('Ymd_His') . '.zip';
+        $rutaTemp  = storage_path('app/tmp');
+        if (!is_dir($rutaTemp)) {
+            mkdir($rutaTemp, 0755, true);
+        }
+        $rutaZip = $rutaTemp . DIRECTORY_SEPARATOR . $nombreZip;
+
+        $zip = new \ZipArchive();
+        if ($zip->open($rutaZip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            return back()->with('error', 'No se pudo crear el archivo ZIP.');
+        }
+
+        $usados = []; // para evitar nombres repetidos dentro del ZIP
+        foreach ($conArchivo as $reg) {
+            $rutaAbsoluta = Storage::disk('local')->path($reg->archivo_original);
+
+            // Nombre legible dentro del ZIP: folio o nombre + extensión original.
+            $extension = pathinfo($reg->archivo_original, PATHINFO_EXTENSION);
+            $base      = $this->nombreArchivoSeguro($reg->folio ?? $reg->nombre);
+            $nombreEnZip = $base . ($extension ? '.' . $extension : '');
+
+            // Si ya existe ese nombre, le agrega un sufijo para no sobrescribir.
+            $contador = 1;
+            while (in_array($nombreEnZip, $usados)) {
+                $nombreEnZip = $base . '_' . $contador . ($extension ? '.' . $extension : '');
+                $contador++;
+            }
+            $usados[] = $nombreEnZip;
+
+            $zip->addFile($rutaAbsoluta, $nombreEnZip);
+        }
+
+        $zip->close();
+
+        // Descargar y borrar el ZIP temporal después de enviarlo.
+        return response()->download($rutaZip, $nombreZip)->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Convierte un texto en un nombre de archivo seguro (sin acentos ni
+     * caracteres especiales), para usarlo como nombre dentro del ZIP.
+     */
+    private function nombreArchivoSeguro(?string $texto): string
+    {
+        $texto = $texto ?: 'regulacion';
+        // Quitar acentos
+        $texto = \Illuminate\Support\Str::ascii($texto);
+        // Dejar solo letras, números, guiones y guiones bajos
+        $texto = preg_replace('/[^A-Za-z0-9_\-]+/', '_', $texto);
+        $texto = trim($texto, '_');
+        return $texto !== '' ? $texto : 'regulacion';
+    }
+
     public function reintentar(Regulacion $regulacion)
     {
         if (empty($regulacion->archivo_original)) {

@@ -87,7 +87,7 @@
       tramite_servidor_publico: 'Ana Patricia Flores López',
       tramite_objetivo: 'Obtener la autorización municipal para operar un establecimiento comercial fijo en el Municipio de La Paz.',
       tramite_dirigido_a: 'ambas',
-      tramite_frecuencia: 'recurrente',
+      tramite_frecuencia: 'Alta',
       tramite_volumen_anual: '1850',
       tramite_plazo_resolucion_cantidad: '10',
       tramite_plazo_resolucion_unidad: 'habiles',

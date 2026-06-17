@@ -138,6 +138,26 @@
               <small class="help-small">Se genera automáticamente con el código de la Unidad Responsable + correlativo. Cambie la UR para regenerar.</small>
             </div>
 
+            {{-- Sujeto Obligado y Enlace del trámite (se conservan los del registro) --}}
+            @php
+              $sujetoObligado = $tramite->sujeto_obligado_id
+                  ? \App\Models\SujetoObligado::find($tramite->sujeto_obligado_id)
+                  : \App\Models\SujetoObligado::vigenteDe($tramite->dependencia_id);
+              $enlaceTramite = $tramite->enlace_id ? \App\Models\User::find($tramite->enlace_id) : null;
+            @endphp
+            <div class="field">
+              <label>Sujeto Obligado</label>
+              <input type="text" value="{{ $sujetoObligado?->nombre ?? 'Sin titular registrado' }}" disabled class="u-input-disabled">
+              <input type="hidden" name="sujeto_obligado_id" value="{{ old('sujeto_obligado_id', $tramite->sujeto_obligado_id ?? $sujetoObligado?->id) }}">
+            </div>
+
+            <div class="field">
+              <label>Enlace</label>
+              <input type="text" value="{{ $enlaceTramite?->name ?? auth()->user()->name }}" disabled class="u-input-disabled">
+              <input type="hidden" name="enlace_id" value="{{ old('enlace_id', $tramite->enlace_id ?? auth()->id()) }}">
+              <small class="help-small">Persona que registra el trámite.</small>
+            </div>
+
           </div>
           </div>
         </section>
@@ -243,6 +263,10 @@
               <input name="copias_cantidad" type="number" min="0" value="{{ old('copias_cantidad', $tramite->copias_cantidad) }}">
             </div>
             <div class="field">
+              <label>Precio por copia (pesos)</label>
+              <input name="copias_precio" type="number" min="0" step="0.01" value="{{ old('copias_precio', $tramite->copias_precio ?? 1.50) }}">
+            </div>
+            <div class="field">
               <label>Salario promedio por hora (W)</label>
               <input name="salario_hora_w" type="number" min="0" step="0.01" value="{{ old('salario_hora_w', $tramite->salario_hora_w ?? 68.20) }}">
             </div>
@@ -315,6 +339,63 @@
           </div>
         </section>
 
+        {{-- SECCIÓN: Procesos del trámite (atención y resolución por pasos) --}}
+        <section class="acc-seccion" data-acc="proc">
+          <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
+            <span class="acc-titulo">Procesos del trámite</span>
+            <span class="acc-sub">Atención y resolución, paso a paso</span>
+            <span class="acc-flecha">▾</span>
+          </button>
+          <div class="acc-cuerpo">
+            @php
+              $pasosAtencion   = $tramite->procesosAtencion->where('tipo', 'atencion')->sortBy('paso')->values();
+              $pasosResolucion = $tramite->procesosAtencion->where('tipo', 'resolucion')->sortBy('paso')->values();
+            @endphp
+
+            <h4 style="margin:0 0 4px">Proceso de atención</h4>
+            <p class="u-muted" style="font-size:13px;margin-bottom:8px">Cómo se atiende el trámite, paso a paso.</p>
+            <div id="pasosAtencion">
+              @foreach($pasosAtencion as $i => $p)
+                <div class="paso-fila" style="border:1px solid var(--surface-high);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;">
+                  <div style="display:flex;align-items:flex-end;gap:10px">
+                    <div style="flex:0 0 30px">
+                      <label class="split-label">#</label>
+                      <div class="paso-num-label" style="height:38px;display:flex;align-items:center;justify-content:center;font-weight:500">{{ $i + 1 }}</div>
+                    </div>
+                    <div class="field" style="flex:1.3;margin:0"><label class="split-label">Nombre del paso</label><input name="proceso_atencion[{{ $i }}][accion]" value="{{ $p->accion }}"></div>
+                    <div class="field" style="flex:1.7;margin:0"><label class="split-label">¿Qué se hace?</label><input name="proceso_atencion[{{ $i }}][detalle]" value="{{ $p->detalle }}"></div>
+                    <div class="field" style="flex:1.2;margin:0"><label class="split-label">Área que interviene</label><input name="proceso_atencion[{{ $i }}][area]" value="{{ $p->area }}"></div>
+                    <button type="button" class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="this.closest('.paso-fila').remove();renumerarPasos('atencion')">Quitar</button>
+                  </div>
+                  <input type="hidden" name="proceso_atencion[{{ $i }}][paso]" class="paso-num" value="{{ $i + 1 }}">
+                </div>
+              @endforeach
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso('atencion')">+ Agregar paso de atención</button>
+
+            <h4 style="margin:20px 0 4px">Proceso de resolución</h4>
+            <p class="u-muted" style="font-size:13px;margin-bottom:8px">Cómo se resuelve el trámite hasta su conclusión.</p>
+            <div id="pasosResolucion">
+              @foreach($pasosResolucion as $i => $p)
+                <div class="paso-fila" style="border:1px solid var(--surface-high);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;">
+                  <div style="display:flex;align-items:flex-end;gap:10px">
+                    <div style="flex:0 0 30px">
+                      <label class="split-label">#</label>
+                      <div class="paso-num-label" style="height:38px;display:flex;align-items:center;justify-content:center;font-weight:500">{{ $i + 1 }}</div>
+                    </div>
+                    <div class="field" style="flex:1.3;margin:0"><label class="split-label">Nombre del paso</label><input name="proceso_resolucion[{{ $i }}][accion]" value="{{ $p->accion }}"></div>
+                    <div class="field" style="flex:1.7;margin:0"><label class="split-label">¿Qué se hace?</label><input name="proceso_resolucion[{{ $i }}][detalle]" value="{{ $p->detalle }}"></div>
+                    <div class="field" style="flex:1.2;margin:0"><label class="split-label">Área que interviene</label><input name="proceso_resolucion[{{ $i }}][area]" value="{{ $p->area }}"></div>
+                    <button type="button" class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="this.closest('.paso-fila').remove();renumerarPasos('resolucion')">Quitar</button>
+                  </div>
+                  <input type="hidden" name="proceso_resolucion[{{ $i }}][paso]" class="paso-num" value="{{ $i + 1 }}">
+                </div>
+              @endforeach
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso('resolucion')">+ Agregar paso de resolución</button>
+          </div>
+        </section>
+
         {{-- SECCIÓN 5: Fundamento jurídico --}}
         <section class="acc-seccion" data-acc="5">
           <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
@@ -350,6 +431,42 @@
               <div class="field span-2"><label>Resumen</label><textarea name="fundamento_resumen" rows="3" placeholder="Explique la disposición aplicable..."></textarea></div>
             </div>
           @endforelse
+          </div>
+        </section>
+
+        {{-- SECCIÓN: Ficha para portal ciudadano --}}
+        @php $ficha = $tramite->fichaPortal; @endphp
+        <section class="acc-seccion" data-acc="portal">
+          <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
+            <span class="acc-titulo">Ficha para portal ciudadano</span>
+            <span class="acc-sub">Información visible para la ciudadanía</span>
+            <span class="acc-flecha">▾</span>
+          </button>
+          <div class="acc-cuerpo">
+            <div class="wizard-fields">
+              <div class="field"><label>Nombre ciudadano del trámite</label>
+                <input name="portal_nombre_ciudadano" value="{{ old('portal_nombre_ciudadano', $ficha->nombre_ciudadano ?? '') }}" placeholder="Nombre ciudadano del trámite"></div>
+              <div class="field"><label>Resultado que se obtiene</label>
+                <input name="portal_resultado" value="{{ old('portal_resultado', $ficha->resultado ?? '') }}" placeholder="Ej. Licencia, constancia, permiso"></div>
+              <div class="field"><label>Modalidad de atención</label>
+                <select name="portal_modalidad">
+                  @php $modAct = old('portal_modalidad', $ficha->modalidad ?? 'Presencial'); @endphp
+                  <option value="Presencial" {{ $modAct==='Presencial'?'selected':'' }}>Presencial</option>
+                  <option value="En línea"   {{ $modAct==='En línea'?'selected':'' }}>En línea</option>
+                  <option value="Mixta"      {{ $modAct==='Mixta'?'selected':'' }}>Mixta</option>
+                </select>
+              </div>
+              <div class="field"><label>Costo público</label>
+                <input name="portal_costo_publico" value="{{ old('portal_costo_publico', $ficha->costo_publico ?? 'Gratuito') }}" placeholder="Ej. Gratuito o $250.00 MXN"></div>
+              <div class="field span-2"><label>Descripción accesible</label>
+                <textarea name="portal_descripcion" rows="3" placeholder="Descripción accesible para la ciudadanía...">{{ old('portal_descripcion', $ficha->descripcion ?? '') }}</textarea></div>
+              <div class="field"><label>Horario de atención</label>
+                <input name="portal_horario" value="{{ old('portal_horario', $ficha->horario ?? '') }}" placeholder="Ej. Lun a Vie 8:00-15:00"></div>
+              <div class="field"><label>Teléfono</label>
+                <input name="portal_telefono" value="{{ old('portal_telefono', $ficha->telefono ?? '') }}" placeholder="(612) 123-4567"></div>
+              <div class="field"><label>Correo</label>
+                <input name="portal_correo" type="email" value="{{ old('portal_correo', $ficha->correo ?? '') }}" placeholder="tramites@lapaz.gob.mx"></div>
+            </div>
           </div>
         </section>
 
@@ -415,6 +532,52 @@
 
 @endsection
 
+
+@push('scripts')
+<script>
+// Procesos de atención y resolución por pasos (mismo patrón que en creación).
+// El índice arranca después de los pasos ya precargados del trámite.
+var _pasoIdx = {
+  atencion:   document.querySelectorAll('#pasosAtencion .paso-fila').length,
+  resolucion: document.querySelectorAll('#pasosResolucion .paso-fila').length,
+};
+function agregarPaso(tipo) {
+  var cont = document.getElementById(tipo === 'atencion' ? 'pasosAtencion' : 'pasosResolucion');
+  if (!cont) return;
+  var i = _pasoIdx[tipo]++;
+  var num = cont.children.length + 1;
+  var fila = document.createElement('div');
+  fila.className = 'paso-fila';
+  fila.style.cssText = 'border:1px solid var(--surface-high);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;';
+  fila.innerHTML =
+    '<div style="display:flex;align-items:flex-end;gap:10px">' +
+      '<div style="flex:0 0 30px">' +
+        '<label class="split-label">#</label>' +
+        '<div class="paso-num-label" style="height:38px;display:flex;align-items:center;justify-content:center;font-weight:500">' + num + '</div>' +
+      '</div>' +
+      '<div class="field" style="flex:1.3;margin:0"><label class="split-label">Nombre del paso</label>' +
+        '<input name="proceso_' + tipo + '[' + i + '][accion]" placeholder="Ej. Recepción de solicitud"></div>' +
+      '<div class="field" style="flex:1.7;margin:0"><label class="split-label">¿Qué se hace?</label>' +
+        '<input name="proceso_' + tipo + '[' + i + '][detalle]" placeholder="Describa la actividad"></div>' +
+      '<div class="field" style="flex:1.2;margin:0"><label class="split-label">Área que interviene</label>' +
+        '<input name="proceso_' + tipo + '[' + i + '][area]" placeholder="Ej. Ventanilla Única"></div>' +
+      '<button type="button" class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="this.closest(\'.paso-fila\').remove();renumerarPasos(\'' + tipo + '\')">Quitar</button>' +
+    '</div>' +
+    '<input type="hidden" name="proceso_' + tipo + '[' + i + '][paso]" class="paso-num" value="' + num + '">';
+  cont.appendChild(fila);
+}
+function renumerarPasos(tipo) {
+  var cont = document.getElementById(tipo === 'atencion' ? 'pasosAtencion' : 'pasosResolucion');
+  if (!cont) return;
+  Array.prototype.forEach.call(cont.children, function (fila, idx) {
+    var etiqueta = fila.querySelector('.paso-num-label');
+    var num = fila.querySelector('.paso-num');
+    if (etiqueta) etiqueta.textContent = idx + 1;
+    if (num) num.value = idx + 1;
+  });
+}
+</script>
+@endpush
 
 @push('scripts')
 <script>

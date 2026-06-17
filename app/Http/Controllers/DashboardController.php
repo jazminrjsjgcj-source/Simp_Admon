@@ -150,7 +150,45 @@ class DashboardController extends Controller
             default    => [[null,null], [null,null], [null,null], [null,null]],
         };
 
-        return view('screens.dashboard', compact('rol','kpis','kpiRoutes','kpiTipos','pendientesTramites','pendientesAgenda','pendientesPropu','pendientesAir','panorama','sistemaTotales'));
+        // Pendientes de firma para sujeto y enlace
+        $pendientesFirma = collect();
+        if (in_array($rol, ['sujeto', 'enlace'])) {
+            $tipoFirma = $rol === 'sujeto' ? 'aceptacion_sujeto' : 'aceptacion_enlace';
+
+            // Trámites en firma donde el usuario NO ha firmado aún
+            $tramitesFirma = \App\Models\Tramite::where('estatus', 'en_firma')
+                ->whereDoesntHave('firmas', fn($q) => $q->where('tipo', $tipoFirma)->where('firmante_id', $user->id)->where('estatus', 'activa'))
+                ->when($rol === 'enlace', fn($q) => $q->where('created_by', $user->id))
+                ->when($rol === 'sujeto', fn($q) => $q->where('dependencia_id', $user->dependencia_id))
+                ->get();
+
+            foreach ($tramitesFirma as $t) {
+                $pendientesFirma->push([
+                    'folio'    => $t->homoclave ?? 'Sin folio',
+                    'nombre'   => $t->nombre_oficial,
+                    'tipo'     => 'Trámite',
+                    'url_firma' => route('firmas.mostrar', ['tipo' => 'tramite', 'id' => $t->id]),
+                ]);
+            }
+
+            // Agendas en firma donde el usuario NO ha firmado aún
+            $agendasFirma = \App\Models\AccionAgenda::where('estatus', \App\Models\AccionAgenda::ESTATUS_EN_FIRMA)
+                ->whereDoesntHave('firmas', fn($q) => $q->where('tipo', $tipoFirma)->where('firmante_id', $user->id)->where('estatus', 'activa'))
+                ->when($rol === 'enlace', fn($q) => $q->where('created_by', $user->id))
+                ->when($rol === 'sujeto', fn($q) => $q->where('dependencia_id', $user->dependencia_id))
+                ->get();
+
+            foreach ($agendasFirma as $a) {
+                $pendientesFirma->push([
+                    'folio'    => $a->folio ?? 'AGD-' . str_pad($a->id, 3, '0', STR_PAD_LEFT),
+                    'nombre'   => \Illuminate\Support\Str::limit($a->descripcion, 60),
+                    'tipo'     => 'Agenda SyD',
+                    'url_firma' => route('firmas.mostrar', ['tipo' => 'agenda', 'id' => $a->id]),
+                ]);
+            }
+        }
+
+        return view('screens.dashboard', compact('rol','kpis','kpiRoutes','kpiTipos','pendientesTramites','pendientesAgenda','pendientesPropu','pendientesAir','panorama','sistemaTotales','pendientesFirma'));
     }
     /**
      * Fase H.2 — Filtros Dashboard inline.

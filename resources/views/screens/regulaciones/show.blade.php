@@ -57,12 +57,32 @@
     </div>
   </div>
 
-  {{-- Visor Markdown --}}
+  {{-- Archivo original para todos los usuarios --}}
+  @if($regulacion->archivo_original)
   <div class="card">
     <div class="panel-head">
       <div>
-        <h3>Contenido convertido</h3>
-        <p>Texto extraído del archivo original — citable desde los wizards.</p>
+        <h3>Archivo de la regulación</h3>
+        <p>Documento oficial en su formato original.</p>
+      </div>
+      <a href="{{ route('regulaciones.descargar', $regulacion) }}" class="btn btn-outline btn-sm">Descargar</a>
+    </div>
+    <div class="card-body-padded">
+      <div class="assist-box">
+        El archivo está disponible en formato {{ strtoupper($regulacion->extension_original ?? 'original') }}.
+        Usa el botón de descarga para consultarlo.
+      </div>
+    </div>
+  </div>
+  @endif
+
+  {{-- Visor Markdown — solo para admin (uso interno del sistema) --}}
+  @if(auth()->user()->rol === 'admin')
+  <div class="card">
+    <div class="panel-head">
+      <div>
+        <h3>Contenido interno (Markdown)</h3>
+        <p>Texto extraído para uso interno del sistema — citable desde los wizards. Solo visible para administradores.</p>
       </div>
     </div>
     <div class="card-body-padded">
@@ -93,6 +113,7 @@
       @endif
     </div>
   </div>
+  @endif
 
     </div>{{-- /detalle-main --}}
 

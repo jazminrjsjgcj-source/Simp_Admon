@@ -8,6 +8,10 @@ use App\Models\PropuestaRegulatoria;
 use App\Models\Tramite;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Str;
 
 /**
  * Servicio para gestionar el flujo de revisión:
@@ -43,6 +47,26 @@ class RevisionService
             'destinatario_id'  => $destinatarioId,
             'atendida'         => false,
         ]);
+
+        // Registrar la observación en la bitácora del REGISTRO PADRE (trámite/agenda/etc.)
+        // El AuditObserver solo escucha modelos Eloquent directos. Como Observacion
+        // es un modelo polimórfico secundario, hay que insertar manualmente en bitácora
+        // apuntando al padre, para que aparezca en su timeline.
+        try {
+            DB::table('bitacora')->insert([
+                'auditable_type' => get_class($registro),
+                'auditable_id'   => $registro->id,
+                'usuario_id'     => $revisor->id,
+                'modulo'         => 'revision',
+                'tipo'           => 'observacion',
+                'accion'         => 'Observación en "' . $seccion . '": ' . Str::limit($texto, 80),
+                'detalle'        => $campo ? 'Campo: ' . $campo : null,
+                'ip_address'     => Request::ip(),
+                'created_at'     => now(),
+            ]);
+        } catch (\Exception $e) {
+            Log::error('RevisionService bitácora error: ' . $e->getMessage());
+        }
 
         return $observacion;
     }

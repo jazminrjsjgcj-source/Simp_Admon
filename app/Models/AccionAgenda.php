@@ -38,4 +38,16 @@ class AccionAgenda extends Model
     public function observaciones() { return $this->morphMany(Observacion::class, 'observable'); }
 
     public function firmas() { return $this->morphMany(Firma::class, 'firmable'); }
+
+    public function hitos() { return $this->hasMany(HitoAgenda::class, 'accion_agenda_id')->orderBy('orden'); }
+
+    /** Porcentaje de avance según hitos completados (0-100). */
+    public function porcentajeAvance(): int
+    {
+        $total = $this->hitos()->count();
+        if ($total === 0) {
+            return 0;
+        }
+        return (int) round($this->hitos()->where('completado', true)->count() / $total * 100);
+    }
 }

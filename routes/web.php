@@ -44,6 +44,7 @@ Route::middleware(['auth'])->group(function () {
     // Agenda SyD
     Route::resource('agenda', AgendaController::class);
     Route::post('agenda/{agenda}/estatus', [AgendaController::class, 'actualizarEstatus'])->name('agenda.actualizar.estatus');
+    Route::post('agenda/{agenda}/hito/{hito}', [AgendaController::class, 'marcarHito'])->name('agenda.hito.marcar');
 
     // Agenda Regulatoria
     Route::get('agenda-regulatoria', [AgendaRegulatoriaController::class, 'index'])->name('agenda-regulatoria.index');
@@ -57,6 +58,7 @@ Route::middleware(['auth'])->group(function () {
     // Regulaciones (catálogo jurídico)
     Route::get('regulaciones',                          [RegulacionController::class, 'index'])->name('regulaciones.index');
     Route::get('regulaciones/crear',                    [RegulacionController::class, 'create'])->name('regulaciones.create');
+    Route::get('regulaciones/descargar-zip',            [RegulacionController::class, 'descargarZip'])->name('regulaciones.descargar-zip');
     Route::post('regulaciones',                         [RegulacionController::class, 'store'])->name('regulaciones.store');
     Route::get('regulaciones/{regulacion}',             [RegulacionController::class, 'show'])->name('regulaciones.show');
     Route::get('regulaciones/{regulacion}/editar',      [RegulacionController::class, 'edit'])->name('regulaciones.edit');
@@ -67,6 +69,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Calendario
     Route::get('calendario', [CalendarioController::class, 'index'])->name('calendario');
+    Route::patch('calendario/{evento}/avance', [CalendarioController::class, 'actualizarAvance'])->name('calendario.avance');
 
     // Notificaciones (campanita)
     Route::post('notificaciones/leer-todas', [NotificacionController::class, 'leerTodas'])->name('notificaciones.leerTodas');

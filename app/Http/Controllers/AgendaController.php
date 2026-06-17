@@ -15,6 +15,7 @@ class AgendaController extends Controller
     public function __construct(
         private CalendarioEventoService $calendario,
         private \App\Services\AgendaService $agendaService,
+        private \App\Services\HitoAgendaService $hitoService,
     ) {}
 
     public function index(Request $request)
@@ -105,6 +106,7 @@ class AgendaController extends Controller
             'sector_id'                 => $request->input('tramite_sector_id') ?: null,
             'objetivo'                  => $request->input('tramite_objetivo'),
             'normativa_nombre'          => $request->input('tramite_fundamento'),
+            'citas'                     => $request->input('citas', []),
             'dirigido_a'                => $request->input('tramite_dirigido_a') ?: 'ambas',
             'servidor_publico'          => $request->input('tramite_servidor_publico'),
             'volumen_anual'             => $request->input('tramite_volumen_anual'),
@@ -132,6 +134,7 @@ class AgendaController extends Controller
             'grupo_prioritario'         => $request->boolean('tramite_grupo_prioritario'),
             'grupo_prioritario_detalle' => $request->input('tramite_grupo_prioritario_detalle'),
             'tiene_relacionados'        => $request->boolean('tramite_tiene_relacionados'),
+            'tipo_relacion'             => $request->input('tramite_tipo_relacion'),
             'relacionados_detalle'      => $request->input('tramite_relacionados_detalle'),
             'tiene_redundantes'         => $request->boolean('tramite_tiene_redundantes'),
             'redundantes_detalle'       => $request->input('tramite_redundantes_detalle'),
@@ -167,6 +170,7 @@ class AgendaController extends Controller
             'responsable'      => $request->responsable,
             'dependencia_id'   => $request->dependencia_id,
             'indicador'        => $request->indicador,
+            'indicador_avance' => $request->indicador_avance,
             'tramite_id'       => $request->tramite_id ?: null,
         ];
     }
@@ -174,18 +178,7 @@ class AgendaController extends Controller
     /** Lee la lista de derechos enviada por el wizard (JSON). */
     private function leerDerechosWizard(Request $request): array
     {
-        $lista = json_decode($request->input('derechos_json', '[]'), true);
-        if (!is_array($lista)) {
-            return [];
-        }
-        $derechos = [];
-        foreach ($lista as $fila) {
-            $concepto = trim($fila['concepto'] ?? '');
-            if ($concepto !== '') {
-                $derechos[] = ['concepto' => $concepto, 'monto' => floatval($fila['monto'] ?? 0)];
-            }
-        }
-        return $derechos;
+        return \App\Models\TramiteDerecho::parsearJson($request->input('derechos_json'));
     }
 
     public function show(AccionAgenda $agenda)
@@ -206,10 +199,100 @@ class AgendaController extends Controller
         $observacionesPorSeccion = $agenda->observaciones->groupBy('seccion');
         $camposObservables = config('punta.campos_observables_agenda');
 
+        // Hitos de avance: lista ordenada, % y cuál es el siguiente marcable.
+        $hitos       = $agenda->hitos()->with('completadoPor')->get();
+        $porcentaje  = $this->hitoService->calcularPorcentaje($agenda);
+        $siguiente   = $this->hitoService->siguientePendiente($agenda);
+        $siguienteId = $siguiente?->id;
+        $ayudas      = $this->mapaAyudasHitos($hitos);
+
+        // Solo el creador/enlace de la dependencia (o admin) puede marcar hitos.
+        $user = request()->user();
+        $puedeMarcarHitos = $user->isRol(User::ROL_ADMIN) || $user->esDeSuDependencia($agenda);
+
         return view('screens.agenda.show', compact(
             'agenda', 'puedeObservar', 'revisores',
-            'observacionesPorSeccion', 'camposObservables'
+            'observacionesPorSeccion', 'camposObservables',
+            'hitos', 'porcentaje', 'siguienteId', 'ayudas', 'puedeMarcarHitos'
         ));
+    }
+
+    /**
+     * Marca un hito de avance como completado. Solo permite marcar el siguiente
+     * hito pendiente (avance lineal), y solo a quien pertenece a la dependencia.
+     */
+    public function marcarHito(AccionAgenda $agenda, \App\Models\HitoAgenda $hito)
+    {
+        $user = request()->user();
+
+        if (!$user->isRol(User::ROL_ADMIN) && !$user->esDeSuDependencia($agenda)) {
+            return back()->with('error', 'Solo puede actualizar acciones de su dependencia.');
+        }
+
+        // Seguridad: el hito debe pertenecer a esta acción.
+        if ($hito->accion_agenda_id !== $agenda->id) {
+            return back()->with('error', 'El hito no corresponde a esta acción.');
+        }
+
+        $marcado = $this->hitoService->marcarHito($agenda, $hito->id, $user->id);
+
+        if (!$marcado) {
+            return back()->with('error', 'Debe completar los hitos en orden.');
+        }
+
+        // Registrar el hito completado en la bitácora del registro padre (la
+        // acción de agenda), para que aparezca en su historial/timeline. El
+        // AuditObserver no escucha HitoAgenda, así que se inserta manualmente,
+        // igual que se hace con las observaciones en RevisionService.
+        try {
+            \Illuminate\Support\Facades\DB::table('bitacora')->insert([
+                'auditable_type' => \App\Models\AccionAgenda::class,
+                'auditable_id'   => $agenda->id,
+                'usuario_id'     => $user->id,
+                'modulo'         => 'agenda',
+                'tipo'           => 'hito',
+                'accion'         => 'Hito completado: ' . $hito->nombre,
+                'detalle'        => 'Avance: ' . $this->hitoService->calcularPorcentaje($agenda) . '%',
+                'ip_address'     => request()->ip(),
+                'created_at'     => now(),
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('marcarHito bitácora error: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Hito marcado como completado.');
+    }
+
+    /**
+     * Arma el mapa [clave => ayuda] de los hitos de una acción, leyendo el
+     * texto de ayuda de config/hitos.php. Cubre tanto el Diagnóstico (común)
+     * como los hitos específicos del tipo de acción.
+     */
+    private function mapaAyudasHitos($hitos): array
+    {
+        $config = config('hitos');
+        $mapa   = [$config['diagnostico']['clave'] => $config['diagnostico']['ayuda']];
+
+        // Recorrer todas las listas (simplificacion, digitalizacion, generico)
+        // y registrar la ayuda de cada clave que aparezca en los hitos.
+        $clavesUsadas = $hitos->pluck('clave')->all();
+
+        foreach (['simplificacion', 'digitalizacion'] as $grupo) {
+            foreach ($config[$grupo] ?? [] as $lista) {
+                foreach ($lista as $h) {
+                    if (in_array($h['clave'], $clavesUsadas)) {
+                        $mapa[$h['clave']] = $h['ayuda'];
+                    }
+                }
+            }
+        }
+        foreach ($config['generico'] ?? [] as $h) {
+            if (in_array($h['clave'], $clavesUsadas)) {
+                $mapa[$h['clave']] = $h['ayuda'];
+            }
+        }
+
+        return $mapa;
     }
 
     public function edit(AccionAgenda $agenda)
@@ -239,7 +322,7 @@ class AgendaController extends Controller
             abort(403, 'No tiene permiso para editar esta acción.');
         }
 
-        $data = $request->only(['descripcion', 'tipo', 'meta', 'fecha_inicio', 'fecha_compromiso', 'responsable', 'indicador']);
+        $data = $request->only(['descripcion', 'tipo', 'meta', 'fecha_inicio', 'fecha_compromiso', 'responsable', 'indicador', 'indicador_avance']);
 
         if ($agenda->estatus === AccionAgenda::ESTATUS_EN_CORRECCION) {
             $data['estatus'] = AccionAgenda::ESTATUS_EN_CORRECCION;

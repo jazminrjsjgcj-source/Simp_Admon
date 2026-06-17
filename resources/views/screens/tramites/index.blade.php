@@ -3,7 +3,10 @@
 @section('content')
 <div class="page-wide">
   <div class="screen-head">
-    <div><h2 class="nowrap">Mis trámites</h2><p class="nowrap">Consulta los trámites completos de tu dependencia.</p></div>
+    <div>
+        <h2 class="nowrap">{{ auth()->user()->rol === 'enlace' ? 'Mis trámites' : 'Catálogo de trámites' }}</h2>
+        <p class="nowrap">{{ auth()->user()->rol === 'enlace' ? 'Trámites registrados por tu dependencia.' : 'Consulta los trámites completos del sistema.' }}</p>
+      </div>
     <div class="head-actions create-record-actions">
       @if(auth()->user()->rol === 'enlace')
         <a href="{{ route('tramites.create') }}" class="btn">Nuevo Trámite</a>

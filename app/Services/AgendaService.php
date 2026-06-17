@@ -22,6 +22,7 @@ class AgendaService
     public function __construct(
         private TramiteService $tramiteService,
         private CalendarioEventoService $calendario,
+        private HitoAgendaService $hitos,
     ) {}
 
     /**
@@ -97,7 +98,7 @@ class AgendaService
     /** Inserta la acción de agenda con sus campos y estatus inicial. */
     private function insertarAccion(array $datos, int $autorId, bool $esEnvio): AccionAgenda
     {
-        return AccionAgenda::create([
+        $accion = AccionAgenda::create([
             'tipo'             => $datos['tipo'] ?? null,
             'descripcion'      => $datos['descripcion'] ?? null,
             'meta'             => $datos['meta'] ?? null,
@@ -112,6 +113,12 @@ class AgendaService
                 ? AccionAgenda::ESTATUS_EN_OBSERVACION
                 : AccionAgenda::ESTATUS_BORRADOR,
         ]);
+
+        // Sembrar los hitos de avance (incluye el Diagnóstico ya completado).
+        // Es idempotente, así que no duplica si la acción ya tuviera hitos.
+        $this->hitos->sembrarHitos($accion);
+
+        return $accion;
     }
 
     /** Al enviar a revisión, genera el folio si aún no tiene. */

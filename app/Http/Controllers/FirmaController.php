@@ -101,9 +101,44 @@ class FirmaController extends Controller
             $request->observaciones
         );
 
-        // Cuando un trámite en etapa de firma recibe su firma, queda completado.
+        // Auto-completar según las firmas requeridas por módulo:
+        //   Trámite      → sujeto + enlace + revisora (las tres)
+        //   Agenda SyD   → sujeto + enlace
+        //   Agenda Reg.  → sujeto + enlace
+        //   AIR          → solo aprobacion_revisora
         if ($modelo instanceof Tramite && $modelo->estatus === Tramite::ESTATUS_EN_FIRMA) {
-            $modelo->update(['estatus' => Tramite::ESTATUS_COMPLETADO]);
+            $firmasActivas = $this->firmaService->firmasActivas($modelo)->pluck('tipo')->toArray();
+            $tieneSujeto   = in_array('aceptacion_sujeto',  $firmasActivas);
+            $tieneEnlace   = in_array('aceptacion_enlace',  $firmasActivas);
+            $tieneRevisora = in_array('aprobacion_revisora', $firmasActivas);
+            if ($tieneSujeto && $tieneEnlace && $tieneRevisora) {
+                $modelo->update(['estatus' => Tramite::ESTATUS_COMPLETADO]);
+            }
+        }
+
+        if ($modelo instanceof AccionAgenda && $modelo->estatus === AccionAgenda::ESTATUS_EN_FIRMA) {
+            $firmasActivas = $this->firmaService->firmasActivas($modelo)->pluck('tipo')->toArray();
+            $tieneSujeto   = in_array('aceptacion_sujeto', $firmasActivas);
+            $tieneEnlace   = in_array('aceptacion_enlace', $firmasActivas);
+            if ($tieneSujeto && $tieneEnlace) {
+                $modelo->update(['estatus' => AccionAgenda::ESTATUS_COMPLETADO]);
+            }
+        }
+
+        if ($modelo instanceof PropuestaRegulatoria && $modelo->estatus === 'en_firma') {
+            $firmasActivas = $this->firmaService->firmasActivas($modelo)->pluck('tipo')->toArray();
+            $tieneSujeto   = in_array('aceptacion_sujeto', $firmasActivas);
+            $tieneEnlace   = in_array('aceptacion_enlace', $firmasActivas);
+            if ($tieneSujeto && $tieneEnlace) {
+                $modelo->update(['estatus' => 'completada']);
+            }
+        }
+
+        if ($modelo instanceof AnalisisImpactoRegulatorio && $modelo->estatus === 'enviado') {
+            $firmasActivas = $this->firmaService->firmasActivas($modelo)->pluck('tipo')->toArray();
+            if (in_array('aprobacion_revisora', $firmasActivas)) {
+                $modelo->update(['estatus' => 'dictaminado']);
+            }
         }
 
         return redirect()->route('firmas.mostrar', ['tipo' => $tipo, 'id' => $modelo->id])

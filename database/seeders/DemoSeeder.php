@@ -298,6 +298,34 @@ class DemoSeeder extends Seeder
                 'updated_at'       => now()->subDays(15 - $i * 2),
             ]);
             $idsPorEstatus[$estatus] = $id;
+
+            // Sembrar los hitos de avance de la acción recién creada.
+            // El seeder inserta con DB::table (no pasa por AgendaService), así que
+            // aquí cargamos el modelo y llamamos al mismo servicio que usa el
+            // wizard real, para que la acción demo también tenga sus hitos.
+            $accion = \App\Models\AccionAgenda::find($id);
+            if ($accion) {
+                app(\App\Services\HitoAgendaService::class)->sembrarHitos($accion);
+
+                // Para que el demo se vea con avance variado, marcamos algunos
+                // hitos como completados según el índice (unas acciones más
+                // avanzadas que otras), respetando el orden lineal.
+                $hitosAMarcar = $i % 4; // 0, 1, 2 o 3 hitos extra completados
+                if ($hitosAMarcar > 0) {
+                    $pendientes = $accion->hitos()
+                        ->where('completado', false)
+                        ->orderBy('orden')
+                        ->limit($hitosAMarcar)
+                        ->get();
+                    foreach ($pendientes as $hito) {
+                        $hito->update([
+                            'completado'       => true,
+                            'fecha_completado' => now()->subDays(10 - $i)->toDateString(),
+                            'completado_por'   => $usuario->id,
+                        ]);
+                    }
+                }
+            }
         }
         return $idsPorEstatus;
     }

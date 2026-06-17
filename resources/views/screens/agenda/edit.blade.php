@@ -105,6 +105,9 @@
             <div class="field">
               <label>Indicador de éxito</label>
               <input name="indicador" type="text" maxlength="500" value="{{ old('indicador', $agenda->indicador) }}" placeholder="Ej. % de reducción en tiempo de resolución">
+            </x-field-help>
+            <x-field-help label="Indicador de avance (rubro 18)">
+              <input name="indicador_avance" type="text" maxlength="500" value="{{ old('indicador_avance', $agenda->indicador_avance) }}" placeholder="Ej. % de avance en la implementación">
             </div>
           </div>
         </div>

@@ -21,4 +21,23 @@ class CalendarioController extends Controller
 
         return view('screens.calendario.index', compact('eventos', 'kpis', 'mes', 'anio', 'filtro', 'vista'));
     }
+
+    /**
+     * Actualiza el porcentaje de avance de un evento del calendario.
+     * Si el avance llega a 100%, el estatus se marca como "cumplido" automáticamente.
+     */
+    public function actualizarAvance(\Illuminate\Http\Request $request, \App\Models\CalendarioEvento $evento): \Illuminate\Http\RedirectResponse
+    {
+        $avance = intval($request->input('avance', 0));
+        $avance = max(0, min(100, $avance));
+
+        $datos = ['avance' => $avance];
+        if ($avance >= 100) {
+            $datos['estatus'] = 'cumplido';
+        }
+
+        $evento->update($datos);
+
+        return back()->with('success', 'Avance actualizado.');
+    }
 }

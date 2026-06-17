@@ -86,7 +86,8 @@
     <div class="card-body-padded">
       <div class="modal-grid">
         <div class="modal-data-item"><span>Meta esperada</span><strong>{{ $agenda->meta ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Indicador</span><strong>{{ $agenda->indicador ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Indicador de cumplimiento (rubro 17)</span><strong>{{ $agenda->indicador ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Indicador de avance (rubro 18)</span><strong>{{ $agenda->indicador_avance ?? '—' }}</strong></div>
         <div class="modal-data-item"><span>Fecha de inicio</span><strong>{{ $agenda->fecha_inicio ? \Carbon\Carbon::parse($agenda->fecha_inicio)->format('d/m/Y') : '—' }}</strong></div>
         <div class="modal-data-item"><span>Fecha compromiso</span><strong>{{ $agenda->fecha_compromiso ? \Carbon\Carbon::parse($agenda->fecha_compromiso)->format('d/m/Y') : '—' }}</strong></div>
       </div>
@@ -102,13 +103,14 @@
       @endif
     </div>
     <div class="card-body-padded">
-      <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;font-weight:600">
-        <span>Avance general</span><span>0%</span>
-      </div>
-      <div style="height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;margin-bottom:16px">
-        <div style="height:100%;width:0%;background:var(--accent);border-radius:4px"></div>
-      </div>
-      <div class="cal-empty-state">No hay evidencias registradas aún.</div>
+      @include('partials.hitos-agenda', [
+        'agenda'      => $agenda,
+        'hitos'       => $hitos ?? collect(),
+        'porcentaje'  => $porcentaje ?? 0,
+        'siguienteId' => $siguienteId ?? null,
+        'puedeMarcar' => $puedeMarcarHitos ?? false,
+        'ayudas'      => $ayudas ?? [],
+      ])
     </div>
   </div>
 

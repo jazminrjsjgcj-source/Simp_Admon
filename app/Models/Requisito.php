@@ -8,4 +8,6 @@ class Requisito extends Model
     protected $table   = 'requisitos';
 
     public function tramite() { return $this->belongsTo(Tramite::class); }
+
+    public function regulaciones() { return $this->hasMany(RequisitoRegulacion::class); }
 }

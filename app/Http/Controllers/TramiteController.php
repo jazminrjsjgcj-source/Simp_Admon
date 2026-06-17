@@ -145,12 +145,22 @@ class TramiteController extends Controller
         $validated['created_by'] = $request->user()->id;
         $validated['dirigido_a'] = $validated['dirigido_a'] ?? 'ambas';
 
+        // Fundamento jurídico: varias citas del catálogo y/o captura manual.
+        $validated['citas']                = $request->input('citas', []);
+        $validated['fundamento_normativa'] = $request->input('fundamento_normativa');
+        $validated['fundamento_tipo']      = $request->input('fundamento_tipo');
+        $validated['fundamento_resumen']   = $request->input('fundamento_resumen');
+
         // El controlador extrae del request; el servicio recibe datos limpios.
         $tramite = $this->tramiteService->crear(
             datos:       $validated,
             derechos:    $this->leerDerechos($request),
             requisitos:  $request->input('requisitos', []),
             fichaPortal: $this->extraerFichaPortal($request),
+            procesos:    [
+                'atencion'   => $request->input('proceso_atencion', []),
+                'resolucion' => $request->input('proceso_resolucion', []),
+            ],
             esEnvio:     $esEnvio,
         );
 
@@ -241,7 +251,7 @@ class TramiteController extends Controller
         $data = $request->only([
             'nombre_oficial', 'tipo_tramite_id', 'dependencia_id', 'unidad_id',
             'sector_id', 'subsector_id',
-            'servidor_publico', 'homoclave',
+            'servidor_publico', 'homoclave', 'sujeto_obligado_id', 'enlace_id',
             'objetivo', 'dirigido_a', 'frecuencia', 'volumen_anual', 'plazo_resolucion_cantidad',
             'plazo_resolucion_unidad', 'num_areas', 'areas_participantes', 'visitas_requeridas',
             'copias_cantidad', 'copias_precio', 'salario_hora_w', 'nivel_digitalizacion',
@@ -270,6 +280,20 @@ class TramiteController extends Controller
 
         $this->sincronizarRequisitos($tramite, $request->input('requisitos', []));
         $this->sincronizarFichaPortal($tramite, $request);
+        $this->tramiteService->sincronizarProcesos($tramite, [
+            'atencion'   => $request->input('proceso_atencion', []),
+            'resolucion' => $request->input('proceso_resolucion', []),
+        ]);
+
+        // Sincronizar fundamento jurídico (citas del catálogo + captura manual).
+        // Estaba ausente en update — solo existía en store. Ahora se guarda en ambos.
+        $this->tramiteService->sincronizarFundamentoPublico($tramite, [
+            'citas'                => $request->input('citas', []),
+            'fundamento_normativa' => $request->input('fundamento_normativa'),
+            'fundamento_tipo'      => $request->input('fundamento_tipo'),
+            'fundamento_resumen'   => $request->input('fundamento_resumen'),
+        ]);
+
         $this->costoService->recalcularYGuardar($tramite->fresh('requisitos'));
 
         return redirect()->route('tramites.show', $tramite)
@@ -362,24 +386,7 @@ class TramiteController extends Controller
      */
     private function leerDerechos($request): array
     {
-        $json = $request->input('derechos_json', '[]');
-        $lista = json_decode($json, true);
-        if (!is_array($lista)) {
-            return [];
-        }
-
-        $derechos = [];
-        foreach ($lista as $fila) {
-            $concepto = trim($fila['concepto'] ?? '');
-            if ($concepto === '') {
-                continue;
-            }
-            $derechos[] = [
-                'concepto' => $concepto,
-                'monto'    => floatval($fila['monto'] ?? 0),
-            ];
-        }
-        return $derechos;
+        return \App\Models\TramiteDerecho::parsearJson($request->input('derechos_json'));
     }
 
     /**

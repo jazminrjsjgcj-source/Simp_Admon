@@ -90,8 +90,9 @@
             <x-field-help label="5. Sectores o grupos potencialmente impactados" :required="true" class="span-2">
               <textarea name="sectores_impactados" rows="2" placeholder="Ej. Comercio informal, turismo, economía local, ciudadanía usuaria...">{{ old('sectores_impactados') }}</textarea>
             </x-field-help>
-            <x-selector-scian :sector="old('sector_id')" :subsector="old('subsector_id')" />
-            <div class="field" style="display:none"></div>
+            {{-- PENDIENTE: selects de sector/subsector comentados temporalmente (ver lista de pendientes #3) --}}
+            {{-- <x-selector-scian :sector="old('sector_id')" :subsector="old('subsector_id')" /> --}}
+            {{-- <div class="field" style="display:none"></div> --}}
             <x-field-help label="6. Fecha tentativa de presentación" :required="true">
               <input name="fecha_tentativa" type="date" value="{{ old('fecha_tentativa') }}">
             </x-field-help>
@@ -122,8 +123,8 @@
             <x-field-help label="11. ¿Genera nuevos costos burocráticos?" :required="true">
               <select name="genera_costos_burocraticos" required>
                 <option value="">Seleccione...</option>
-                <option value="1" {{ old('genera_costos_burocraticos') === '1' ? 'selected' : '' }}>Sí</option>
-                <option value="0" {{ old('genera_costos_burocraticos') === '0' ? 'selected' : '' }}>No</option>
+                <option value="1" {{ old('genera_costos_burocraticos') === '1' ? 'selected' : '' }}>Sí — la regulación genera nuevos trámites, requisitos, tiempos o cargas económicas</option>
+                <option value="0" {{ old('genera_costos_burocraticos') === '0' ? 'selected' : '' }}>No — no genera costos burocráticos adicionales a los existentes</option>
               </select>
             </x-field-help>
             <div class="field"><!-- espaciador grid --></div>
@@ -133,8 +134,8 @@
             <x-field-help label="12. ¿Crea, modifica o elimina trámites existentes?" :required="true">
               <select name="impacta_tramites_existentes" required>
                 <option value="">Seleccione...</option>
-                <option value="1" {{ old('impacta_tramites_existentes') === '1' ? 'selected' : '' }}>Sí</option>
-                <option value="0" {{ old('impacta_tramites_existentes') === '0' ? 'selected' : '' }}>No</option>
+                <option value="1" {{ old('impacta_tramites_existentes') === '1' ? 'selected' : '' }}>Sí — crea, modifica o elimina uno o más trámites o servicios</option>
+                <option value="0" {{ old('impacta_tramites_existentes') === '0' ? 'selected' : '' }}>No — no afecta los trámites o servicios existentes</option>
               </select>
             </x-field-help>
             <div class="field"><!-- espaciador grid --></div>
@@ -150,11 +151,12 @@
             <x-field-help label="15. Fundamento jurídico" :required="true" class="span-2">
               <textarea name="fundamento_juridico" rows="3" placeholder="Artículos y disposiciones legales que facultan la emisión de esta regulación...">{{ old('fundamento_juridico') }}</textarea>
             </x-field-help>
+            <x-citar-regulacion label="Regulaciones relacionadas del catálogo (opcional)" />
             <x-field-help label="16. ¿Impacta en comercio o inversión?" :required="true">
               <select name="impacta_comercio_inversion" required>
                 <option value="">Seleccione...</option>
-                <option value="1" {{ old('impacta_comercio_inversion') === '1' ? 'selected' : '' }}>Sí</option>
-                <option value="0" {{ old('impacta_comercio_inversion') === '0' ? 'selected' : '' }}>No</option>
+                <option value="1" {{ old('impacta_comercio_inversion') === '1' ? 'selected' : '' }}>Sí — afecta actividades comerciales, de inversión o competencia económica</option>
+                <option value="0" {{ old('impacta_comercio_inversion') === '0' ? 'selected' : '' }}>No — no tiene impacto directo en comercio o inversión</option>
               </select>
             </x-field-help>
             <div class="field"><!-- espaciador grid --></div>

@@ -3,8 +3,22 @@
 
 @section('content')
 <style>
-  .panorama-modulo { margin-bottom: 18px; }
-  .panorama-modulo-titulo { font-size: 13px; font-weight: 600; color: #475467; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .03em; }
+  /* Barra compacta de totales del sistema */
+  .sistema-totales { display: flex; gap: 12px; flex-wrap: wrap; background: white; border: 1px solid var(--surface-high); border-radius: var(--radius-lg); padding: 14px 20px; box-shadow: var(--shadow); }
+  .sistema-total-item { display: flex; align-items: center; gap: 10px; padding: 0 16px 0 0; border-right: 1px solid var(--surface-high); }
+  .sistema-total-item:last-child { border-right: none; padding-right: 0; }
+  .sistema-total-item strong { font-size: 22px; font-weight: 800; color: var(--primary-container); }
+  .sistema-total-item span { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; line-height: 1.2; }
+
+  /* Acordeón de módulos */
+  .panorama-modulo { border: 1px solid var(--surface-high); border-radius: var(--radius-lg); background: white; box-shadow: var(--shadow); overflow: hidden; }
+  .panorama-modulo-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; cursor: pointer; user-select: none; }
+  .panorama-modulo-head:hover { background: var(--surface-low); }
+  .panorama-modulo-titulo { font-size: 13px; font-weight: 700; color: var(--text); margin: 0; text-transform: uppercase; letter-spacing: .04em; }
+  .panorama-modulo-chevron { font-size: 12px; color: var(--muted); transition: transform .2s ease; }
+  .panorama-modulo-chevron.abierto { transform: rotate(180deg); }
+  .panorama-modulo-body { padding: 0 16px 16px; display: none; }
+  .panorama-modulo-body.abierto { display: block; }
 </style>
 <div class="page-wide">
 
@@ -26,27 +40,34 @@
 
   {{-- KPIs — el filtro de cada tarjeta viene de $kpiTipos (definido en el controlador) --}}
   @if($rol === 'admin' && !empty($panorama))
-    {{-- Panorama del admin: totales del sistema + desglose por módulo --}}
-    <div class="grid kpis">
+    {{-- Barra compacta con totales del sistema --}}
+    <div class="sistema-totales">
       @foreach($sistemaTotales as $st)
-        <a href="{{ route($st['ruta']) }}" class="card stat kpi-link">
-          <div class="stat-value"><h3>{{ $st['value'] }}</h3><p>{{ $st['label'] }}</p></div>
-          <span class="btn btn-outline btn-sm">Ver</span>
+        <a href="{{ route($st['ruta']) }}" class="sistema-total-item" style="text-decoration:none">
+          <strong>{{ $st['value'] }}</strong>
+          <span>{{ $st['label'] }}</span>
         </a>
       @endforeach
     </div>
 
+    {{-- Módulos en acordeón: el primero abierto, los demás cerrados --}}
     @foreach($panorama as $fila)
+      @php $esElPrimero = $loop->first; $idModulo = 'pan-mod-' . $fila['modulo']; @endphp
       <div class="panorama-modulo">
-        <p class="panorama-modulo-titulo">{{ $fila['etiqueta'] }}</p>
-        <div class="grid kpis">
-          @foreach($fila['cifras'] as $c)
-            <div class="card stat kpi-link" style="cursor:pointer" id="kpi-pan-{{ $fila['modulo'] }}-{{ $loop->index }}"
-              onclick="dashFiltrar('', 'pan-{{ $fila['modulo'] }}-{{ $loop->index }}', '{{ $c['filtro'] }}')">
-              <div class="stat-value"><h3>{{ $c['value'] }}</h3><p>{{ $c['label'] }}</p></div>
-              <span class="btn btn-outline btn-sm">Filtrar</span>
-            </div>
-          @endforeach
+        <div class="panorama-modulo-head" onclick="togglePanorama('{{ $idModulo }}')">
+          <p class="panorama-modulo-titulo">{{ $fila['etiqueta'] }}</p>
+          <span class="panorama-modulo-chevron {{ $esElPrimero ? 'abierto' : '' }}" id="{{ $idModulo }}-chev">▼</span>
+        </div>
+        <div class="panorama-modulo-body {{ $esElPrimero ? 'abierto' : '' }}" id="{{ $idModulo }}">
+          <div class="grid kpis" style="padding-top:4px">
+            @foreach($fila['cifras'] as $c)
+              <div class="card stat kpi-link" style="cursor:pointer" id="kpi-pan-{{ $fila['modulo'] }}-{{ $loop->index }}"
+                onclick="dashFiltrar('', 'pan-{{ $fila['modulo'] }}-{{ $loop->index }}', '{{ $c['filtro'] }}')">
+                <div class="stat-value"><h3>{{ $c['value'] }}</h3><p>{{ $c['label'] }}</p></div>
+                <span class="btn btn-outline btn-sm">Filtrar</span>
+              </div>
+            @endforeach
+          </div>
         </div>
       </div>
     @endforeach
@@ -212,6 +233,29 @@
   </div>
   @endif
 
+  {{-- Requiere tu firma (sujeto y enlace) --}}
+  @if(isset($pendientesFirma) && $pendientesFirma->count())
+  <div class="card" style="border-left: 4px solid var(--primary-container)">
+    <div class="panel-head">
+      <div>
+        <h3 class="nowrap" style="color:var(--primary-container)">✍ Requiere tu firma</h3>
+        <p class="nowrap">Estos registros están esperando que los firmes.</p>
+      </div>
+      <a href="{{ route('firmas.index') }}" class="btn btn-sm">Ver firmas</a>
+    </div>
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>Folio</th><th>Nombre</th><th>Tipo</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
+      @foreach($pendientesFirma as $f)
+        <tr>
+          <td>{{ $f['folio'] }}</td>
+          <td><strong>{{ $f['nombre'] }}</strong></td>
+          <td><span class="badge info-b">{{ $f['tipo'] }}</span></td>
+          <td class="table-action-cell"><div class="table-actions"><a href="{{ $f['url_firma'] }}" class="btn table-action-btn">Firmar</a></div></td>
+        </tr>
+      @endforeach
+    </tbody></table></div>
+  </div>
+  @endif
+
   {{-- Estado vacío --}}
   @if(!$pendientesTramites->count() && !$pendientesAgenda->count() && !$pendientesPropu->count() && !$pendientesAir->count())
   <div class="card">
@@ -280,7 +324,8 @@
     body.innerHTML = '';
 
     // Scroll suave al panel
-    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Scroll suave al panel de resultados, mantiene los KPIs visibles arriba
+    setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
 
     fetch('/api/dashboard/filtrar?tipo=' + encodeURIComponent(tipo || '') + '&filtro=' + encodeURIComponent(filtro || ''), {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -331,5 +376,14 @@
     });
   @endif
 })();
+
+  window.togglePanorama = function(id) {
+    var body = document.getElementById(id);
+    var chev = document.getElementById(id + '-chev');
+    if (!body) return;
+    var abierto = body.classList.toggle('abierto');
+    body.style.display = abierto ? 'block' : 'none';
+    if (chev) chev.classList.toggle('abierto', abierto);
+  };
 </script>
 @endpush

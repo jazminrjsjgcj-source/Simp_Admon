@@ -46,6 +46,7 @@
   .wz-sino input[type="radio"] { width:16px; height:16px; margin:0; accent-color:var(--primary-container); }
   .wz-detalle { display:none; margin-top:8px; }
   .wz-detalle.visible { display:block; }
+  .wz-sublabel { display:block; font-size:12px; font-weight:500; color:var(--muted); margin-bottom:4px; }
 </style>
 
 <div class="page-default wz-wrap">
@@ -211,6 +212,7 @@
                 <option value="SV">Servicio</option>
               </select>
               </x-field-help>
+            <x-citar-regulacion />
             <x-field-help label="Resumen del fundamento" class="span-2">
                 <textarea name="tramite_fundamento" rows="2" placeholder="Ej. Reglamento de Comercio del Municipio de La Paz, artículo __, fracción __"></textarea>
               </x-field-help>
@@ -239,10 +241,10 @@
             <x-field-help label="Frecuencia">
                 <select name="tramite_frecuencia">
                   <option value="">Seleccione</option>
-                  <option value="unica">Única vez</option>
-                  <option value="anual">Anual</option>
-                  <option value="por_evento">Por evento</option>
-                  <option value="recurrente">Recurrente</option>
+                  <option value="Alta">Alta</option>
+                  <option value="Media">Media</option>
+                  <option value="Baja">Baja</option>
+                  <option value="Eventual">Eventual</option>
                 </select>
               </x-field-help>
             <x-field-help label="Plazo máximo de resolución">
@@ -272,7 +274,15 @@
                 <label><input type="radio" name="tramite_tiene_relacionados" value="0" checked onclick="toggleDetalle('detRelacionados',false)"> No</label>
               </div>
               <div class="wz-detalle" id="detRelacionados">
-                <input name="tramite_relacionados_detalle" type="text" placeholder="Indique cuáles">
+                <label class="wz-sublabel">Tipo de relación</label>
+                <select name="tramite_tipo_relacion">
+                  <option value="">Seleccione el tipo</option>
+                  <option value="naturaleza">Naturaleza (se resuelven de forma similar o igual)</option>
+                  <option value="secuencia">Secuencia (uno se requiere para iniciar el otro, distinta materia)</option>
+                  <option value="dependencia_funcional">Dependencia funcional (uno se requiere para el otro, misma materia)</option>
+                </select>
+                <label class="wz-sublabel" style="margin-top:8px">Trámites con los que guarda relación</label>
+                <input name="tramite_relacionados_detalle" type="text" placeholder="Enliste los trámites o servicios">
               </div>
             </x-field-help>
           </div>
@@ -330,24 +340,29 @@
                 <input name="tramite_visitas_requeridas" type="number" min="0" placeholder="0">
               </x-field-help>
             <x-field-help label="Número de áreas que participan">
-                <input name="tramite_num_areas" type="number" min="0" placeholder="0">
+                <input name="tramite_num_areas" type="number" min="0" placeholder="0" id="numAreasInput" oninput="toggleAreasDetalle(this.value)">
               </x-field-help>
+            <div id="areasDetalleWrap" style="display:none">
+              <x-field-help label="¿Cuáles áreas participan?">
+                <input name="tramite_areas_participantes" type="text" placeholder="Ej. Ventanilla, Jurídico, Tesorería...">
+              </x-field-help>
+            </div>
             <x-field-help label="Tiempo promedio de traslado por visita">
-              <div style="display:flex; gap:6px">
-                <input name="tramite_tiempo_traslado_horas" type="number" min="0" placeholder="hrs">
-                <input name="tramite_tiempo_traslado_min" type="number" min="0" max="59" placeholder="min">
+              <div style="display:flex; gap:6px; align-items:flex-end">
+                <div style="flex:1"><label class="split-label">Horas</label><input name="tramite_tiempo_traslado_horas" type="number" min="0" placeholder="0"></div>
+                <div style="flex:1"><label class="split-label">Minutos</label><input name="tramite_tiempo_traslado_min" type="number" min="0" max="59" placeholder="0"></div>
               </div>
             </x-field-help>
             <x-field-help label="Tiempo promedio de espera por visita">
-              <div style="display:flex; gap:6px">
-                <input name="tramite_tiempo_espera_horas" type="number" min="0" placeholder="hrs">
-                <input name="tramite_tiempo_espera_min" type="number" min="0" max="59" placeholder="min">
+              <div style="display:flex; gap:6px; align-items:flex-end">
+                <div style="flex:1"><label class="split-label">Horas</label><input name="tramite_tiempo_espera_horas" type="number" min="0" placeholder="0"></div>
+                <div style="flex:1"><label class="split-label">Minutos</label><input name="tramite_tiempo_espera_min" type="number" min="0" max="59" placeholder="0"></div>
               </div>
             </x-field-help>
             <x-field-help label="Tiempo promedio de atención por visita">
-              <div style="display:flex; gap:6px">
-                <input name="tramite_tiempo_atencion_horas" type="number" min="0" placeholder="hrs">
-                <input name="tramite_tiempo_atencion_min" type="number" min="0" max="59" placeholder="min">
+              <div style="display:flex; gap:6px; align-items:flex-end">
+                <div style="flex:1"><label class="split-label">Horas</label><input name="tramite_tiempo_atencion_horas" type="number" min="0" placeholder="0"></div>
+                <div style="flex:1"><label class="split-label">Minutos</label><input name="tramite_tiempo_atencion_min" type="number" min="0" max="59" placeholder="0"></div>
               </div>
             </x-field-help>
             {{-- Pregunta diagnóstico: redundantes --}}
@@ -385,6 +400,9 @@
               </x-field-help>
             <x-field-help label="Indicador de cumplimiento">
                 <input name="indicador" type="text" placeholder="Ej. requisitos eliminados">
+              </x-field-help>
+            <x-field-help label="Indicador de avance">
+                <input name="indicador_avance" type="text" placeholder="Ej. % de pasos digitalizados">
               </x-field-help>
             <x-field-help label="¿Deriva de recomendación de la autoridad?" class="span-2">
               <div class="wz-sino">
@@ -580,23 +598,50 @@
     if (n >= 1 && n <= ULTIMO) mostrar(n);
   };
 
+  // Muestra error inline en el paso activo en lugar de alert()
+  function mostrarErrorPaso(msg) {
+    var panel = document.querySelector('.wizard-panel.active, .wizard-step-panel.active, [data-paso="' + paso + '"]');
+    var existente = document.getElementById('wzErrorMsg');
+    if (existente) existente.remove();
+    var div = document.createElement('div');
+    div.id = 'wzErrorMsg';
+    div.style.cssText = 'background:#fef2f2;border:1px solid #fca5a5;border-left:4px solid #ef4444;border-radius:8px;padding:10px 14px;margin-bottom:12px;color:#991b1b;font-size:13px;font-weight:600';
+    div.textContent = msg;
+    if (panel) panel.prepend(div);
+    else document.querySelector('.wizard-body, form').prepend(div);
+    setTimeout(function(){ if(div.parentNode) div.remove(); }, 5000);
+  }
+
+  // Limpia el error al avanzar exitosamente
+  function limpiarErrorPaso() {
+    var existente = document.getElementById('wzErrorMsg');
+    if (existente) existente.remove();
+  }
+
+  // Toggle campo áreas participantes
+  function toggleAreasDetalle(val) {
+    var wrap = document.getElementById('areasDetalleWrap');
+    if (wrap) wrap.style.display = (parseInt(val) > 1) ? '' : 'none';
+  }
+
   function validar(n) {
+    limpiarErrorPaso();
     if (n === 1) {
       if (!document.getElementById('modoTramite').value) {
-        alert('Elija si el trámite ya existe o si se registrará desde cero.');
+        mostrarErrorPaso('Elija si el trámite ya existe o si se registrará desde cero.');
         return false;
       }
     }
     if (n === 2 && caminoNuevo) {
       var nom = document.querySelector('[name="tramite_nombre_oficial"]');
       var dep = document.querySelector('[name="tramite_dependencia_id"]');
-      if (!nom.value.trim()) { alert('El nombre del trámite es obligatorio.'); nom.focus(); return false; }
-      if (!dep.value) { alert('La dependencia del trámite es obligatoria.'); dep.focus(); return false; }
+      if (!nom.value.trim()) { mostrarErrorPaso('El nombre del trámite es obligatorio.'); nom.focus(); return false; }
+      if (!dep.value) { mostrarErrorPaso('La dependencia del trámite es obligatoria.'); dep.focus(); return false; }
     }
     if (n === 4) {
       var desc = document.querySelector('[name="descripcion"]');
       if (!desc.value || desc.value.trim().length < 10) {
-        alert('El objetivo de la simplificación es obligatorio (mínimo 10 caracteres).');
+        mostrarErrorPaso('El objetivo de la simplificación es obligatorio (mínimo 10 caracteres).');
         desc.focus(); return false;
       }
     }
@@ -708,7 +753,7 @@
       })
       .catch(function (err) {
         console.error('Error al precargar trámite:', err);
-        alert('No se pudo precargar el trámite. Detalle: ' + err.message);
+        mostrarErrorPaso('No se pudo precargar el trámite: ' + err.message);
       });
   }
 

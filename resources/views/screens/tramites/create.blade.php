@@ -67,7 +67,7 @@
             @php
               $miDependencia   = auth()->user()->dependencia;
               $misUnidades     = \App\Models\UnidadAdministrativa::where('dependencia_id', auth()->user()->dependencia_id)
-                                    ->where('activo', true)->orderBy('nombre')->get();
+                                    ->orderBy('nombre')->get();
               $unidadAutoId    = $misUnidades->count() === 1 ? $misUnidades->first()->id : null;
             @endphp
             <input type="hidden" name="dependencia_id" value="{{ auth()->user()->dependencia_id }}">

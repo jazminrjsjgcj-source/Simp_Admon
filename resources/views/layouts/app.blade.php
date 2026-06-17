@@ -189,7 +189,7 @@
 <script src="{{ asset('js/data/help-texts.js') }}"></script>
 <script src="{{ asset('js/core/help.js') }}"></script>
 <script src="{{ asset('js/core/ejemplo-llenado.js') }}"></script>
-<script src="{{ asset('js/core/carga-archivos.js') }}"></script>
+<script src="{{ asset('js/carga-archivos.js') }}"></script>
 <script>
 function confirmDelete(action, title, text) {
   document.getElementById('deleteModalForm').action = action;

@@ -10,6 +10,7 @@
       <p class="nowrap">Leyes y reglamentos vigentes citables desde los wizards.</p>
     </div>
     <div class="head-actions">
+      <a href="{{ route('regulaciones.descargar-zip', request()->only(['q', 'estatus', 'dependencia'])) }}" class="btn btn-outline">Descargar ZIP</a>
       <a href="{{ route('regulaciones.create') }}" class="btn">Subir regulación</a>
     </div>
   </div>

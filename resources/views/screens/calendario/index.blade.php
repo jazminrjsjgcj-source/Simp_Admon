@@ -61,11 +61,20 @@
               <td><strong>{{ $ev->titulo }}</strong>@if($ev->accion)<br><small>{{ $ev->accion }}</small>@endif</td>
               <td>@dato($ev->responsable)</td>
               <td>
-                <div style="display:flex;align-items:center;gap:8px;min-width:80px">
-                  <div style="flex:1;height:4px;background:#e5e7eb;border-radius:4px;overflow:hidden">
-                    <div style="height:100%;width:{{ $ev->avance ?? 0 }}%;background:var(--accent);border-radius:4px"></div>
+                <div style="display:flex;align-items:center;gap:8px;min-width:120px">
+                  <div style="flex:1;height:4px;background:#e5e7eb;border-radius:4px;overflow:hidden;cursor:pointer" onclick="editarAvance({{ $ev->id }}, {{ $ev->avance ?? 0 }})">
+                    <div style="height:100%;width:{{ $ev->avance ?? 0 }}%;background:var(--primary-container);border-radius:4px;transition:width .3s"></div>
                   </div>
-                  <small>{{ $ev->avance ?? 0 }}%</small>
+                  <small style="cursor:pointer;color:var(--primary);font-weight:700" onclick="editarAvance({{ $ev->id }}, {{ $ev->avance ?? 0 }})">{{ $ev->avance ?? 0 }}%</small>
+                </div>
+                <div id="avance-form-{{ $ev->id }}" style="display:none;margin-top:6px">
+                  <form method="POST" action="{{ route('calendario.avance', $ev->id) }}" style="display:flex;gap:6px;align-items:center">
+                    @csrf @method('PATCH')
+                    <input type="number" name="avance" min="0" max="100" value="{{ $ev->avance ?? 0 }}"
+                      style="width:60px;border:1px solid var(--surface-high);border-radius:6px;padding:4px 8px;font-size:12px">
+                    <button type="submit" class="btn btn-sm" style="min-height:28px;padding:4px 10px;font-size:11px">✓</button>
+                    <button type="button" class="btn btn-outline btn-sm" style="min-height:28px;padding:4px 10px;font-size:11px" onclick="document.getElementById('avance-form-{{ $ev->id }}').style.display='none'">✕</button>
+                  </form>
                 </div>
               </td>
               <td><span class="badge {{ $ev->estatus === 'cumplido' ? 'success-b' : ($ev->estatus === 'vencido' ? 'danger-b' : '') }}">{{ ucfirst($ev->estatus) }}</span></td>

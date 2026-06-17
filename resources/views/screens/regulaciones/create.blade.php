@@ -95,9 +95,11 @@
           </select>
         </x-field-help>
 
-        <x-field-help label="Regulación que deja sin efectos" class="span-2" id="derogadaField" style="{{ old('deroga_otra') === '1' ? '' : 'display:none' }}">
-          <input name="regulacion_derogada" value="{{ old('regulacion_derogada') }}" placeholder="Nombre completo de la regulación que se abroga o deroga">
-        </x-field-help>
+        <div id="derogadaField" class="span-2" style="{{ old('deroga_otra') === '1' ? '' : 'display:none' }}">
+          <x-field-help label="Regulación que deja sin efectos">
+            <input name="regulacion_derogada" value="{{ old('regulacion_derogada') }}" placeholder="Nombre completo de la regulación que se abroga o deroga">
+          </x-field-help>
+        </div>
 
         <x-field-help label="Resumen ciudadano (regulación)" class="span-2">
           <textarea name="resumen" rows="3" placeholder="Descripción breve para entender la regulación...">{{ old('resumen') }}</textarea>
@@ -124,8 +126,13 @@
 
 @push('scripts')
 <script>
-document.getElementById('derogaSelect').addEventListener('change', function() {
-  document.getElementById('derogadaField').style.display = this.value === '1' ? '' : 'none';
-});
+(function () {
+  var sel = document.getElementById('derogaSelect');
+  var campo = document.getElementById('derogadaField');
+  if (!sel || !campo) return;
+  sel.addEventListener('change', function () {
+    campo.style.display = this.value === '1' ? '' : 'none';
+  });
+})();
 </script>
 @endpush

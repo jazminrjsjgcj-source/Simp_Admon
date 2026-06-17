@@ -44,7 +44,7 @@
         @if($tramite->estaEnObservacion() && $tramite->tieneObservacionesPendientes() && auth()->user()->puedeEditarTramite($tramite))
           <form method="POST" action="{{ route('tramites.actualizar.estatus',$tramite) }}" class="d-inline">
             @csrf <input type="hidden" name="accion" value="atender_observaciones">
-            <button type="submit" class="btn btn-outline btn-sm" onclick="return confirm('¿Cerrar el periodo de observaciones y pasar a corrección?')">Atender observaciones</button>
+            <button type="submit" class="btn btn-sm" onclick="return confirm('¿Cerrar el periodo de observaciones y pasar a corrección?')">Atender observaciones</button>
           </form>
         @endif
         @if($tramite->puedeAvanzarAFirma() && auth()->user()->isAnyRol(['revisora','admin']))
@@ -95,6 +95,7 @@
         </div>
       @endif
     </div>
+    @include('partials.obs-inline', ['seccion' => 'Datos generales', 'observaciones' => $observacionesPorSeccion ?? collect()])
   </div>
 
   {{-- COSTO BUROCRÁTICO --}}
@@ -193,6 +194,7 @@
       </div>
 
     </div>
+    @include('partials.obs-inline', ['seccion' => 'Costo burocrático', 'observaciones' => $observacionesPorSeccion ?? collect()])
   </div>
 
   {{-- REQUISITOS --}}
@@ -232,6 +234,7 @@
         <div class="cal-empty-state">No hay requisitos registrados.</div>
       @endforelse
     </div>
+    @include('partials.obs-inline', ['seccion' => 'Requisitos', 'observaciones' => $observacionesPorSeccion ?? collect()])
   </div>
 
   {{-- FUNDAMENTO JURÍDICO --}}
