@@ -65,7 +65,13 @@ class CatalogoController extends Controller
 
     public function editarDependencia(Dependencia $dependencia)
     {
-        return view('screens.admin.catalogos.dependencia-form', compact('dependencia'));
+        // Cargar las unidades ligadas a esta dependencia, para mostrarlas y
+        // gestionarlas (agregar/activar/desactivar/eliminar) desde el formulario.
+        $unidades = UnidadAdministrativa::where('dependencia_id', $dependencia->id)
+            ->orderBy('nombre')
+            ->get();
+
+        return view('screens.admin.catalogos.dependencia-form', compact('dependencia', 'unidades'));
     }
 
     public function actualizarDependencia(Request $request, Dependencia $dependencia)
@@ -192,6 +198,15 @@ class CatalogoController extends Controller
         $validated['activo'] = true;
         UnidadAdministrativa::create($validated);
 
+        // Si el alta vino desde el formulario de edición de una dependencia,
+        // regresamos ahí para que el usuario siga viendo sus unidades.
+        // Si no, mantiene el comportamiento original (lista general de unidades).
+        if ($request->filled('volver_a_dependencia')) {
+            return redirect()
+                ->route('admin.catalogos.dependencias.editar', $request->input('volver_a_dependencia'))
+                ->with('success', 'Unidad administrativa agregada.');
+        }
+
         return redirect()->route('admin.catalogos.unidades')
             ->with('success', 'Unidad administrativa creada.');
     }
@@ -216,12 +231,49 @@ class CatalogoController extends Controller
             ->with('success', 'Unidad actualizada.');
     }
 
-    public function toggleUnidad(UnidadAdministrativa $unidad)
+    public function toggleUnidad(Request $request, UnidadAdministrativa $unidad)
     {
         $unidad->update(['activo' => !$unidad->activo]);
         $estado = $unidad->activo ? 'activada' : 'desactivada';
 
+        if ($request->filled('volver_a_dependencia')) {
+            return redirect()
+                ->route('admin.catalogos.dependencias.editar', $request->input('volver_a_dependencia'))
+                ->with('success', "Unidad {$estado}.");
+        }
+
         return back()->with('success', "Unidad {$estado}.");
+    }
+
+    /**
+     * Elimina una unidad administrativa SOLO si no tiene nada ligado
+     * (ni usuarios ni trámites). Si tiene registros dependientes, no la borra
+     * y avisa que solo puede desactivarse, para no romper esos registros.
+     */
+    public function eliminarUnidad(Request $request, UnidadAdministrativa $unidad)
+    {
+        $tieneUsuarios = \App\Models\User::where('unidad_id', $unidad->id)->exists();
+        $tieneTramites = \App\Models\Tramite::where('unidad_id', $unidad->id)->exists();
+
+        if ($tieneUsuarios || $tieneTramites) {
+            $mensaje = 'No se puede eliminar: la unidad tiene '
+                . ($tieneTramites ? 'trámites' : '')
+                . ($tieneTramites && $tieneUsuarios ? ' y ' : '')
+                . ($tieneUsuarios ? 'usuarios' : '')
+                . ' ligados. Solo puede desactivarla.';
+            return back()->with('error', $mensaje);
+        }
+
+        $dependenciaId = $unidad->dependencia_id;
+        $unidad->delete();
+
+        if ($request->filled('volver_a_dependencia')) {
+            return redirect()
+                ->route('admin.catalogos.dependencias.editar', $request->input('volver_a_dependencia'))
+                ->with('success', 'Unidad eliminada.');
+        }
+
+        return back()->with('success', 'Unidad eliminada.');
     }
 
     // ─── Tipos de Regulación ─────────────────────────────────────

@@ -157,6 +157,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('unidades/{unidad}/editar',       [CatalogoController::class, 'editarUnidad'])->name('admin.catalogos.unidades.editar');
             Route::put('unidades/{unidad}',              [CatalogoController::class, 'actualizarUnidad'])->name('admin.catalogos.unidades.actualizar');
             Route::post('unidades/{unidad}/toggle',      [CatalogoController::class, 'toggleUnidad'])->name('admin.catalogos.unidades.toggle');
+            Route::delete('unidades/{unidad}',           [CatalogoController::class, 'eliminarUnidad'])->name('admin.catalogos.unidades.eliminar');
 
             // Tipos de regulación
             Route::get('tipos-regulacion',                          [CatalogoController::class, 'tiposRegulacion'])->name('admin.catalogos.tipos-regulacion');
