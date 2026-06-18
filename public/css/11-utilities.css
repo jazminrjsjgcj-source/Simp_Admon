@@ -805,3 +805,7 @@
 .hito-btn-marcar { white-space: nowrap; }
 
 .hitos-listo { margin: 14px 0 0; padding: 10px 14px; background: #f0fdf4; border: 1px solid #86efac; border-radius: var(--radius-sm); color: #166534; font-size: 13px; font-weight: 600; text-align: center; }
+
+/* ─── Periodos activos agrupados en una sola barrita ───────────────────── */
+.period-grupo { display: inline-flex; align-items: center; gap: 9px; }
+.period-divisor { width: 1px; height: 18px; background: #e1d5dc; margin: 0 4px; }

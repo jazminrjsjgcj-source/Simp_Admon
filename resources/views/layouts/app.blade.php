@@ -120,15 +120,26 @@
     <header class="topbar">
       <div class="topbar-spacer"></div>
       @php
-        $periodoActivo = \Illuminate\Support\Facades\DB::table('periodos')->where('estatus','activo')->first();
-        $diasRestantes = $periodoActivo ? (int)\Carbon\Carbon::now()->diffInDays(\Carbon\Carbon::parse($periodoActivo->fecha_fin), false) : null;
+        // Periodo activo de cada agenda (solo puede haber uno activo por tipo).
+        $periodosActivos = \App\Models\Periodo::where('estatus', 'activo')
+            ->orderBy('tipo')
+            ->get();
       @endphp
-      @if($periodoActivo)
+      @if($periodosActivos->isNotEmpty())
         <div class="period nowrap">
-          <span class="nowrap">{{ $periodoActivo->nombre }}</span>
-          <b class="{{ ($diasRestantes !== null && $diasRestantes < 0) ? 'vencido' : '' }}">
-            {{ ($diasRestantes !== null && $diasRestantes >= 0) ? $diasRestantes.' días' : 'Vencido' }}
-          </b>
+          @foreach($periodosActivos as $pa)
+            @php
+              $paDias = (int)\Carbon\Carbon::now()->diffInDays(\Carbon\Carbon::parse($pa->fecha_fin), false);
+              $paTipo = $pa->tipo === 'agenda_syd' ? 'SyD' : 'Regulatoria';
+            @endphp
+            <span class="period-grupo nowrap">
+              <span class="nowrap">{{ $paTipo }}: {{ $pa->nombre }}</span>
+              <b class="{{ ($paDias < 0) ? 'vencido' : '' }}">
+                {{ ($paDias >= 0) ? $paDias.' días' : 'Vencido' }}
+              </b>
+            </span>
+            @if(!$loop->last)<span class="period-divisor"></span>@endif
+          @endforeach
         </div>
       @endif
       <div class="role-pill">{{ ucfirst(auth()->user()->rol) }}</div>

@@ -16,6 +16,7 @@
   --muted: #667085;
   --primary: #750038;
   --primary-container: #9d0b4f;
+  --accent: #750038;/* acento de ayudas y acuse — guinda principal (antes caía en violeta por no estar definida) */
   --sidebar: #7a153d;
   --secondary-container: #fc7da3;
   --on-secondary-container: #751039;
