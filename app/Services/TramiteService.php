@@ -58,7 +58,8 @@ class TramiteService
                   $datos['fundamento_resumen']);
 
             // El total de derechos alimenta monto_derechos (entra al costo).
-            $datos['monto_derechos'] = collect($derechos)->sum('monto');
+            // Convierte los derechos en UMA a pesos antes de sumar.
+            $datos['monto_derechos'] = \App\Models\TramiteDerecho::totalEnPesos($derechos);
 
             // Cálculo del costo burocrático a partir de los datos.
             $datos = array_merge($datos, Tramite::calcularCostoDesde($datos));
@@ -103,8 +104,13 @@ class TramiteService
                 continue;
             }
             $tramite->derechos()->create([
-                'concepto' => $concepto,
-                'monto'    => floatval($d['monto'] ?? 0),
+                'concepto'    => $concepto,
+                'monto'       => floatval($d['monto'] ?? 0),
+                'unidad'      => ($d['unidad'] ?? 'pesos') === 'UMA' ? 'UMA' : 'pesos',
+                'es_variable' => !empty($d['es_variable']),
+                'fj_norma'    => $d['fj_norma']    ?? null,
+                'fj_capitulo' => $d['fj_capitulo'] ?? null,
+                'fj_articulo' => $d['fj_articulo'] ?? null,
             ]);
         }
     }
@@ -186,13 +192,17 @@ class TramiteService
             }
 
             $datos = [
-                'orden'           => $i + 1,
-                'nombre'          => $req['nombre'],
-                'original'        => !empty($req['original']),
-                'copia'           => !empty($req['copia']),
-                'dias_estimados'  => $req['dias']  ?? 0,
-                'horas_estimadas' => $req['horas'] ?? 0,
-                'observaciones'   => $req['observaciones'] ?? null,
+                'orden'             => $i + 1,
+                'nombre'            => $req['nombre'],
+                'original'          => !empty($req['original']),
+                'copia'             => !empty($req['copia']),
+                'dias_estimados'    => $req['dias']    ?? 0,
+                'horas_estimadas'   => $req['horas']   ?? 0,
+                'minutos_estimados' => $req['minutos'] ?? 0,
+                'observaciones'     => $req['observaciones'] ?? null,
+                'fj_norma'          => $req['fj_norma']    ?? null,
+                'fj_capitulo'       => $req['fj_capitulo'] ?? null,
+                'fj_articulo'       => $req['fj_articulo'] ?? null,
             ];
 
             if (!empty($req['id'])) {
@@ -263,6 +273,7 @@ class TramiteService
                 $tramite->procesosAtencion()->create([
                     'tipo'    => $tipo,
                     'paso'    => $p['paso'] ?? $orden,
+                    'subpaso' => $p['subpaso'] ?? 0,
                     'accion'  => $p['accion'] ?? null,
                     'detalle' => $p['detalle'] ?? null,
                     'area'    => $p['area'] ?? null,

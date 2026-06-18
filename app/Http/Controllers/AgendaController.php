@@ -183,7 +183,9 @@ class AgendaController extends Controller
 
     public function show(AccionAgenda $agenda)
     {
-        $agenda->load(['dependencia', 'tramite', 'observaciones.realizadaPor', 'creador']);
+        $agenda->load(['dependencia', 'tramite.requisitos', 'tramite.procesosAtencion' => function ($q) {
+            $q->orderBy('paso')->orderBy('subpaso');
+        }, 'observaciones.realizadaPor', 'creador']);
 
         // #18: datos del modal de observación si el usuario puede observar.
         $puedeObservar = request()->user()->tienePermiso('agenda.observar');

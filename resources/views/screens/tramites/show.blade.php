@@ -85,6 +85,7 @@
         <div class="modal-data-item"><span>Servidor público</span><strong>{{ $tramite->servidor_publico ?? '—' }}</strong></div>
         <div class="modal-data-item"><span>Dirigido a</span><strong>{{ ucfirst($tramite->dirigido_a ?? '—') }}</strong></div>
         <div class="modal-data-item"><span>Frecuencia</span><strong>{{ $tramite->frecuencia ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Tipo de relación</span><strong>{{ $tramite->tipo_relacion ?? '—' }}</strong></div>
         <div class="modal-data-item"><span>Volumen anual</span><strong>{{ number_format($tramite->volumen_anual ?? 0) }} solicitudes</strong></div>
         <div class="modal-data-item"><span>Plazo de resolución</span><strong>@plazo($tramite->plazo_resolucion_cantidad, $tramite->plazo_resolucion_unidad)</strong></div>
       </div>

@@ -92,7 +92,7 @@
 .wizard-panel p { margin: 0; color: #475467; font-size: 13px; }
 .wizard-content { display: none; }
 .wizard-content.active { display: block; }
-.wizard-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; }
+.wizard-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; align-items: start; }
 .split-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; min-width: 0; }
 .split-fields-labeled { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .split-label { display: block; font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }

@@ -132,8 +132,8 @@
               $paDias = (int)\Carbon\Carbon::now()->diffInDays(\Carbon\Carbon::parse($pa->fecha_fin), false);
               $paTipo = $pa->tipo === 'agenda_syd' ? 'SyD' : 'Regulatoria';
             @endphp
-            <span class="period-grupo nowrap">
-              <span class="nowrap">{{ $paTipo }}: {{ $pa->nombre }}</span>
+            <span class="period-grupo nowrap" title="{{ $pa->nombre }}">
+              <span class="nowrap">{{ $paTipo }}</span>
               <b class="{{ ($paDias < 0) ? 'vencido' : '' }}">
                 {{ ($paDias >= 0) ? $paDias.' días' : 'Vencido' }}
               </b>

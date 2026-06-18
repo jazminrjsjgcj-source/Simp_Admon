@@ -331,6 +331,25 @@
         </div>
       </div>
 
+      {{-- Costo burocrático heredado del trámite (solo lectura, camino A) --}}
+      <div id="costoHeredado" style="display:none" class="wz-bloque">
+        <div class="wz-bloque-head"><strong>Costo burocrático del trámite</strong><small>Calculado a partir de los datos del trámite (metodología ATDT).</small></div>
+        <div class="wz-bloque-body">
+          <div id="costoHeredadoCalculado">
+            <div class="costo-heredado-grid">
+              <div class="costo-item"><span>Costo Directo (CBD)</span><strong id="chCbd">—</strong></div>
+              <div class="costo-item"><span>Costo Indirecto (CBI)</span><strong id="chCbi">—</strong></div>
+              <div class="costo-item"><span>Costo Unitario (CBU)</span><strong id="chCbu">—</strong></div>
+              <div class="costo-item"><span>Costo Total (CBT)</span><strong id="chCbt">—</strong></div>
+              <div class="costo-item"><span>Categoría</span><strong id="chCat">—</strong></div>
+            </div>
+          </div>
+          <div id="costoHeredadoSinCalcular" class="assist-box" style="display:none">
+            Este trámite aún no tiene su costo burocrático calculado. Se calculará cuando el trámite se complete.
+          </div>
+        </div>
+      </div>
+
       {{-- BLOQUE III: Operación y costos --}}
       <div class="wz-bloque">
         <div class="wz-bloque-head"><strong>Operación y costos burocráticos</strong><small>Tiempos, visitas y procesos.</small></div>
@@ -468,6 +487,11 @@
           <h3>Requisitos del trámite</h3>
           <p>Documentos que el ciudadano debe presentar.</p>
         </div>
+      </div>
+      <div id="tramiteRequisitos" style="display:none; margin-bottom:16px" class="card card-pad">
+        <strong style="display:block; margin-bottom:8px; font-size:13px">Requisitos heredados del trámite</strong>
+        <p style="margin:0 0 10px; font-size:12px; color:var(--muted)">Estos requisitos vienen del trámite vinculado. Se editan desde el trámite, no aquí.</p>
+        <ol id="tramiteRequisitosLista" class="requisitos-heredados"></ol>
       </div>
       <div id="reqLista"></div>
       <button type="button" class="btn btn-outline btn-sm" onclick="addReq()">+ Agregar requisito</button>
@@ -740,6 +764,17 @@
           'tramite_visitas_requeridas': d.visitas_requeridas,
           'tramite_fundamento': d.normativa_nombre,
           'tramite_dirigido_a': d.dirigido_a,
+          'tramite_num_areas': d.num_areas,
+          'tramite_areas_participantes': d.areas_participantes,
+          'tramite_tiempo_traslado_horas': d.tiempo_traslado_horas,
+          'tramite_tiempo_traslado_min': d.tiempo_traslado_min,
+          'tramite_tiempo_espera_horas': d.tiempo_espera_horas,
+          'tramite_tiempo_espera_min': d.tiempo_espera_min,
+          'tramite_tiempo_atencion_horas': d.tiempo_atencion_horas,
+          'tramite_tiempo_atencion_min': d.tiempo_atencion_min,
+          'tramite_copias_cantidad': d.copias_cantidad,
+          'tramite_copias_precio': d.copias_precio,
+          'tramite_monto_derechos': d.monto_derechos,
         };
         Object.keys(mapa).forEach(function (name) {
           var el = document.querySelector('[name="' + name + '"]');
@@ -750,6 +785,62 @@
             if (el.tagName === 'SELECT') el.setAttribute('disabled', 'disabled');
           }
         });
+
+        // Si el trámite tiene áreas participantes, mostrar su detalle (el
+        // oninput no se dispara al asignar el valor por JS, así que lo forzamos).
+        if (d.num_areas != null && parseInt(d.num_areas) > 0 && typeof toggleAreasDetalle === 'function') {
+          toggleAreasDetalle(d.num_areas);
+        }
+
+        // Requisitos heredados del trámite (solo lectura).
+        var cont = document.getElementById('tramiteRequisitos');
+        var lista = document.getElementById('tramiteRequisitosLista');
+        if (cont && lista) {
+          lista.innerHTML = '';
+          if (Array.isArray(d.requisitos) && d.requisitos.length > 0) {
+            d.requisitos.forEach(function (req) {
+              var li = document.createElement('li');
+              var nombre = document.createElement('strong');
+              nombre.textContent = req.nombre || 'Requisito';
+              li.appendChild(nombre);
+              if (req.tipo_presentacion) {
+                var tag = document.createElement('span');
+                tag.className = 'requisito-detalle';
+                tag.textContent = req.tipo_presentacion.charAt(0).toUpperCase() + req.tipo_presentacion.slice(1);
+                li.appendChild(tag);
+              }
+              lista.appendChild(li);
+            });
+            cont.style.display = '';
+          } else {
+            cont.style.display = 'none';
+          }
+        }
+
+        // Costo burocrático heredado del trámite (solo lectura).
+        var costoWrap = document.getElementById('costoHeredado');
+        if (costoWrap && d.costo) {
+          var calc = document.getElementById('costoHeredadoCalculado');
+          var sinCalc = document.getElementById('costoHeredadoSinCalcular');
+          if (d.costo.calculado) {
+            var fmt = function (n) {
+              var v = parseFloat(n || 0);
+              return '$' + v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            };
+            document.getElementById('chCbd').textContent = fmt(d.costo.cbd_directo);
+            document.getElementById('chCbi').textContent = fmt(d.costo.cbi_indirecto);
+            document.getElementById('chCbu').textContent = fmt(d.costo.cbu_unitario);
+            document.getElementById('chCbt').textContent = fmt(d.costo.cbt_total);
+            var cat = (d.costo.categoria || '').charAt(0).toUpperCase() + (d.costo.categoria || '').slice(1);
+            document.getElementById('chCat').textContent = cat || '—';
+            if (calc) calc.style.display = '';
+            if (sinCalc) sinCalc.style.display = 'none';
+          } else {
+            if (calc) calc.style.display = 'none';
+            if (sinCalc) sinCalc.style.display = '';
+          }
+          costoWrap.style.display = '';
+        }
       })
       .catch(function (err) {
         console.error('Error al precargar trámite:', err);
@@ -762,6 +853,10 @@
     document.getElementById('tramiteIdSel').value = '';
     var el = document.getElementById('tramiteElegido');
     if (el) el.style.display = 'none';
+    var req = document.getElementById('tramiteRequisitos');
+    if (req) req.style.display = 'none';
+    var costo = document.getElementById('costoHeredado');
+    if (costo) costo.style.display = 'none';
     // Revertir solo-lectura de los campos del trámite.
     document.querySelectorAll('[name^="tramite_"]').forEach(function (campo) {
       campo.removeAttribute('readonly');
@@ -782,6 +877,13 @@
         '<div class="field span-2"><label>Nombre del requisito</label><input name="requisitos[' + i + '][nombre]" placeholder="Ej. Identificación oficial"></div>' +
         '<div class="field"><label>¿Original?</label><select name="requisitos[' + i + '][original]"><option value="1">Sí</option><option value="0" selected>No</option></select></div>' +
         '<div class="field"><label>¿Copia?</label><select name="requisitos[' + i + '][copia]"><option value="1">Sí</option><option value="0" selected>No</option></select></div>' +
+        '<div class="field span-2"><label>Tiempo de recolección del requisito</label>' +
+          '<div style="display:flex; gap:6px">' +
+            '<div style="flex:1"><label class="split-label">Días háb.</label><input name="requisitos[' + i + '][dias]" type="number" min="0" max="365" value="0"></div>' +
+            '<div style="flex:1"><label class="split-label">Horas</label><input name="requisitos[' + i + '][horas]" type="number" min="0" max="7" value="0"></div>' +
+            '<div style="flex:1"><label class="split-label">Minutos</label><input name="requisitos[' + i + '][minutos]" type="number" min="0" max="59" value="0"></div>' +
+          '</div>' +
+        '</div>' +
       '</div>';
     document.getElementById('reqLista').appendChild(art);
   };

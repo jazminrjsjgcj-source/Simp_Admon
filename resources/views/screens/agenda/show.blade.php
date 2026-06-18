@@ -75,6 +75,67 @@
     </div>
   </div>
 
+  {{-- REQUISITOS HEREDADOS DEL TRÁMITE (solo lectura) --}}
+  @if($agenda->tramite && $agenda->tramite->requisitos->isNotEmpty())
+  <div class="card">
+    <div class="panel-head">
+      <div><h3>Requisitos del trámite</h3><p>Heredados del trámite vinculado. Se editan desde el trámite, no aquí.</p></div>
+    </div>
+    <div class="card-body-padded">
+      <ol class="requisitos-heredados">
+        @foreach($agenda->tramite->requisitos as $req)
+          <li>
+            <strong>{{ $req->nombre }}</strong>
+            @if($req->tipo_presentacion)
+              <span class="requisito-detalle">{{ ucfirst($req->tipo_presentacion) }}</span>
+            @endif
+          </li>
+        @endforeach
+      </ol>
+    </div>
+  </div>
+  @endif
+
+  {{-- PASOS DEL TRÁMITE (heredados, solo lectura) --}}
+  @if($agenda->tramite && $agenda->tramite->procesosAtencion->isNotEmpty())
+  <div class="card">
+    <div class="panel-head">
+      <div><h3>Pasos para realizar el trámite</h3><p>Heredados del trámite vinculado. Se editan desde el trámite.</p></div>
+    </div>
+    <div class="card-body-padded">
+      <ol class="pasos-heredados">
+        @foreach($agenda->tramite->procesosAtencion as $paso)
+          <li class="{{ $paso->subpaso > 0 ? 'paso-heredado-sub' : '' }}">
+            <span class="paso-heredado-num">{{ $paso->subpaso > 0 ? $paso->paso.'.'.$paso->subpaso : $paso->paso }}</span>
+            <div>
+              @if($paso->area)<strong>{{ $paso->area }}</strong>@endif
+              @if($paso->accion)<p>{{ $paso->accion }}</p>@endif
+            </div>
+          </li>
+        @endforeach
+      </ol>
+    </div>
+  </div>
+  @endif
+
+  {{-- COSTO BUROCRÁTICO DEL TRÁMITE (heredado, solo lectura) --}}
+  @if($agenda->tramite && $agenda->tramite->cbu_unitario !== null && (float)$agenda->tramite->cbu_unitario > 0)
+  <div class="card">
+    <div class="panel-head">
+      <div><h3>Costo burocrático del trámite</h3><p>Calculado a partir de los datos del trámite (metodología ATDT).</p></div>
+    </div>
+    <div class="card-body-padded">
+      <div class="costo-heredado-grid">
+        <div class="costo-item"><span>Costo Directo (CBD)</span><strong>${{ number_format($agenda->tramite->cbd_directo, 2) }}</strong></div>
+        <div class="costo-item"><span>Costo Indirecto (CBI)</span><strong>${{ number_format($agenda->tramite->cbi_indirecto, 2) }}</strong></div>
+        <div class="costo-item"><span>Costo Unitario (CBU)</span><strong>${{ number_format($agenda->tramite->cbu_unitario, 2) }}</strong></div>
+        <div class="costo-item"><span>Costo Total (CBT)</span><strong>${{ number_format($agenda->tramite->cbt_total, 2) }}</strong></div>
+        <div class="costo-item"><span>Categoría</span><strong>{{ ucfirst($agenda->tramite->categoriaPorCostoUnitario()) }}</strong></div>
+      </div>
+    </div>
+  </div>
+  @endif
+
   {{-- ALCANCE Y NECESIDAD --}}
   <div class="card">
     <div class="panel-head">

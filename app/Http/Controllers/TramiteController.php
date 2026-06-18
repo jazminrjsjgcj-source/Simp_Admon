@@ -88,7 +88,7 @@ class TramiteController extends Controller
      */
     public function detalleJson(Tramite $tramite)
     {
-        $tramite->load('dependencia:id,nombre', 'unidad:id,nombre', 'sector:id,nombre');
+        $tramite->load('dependencia:id,nombre', 'unidad:id,nombre', 'sector:id,nombre', 'requisitos:id,tramite_id,nombre,tipo_presentacion,orden');
 
         return response()->json([
             'id'                        => $tramite->id,
@@ -106,6 +106,29 @@ class TramiteController extends Controller
             'nivel_digitalizacion'      => $tramite->nivel_digitalizacion,
             'visitas_requeridas'        => $tramite->visitas_requeridas,
             'normativa_nombre'          => $tramite->normativa_nombre,
+            'num_areas'                 => $tramite->num_areas,
+            'areas_participantes'       => $tramite->areas_participantes,
+            'tiempo_traslado_horas'     => $tramite->tiempo_traslado_horas,
+            'tiempo_traslado_min'       => $tramite->tiempo_traslado_min,
+            'tiempo_espera_horas'       => $tramite->tiempo_espera_horas,
+            'tiempo_espera_min'         => $tramite->tiempo_espera_min,
+            'tiempo_atencion_horas'     => $tramite->tiempo_atencion_horas,
+            'tiempo_atencion_min'       => $tramite->tiempo_atencion_min,
+            'copias_cantidad'           => $tramite->copias_cantidad,
+            'copias_precio'             => $tramite->copias_precio,
+            'monto_derechos'            => $tramite->monto_derechos,
+            'requisitos'                => $tramite->requisitos->map(fn ($r) => [
+                'nombre'            => $r->nombre,
+                'tipo_presentacion' => $r->tipo_presentacion,
+            ])->values(),
+            'costo' => [
+                'cbd_directo'   => $tramite->cbd_directo,
+                'cbi_indirecto' => $tramite->cbi_indirecto,
+                'cbu_unitario'  => $tramite->cbu_unitario,
+                'cbt_total'     => $tramite->cbt_total,
+                'categoria'     => $tramite->categoriaPorCostoUnitario(),
+                'calculado'     => $tramite->cbu_unitario !== null && (float) $tramite->cbu_unitario > 0,
+            ],
         ]);
     }
 
@@ -144,6 +167,7 @@ class TramiteController extends Controller
         $validated['tipo_tramite_id'] = $request->input('tipo_tramite_id') ?: null;
         $validated['created_by'] = $request->user()->id;
         $validated['dirigido_a'] = $validated['dirigido_a'] ?? 'ambas';
+        $validated['tipo_relacion'] = $request->input('tipo_relacion') ?: null;
 
         // Fundamento jurídico: varias citas del catálogo y/o captura manual.
         $validated['citas']                = $request->input('citas', []);
@@ -151,16 +175,18 @@ class TramiteController extends Controller
         $validated['fundamento_tipo']      = $request->input('fundamento_tipo');
         $validated['fundamento_resumen']   = $request->input('fundamento_resumen');
 
+        // Fundamento jurídico opcional del costo del trámite.
+        $validated['fj_norma']    = $request->input('costo_fj_norma');
+        $validated['fj_capitulo'] = $request->input('costo_fj_capitulo');
+        $validated['fj_articulo'] = $request->input('costo_fj_articulo');
+
         // El controlador extrae del request; el servicio recibe datos limpios.
         $tramite = $this->tramiteService->crear(
             datos:       $validated,
             derechos:    $this->leerDerechos($request),
             requisitos:  $request->input('requisitos', []),
             fichaPortal: $this->extraerFichaPortal($request),
-            procesos:    [
-                'atencion'   => $request->input('proceso_atencion', []),
-                'resolucion' => $request->input('proceso_resolucion', []),
-            ],
+            procesos:    $this->extraerProcesos($request),
             esEnvio:     $esEnvio,
         );
 
@@ -217,7 +243,9 @@ class TramiteController extends Controller
         // (aviso por sección) y en el checklist lateral. Se cargan TODAS (no
         // solo pendientes) para que el checklist muestre el progreso. Las
         // secciones coinciden con las que usa el modal de observación.
-        $tramite->load(['requisitos', 'fundamentos', 'observaciones.realizadaPor', 'derechos']);
+        $tramite->load(['requisitos', 'fundamentos', 'observaciones.realizadaPor', 'derechos', 'procesosAtencion' => function ($q) {
+            $q->orderBy('paso')->orderBy('subpaso');
+        }]);
         $observacionesPorSeccion = $tramite->observaciones
             ->sortByDesc('created_at')
             ->groupBy('seccion');
@@ -258,8 +286,9 @@ class TramiteController extends Controller
         ]);
 
         // Opción B: la lista de derechos es la fuente única del monto_derechos.
+        // Convierte los derechos en UMA a pesos antes de sumar.
         $derechos = $this->leerDerechos($request);
-        $data['monto_derechos'] = collect($derechos)->sum('monto');
+        $data['monto_derechos'] = \App\Models\TramiteDerecho::totalEnPesos($derechos);
 
         // Si el enlace edita un trámite que está en periodo de observación,
         // al guardar pasa a corrección para indicar que ya empezó a atender.
@@ -280,10 +309,7 @@ class TramiteController extends Controller
 
         $this->sincronizarRequisitos($tramite, $request->input('requisitos', []));
         $this->sincronizarFichaPortal($tramite, $request);
-        $this->tramiteService->sincronizarProcesos($tramite, [
-            'atencion'   => $request->input('proceso_atencion', []),
-            'resolucion' => $request->input('proceso_resolucion', []),
-        ]);
+        $this->tramiteService->sincronizarProcesos($tramite, $this->extraerProcesos($request));
 
         // Sincronizar fundamento jurídico (citas del catálogo + captura manual).
         // Estaba ausente en update — solo existía en store. Ahora se guarda en ambos.
@@ -412,6 +438,42 @@ class TramiteController extends Controller
      * para pasarlos al TramiteService. Misma lógica que sincronizarFichaPortal
      * pero devuelve los datos en vez de guardarlos.
      */
+    /**
+     * Convierte el JSON de "pasos para realizar el trámite" al formato que
+     * espera el servicio. Todos los pasos van como tipo 'atencion' (proceso
+     * único). Conserva el orden y la marca de subpaso para numerar 1.1, 1.2.
+     */
+    private function extraerProcesos(Request $request): array
+    {
+        $pasos = [];
+        $json  = $request->input('pasos_json');
+
+        if ($json) {
+            $decoded = json_decode($json, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $principal = 0;
+                $sub       = 0;
+                foreach ($decoded as $p) {
+                    $esSub = !empty($p['es_subpaso']);
+                    if ($esSub) {
+                        $sub++;
+                    } else {
+                        $principal++;
+                        $sub = 0;
+                    }
+                    $pasos[] = [
+                        'paso'    => $principal,
+                        'subpaso' => $esSub ? $sub : 0,
+                        'accion'  => $p['accion'] ?? null,
+                        'area'    => $p['area'] ?? null,
+                    ];
+                }
+            }
+        }
+
+        return ['atencion' => $pasos, 'resolucion' => []];
+    }
+
     private function extraerFichaPortal(Request $request): array
     {
         $camposPortal = [
@@ -419,6 +481,7 @@ class TramiteController extends Controller
             'modalidad', 'canal_principal', 'costo_publico', 'forma_pago',
             'resultado', 'doc_resultado', 'medio_entrega', 'vigencia',
             'oficina', 'telefono', 'correo', 'enlace_cita',
+            'direccion', 'url',
         ];
 
         $datos = [];
@@ -452,6 +515,7 @@ class TramiteController extends Controller
             'modalidad', 'canal_principal', 'costo_publico', 'forma_pago',
             'resultado', 'doc_resultado', 'medio_entrega', 'vigencia',
             'oficina', 'telefono', 'correo', 'enlace_cita',
+            'direccion', 'url',
         ];
 
         $datos = [];
@@ -561,6 +625,15 @@ class TramiteController extends Controller
             'copias_cantidad'           => 'nullable|integer|min:0',
             'copias_precio'             => 'nullable|numeric|min:0',
             'nivel_digitalizacion'      => 'nullable|integer|min:1|max:5',
+            'visitas_requeridas'        => 'nullable|integer|min:0',
+            'num_areas'                 => 'nullable|integer|min:0',
+            'areas_participantes'       => 'nullable|string|max:500',
+            'tiempo_traslado_horas'     => 'nullable|integer|min:0',
+            'tiempo_traslado_min'       => 'nullable|integer|min:0|max:59',
+            'tiempo_espera_horas'       => 'nullable|integer|min:0',
+            'tiempo_espera_min'         => 'nullable|integer|min:0|max:59',
+            'tiempo_atencion_horas'     => 'nullable|integer|min:0',
+            'tiempo_atencion_min'       => 'nullable|integer|min:0|max:59',
         ];
     }
 
@@ -588,6 +661,15 @@ class TramiteController extends Controller
             'copias_cantidad'           => 'nullable|integer|min:0',
             'copias_precio'             => 'nullable|numeric|min:0',
             'nivel_digitalizacion'      => 'nullable|integer|min:1|max:5',
+            'visitas_requeridas'        => 'nullable|integer|min:0',
+            'num_areas'                 => 'nullable|integer|min:0',
+            'areas_participantes'       => 'nullable|string|max:500',
+            'tiempo_traslado_horas'     => 'nullable|integer|min:0',
+            'tiempo_traslado_min'       => 'nullable|integer|min:0|max:59',
+            'tiempo_espera_horas'       => 'nullable|integer|min:0',
+            'tiempo_espera_min'         => 'nullable|integer|min:0|max:59',
+            'tiempo_atencion_horas'     => 'nullable|integer|min:0',
+            'tiempo_atencion_min'       => 'nullable|integer|min:0|max:59',
         ];
     }
 }

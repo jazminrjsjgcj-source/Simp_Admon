@@ -17,8 +17,8 @@
         <div class="wizard-step active" data-step="1"><span class="wizard-dot"></span><strong>Identificación</strong><small>Datos base</small></div>
         <div class="wizard-step"        data-step="2"><span class="wizard-dot"></span><strong>Información</strong><small>Objetivo</small></div>
         <div class="wizard-step"        data-step="3"><span class="wizard-dot"></span><strong>Operación</strong><small>ATDT</small></div>
-        <div class="wizard-step"        data-step="4"><span class="wizard-dot"></span><strong>Requisitos</strong><small>Documentos</small></div>
-        <div class="wizard-step"        data-step="5"><span class="wizard-dot"></span><strong>Fundamento</strong><small>Normativa</small></div>
+        <div class="wizard-step"        data-step="4"><span class="wizard-dot"></span><strong>Fundamento</strong><small>De dónde sale</small></div>
+        <div class="wizard-step"        data-step="5"><span class="wizard-dot"></span><strong>Requisitos</strong><small>Documentos</small></div>
         <div class="wizard-step"        data-step="6"><span class="wizard-dot"></span><strong>Portal</strong><small>Ciudadanía</small></div>
         <div class="wizard-step"        data-step="7"><span class="wizard-dot"></span><strong>Confirmar</strong><small>Guardar</small></div>
       </div>
@@ -171,6 +171,17 @@
               </select>
             </div>
 
+            <div class="field">
+              <label>Tipo de relación con otros trámites</label>
+              <select name="tipo_relacion">
+                <option value="" {{ old('tipo_relacion')==='' ? 'selected' : '' }}>— Sin relación / no aplica —</option>
+                <option value="Naturaleza" {{ old('tipo_relacion')==='Naturaleza' ? 'selected' : '' }}>Naturaleza</option>
+                <option value="Secuencia" {{ old('tipo_relacion')==='Secuencia' ? 'selected' : '' }}>Secuencia</option>
+                <option value="Dependencia funcional" {{ old('tipo_relacion')==='Dependencia funcional' ? 'selected' : '' }}>Dependencia funcional</option>
+              </select>
+              <small class="help-small">Rubro 10.1: cómo se relaciona este trámite con otros, si aplica.</small>
+            </div>
+
             {{-- Sector y subsector económico SCIAN --}}
             <x-selector-scian :sector="old('sector_id')" :subsector="old('subsector_id')" />
 
@@ -209,11 +220,57 @@
                 <option value="5" {{ old('nivel_digitalizacion')==5?'selected':'' }}>5 — 100% en línea</option>
               </select>
             </div>
-            <x-field-help label="Monto de derechos (pesos)">
+            <x-field-help label="Costo público">
+              <div class="costo-grupo">
+                <select id="costoTipo" onchange="actualizarCosto()">
+                  <option value="gratuito" {{ old('costo_tipo') === 'con_costo' ? '' : 'selected' }}>Gratuito</option>
+                  <option value="con_costo" {{ old('costo_tipo') === 'con_costo' ? 'selected' : '' }}>Con precio</option>
+                </select>
+                <input type="number" id="costoMonto" min="0" step="0.01"
+                  placeholder="0.00" value="{{ old('costo_monto', 0) }}"
+                  oninput="actualizarCosto()" style="display:none">
+                <select id="costoUnidad" onchange="actualizarCosto()" style="display:none">
+                  <option value="pesos" {{ old('costo_unidad') === 'UMA' ? '' : 'selected' }}>Pesos</option>
+                  <option value="UMA" {{ old('costo_unidad') === 'UMA' ? 'selected' : '' }}>UMA</option>
+                </select>
+                <span class="costo-moneda" id="costoEquiv"></span>
+              </div>
+              {{-- Lo que se guarda: texto legible + monto YA en pesos + unidad original --}}
+              <input type="hidden" name="portal_costo" id="costoTexto" value="{{ old('portal_costo', 'Gratuito') }}">
+              <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ old('costo_tipo', 'gratuito') }}">
+              <input type="hidden" name="costo_monto" id="costoMontoHidden" value="{{ old('costo_monto', 0) }}">
+              <input type="hidden" name="costo_unidad" id="costoUnidadHidden" value="{{ old('costo_unidad', 'pesos') }}">
+            </x-field-help>
+            <div class="field span-2 fj-bloque">
+              <label class="fj-pregunta">¿El costo del trámite tiene fundamento jurídico? *</label>
+              <div class="fj-radios">
+                <label><input type="radio" name="costo_fj_tiene" value="1" required onchange="toggleFjRadio(this)" {{ old('costo_fj_tiene') === '1' ? 'checked' : '' }}> Sí</label>
+                <label><input type="radio" name="costo_fj_tiene" value="0" required onchange="toggleFjRadio(this)" {{ old('costo_fj_tiene') === '0' ? 'checked' : '' }}> No</label>
+              </div>
+              <div class="fj-campos fj-linea" style="display:{{ old('costo_fj_tiene') === '1' ? '' : 'none' }}">
+                <div><label>Ley o reglamento</label><input name="costo_fj_norma" placeholder="Ej. Ley de Hacienda Municipal" value="{{ old('costo_fj_norma') }}"></div>
+                <div><label>Capítulo</label><input name="costo_fj_capitulo" placeholder="Ej. Cap. II" value="{{ old('costo_fj_capitulo') }}"></div>
+                <div><label>Artículo</label><input name="costo_fj_articulo" placeholder="Ej. Art. 45" value="{{ old('costo_fj_articulo') }}"></div>
+              </div>
+            </div>
+            {{-- Pago de derechos: conceptos de cobro ligados al trámite,
+                 independientes del costo público. Un trámite puede ser
+                 gratuito y aun así tener derechos por pagar. --}}
+            <x-field-help label="Pago de derechos" class="span-2">
+              <div id="derechosLista" class="derechos-lista">
+                {{-- filas generadas por JS --}}
+              </div>
+              <div class="derechos-pie">
+                <button type="button" class="btn btn-outline btn-sm" onclick="agregarDerecho()">+ Agregar derecho</button>
+                <span class="derechos-total">Total derechos: <strong id="derechosTotal">$0.00 MXN</strong></span>
+              </div>
+              <input type="hidden" name="derechos_json" id="derechosJson" value="{{ old('derechos_json', '[]') }}">
+            </x-field-help>
+            <x-field-help label="Monto de derechos (pesos)" class="span-2">
               <input type="number" id="montoDerechosCalc" name="monto_derechos_display" readonly
                 value="{{ old('monto_derechos', 0) }}"
                 style="background:var(--surface-low);cursor:not-allowed">
-              <small class="campo-nota">Se calcula del total de "Pago de derechos" en la ficha ciudadana.</small>
+              <small class="campo-nota">Resultado del total de "Pago de derechos" (convertido a pesos).</small>
             </x-field-help>
             <x-input-validado tipo="numero_entero" name="copias_cantidad" label="Número de copias requeridas" min="0" placeholder="0" :value="old('copias_cantidad', 0)" />
             <x-input-validado tipo="numero_decimal" name="copias_precio" label="Precio por copia (pesos)" min="0" step="0.01" placeholder="1.50" :value="old('copias_precio', 1.50)" />
@@ -221,10 +278,23 @@
           <div class="assist-box" style="margin-top:16px">
             <strong>Fórmula ATDT:</strong> CBD = Derechos + Copias + Requisitos con costo · CBI = Tiempo requisitos + Tiempo resolución · CBU = CBD + CBI · CBT = CBU × Volumen anual.
           </div>
+
+          {{-- Pasos para realizar el trámite: lista numerada (1, 2, 3) con
+               subpasos (1.1, 1.2). Cada paso indica quién lo realiza y en
+               qué consiste. Se hereda a la agenda en solo lectura. --}}
+          <div class="wizard-panel-head mt-4"><span class="wizard-panel-icon"></span><div><h3>Pasos para realizar el trámite</h3><p>Enumere el proceso paso a paso: quién lo realiza y en qué consiste.</p></div></div>
+          <div id="pasosLista" class="pasos-lista">
+            {{-- filas generadas por JS --}}
+          </div>
+          <div class="section-actions section-actions-start mt-3">
+            <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(false)">+ Agregar paso</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(true)">+ Agregar subpaso</button>
+          </div>
+          <input type="hidden" name="pasos_json" id="pasosJson" value="{{ old('pasos_json', '[]') }}">
         </div>
 
-        {{-- PASO 4: Requisitos --}}
-        <div class="wizard-content" data-panel="4">
+        {{-- PASO 5: Requisitos --}}
+        <div class="wizard-content" data-panel="5">
           <div class="wizard-panel-head"><span class="wizard-panel-icon"></span><div><h3>Requisitos</h3><p>Registre cada documento necesario de forma clara.</p></div></div>
           <div id="reqContainer">
             <article class="requirement-card">
@@ -249,6 +319,18 @@
                 <x-field-help label="Observaciones para publicación" class="span-2">
                   <textarea name="requisitos[0][observaciones]" rows="2" placeholder="Vigencia, formato, dependencia emisora..."></textarea>
                 </x-field-help>
+                <div class="field span-2 fj-bloque">
+                  <label class="fj-pregunta">¿Este requisito tiene fundamento jurídico? *</label>
+                  <div class="fj-radios">
+                    <label><input type="radio" name="requisitos[0][fj_tiene]" value="1" required onchange="toggleFjRadio(this)"> Sí</label>
+                    <label><input type="radio" name="requisitos[0][fj_tiene]" value="0" required onchange="toggleFjRadio(this)"> No</label>
+                  </div>
+                  <div class="fj-campos fj-linea" style="display:none">
+                    <div><label>Ley o reglamento</label><input name="requisitos[0][fj_norma]" placeholder="Ej. Reglamento de Comercio"></div>
+                    <div><label>Capítulo</label><input name="requisitos[0][fj_capitulo]" placeholder="Ej. Cap. III"></div>
+                    <div><label>Artículo</label><input name="requisitos[0][fj_articulo]" placeholder="Ej. Art. 12"></div>
+                  </div>
+                </div>
               </div>
             </article>
           </div>
@@ -257,9 +339,9 @@
           </div>
         </div>
 
-        {{-- PASO 5: Fundamento jurídico --}}
-        <div class="wizard-content" data-panel="5">
-          <div class="wizard-panel-head"><span class="wizard-panel-icon"></span><div><h3>Fundamento jurídico</h3><p>Normativa que da origen al trámite. Puede citar del catálogo de regulaciones o escribir manualmente.</p></div></div>
+        {{-- PASO 4: Fundamento jurídico --}}
+        <div class="wizard-content" data-panel="4">
+          <div class="wizard-panel-head"><span class="wizard-panel-icon"></span><div><h3>Fundamento jurídico</h3><p>De dónde sale el trámite: la normativa que lo crea u obliga. Puede citar del catálogo de regulaciones o escribir manualmente.</p></div></div>
           <div class="wizard-fields">
 
             {{-- Citar desde el catálogo de regulaciones (si hay regulaciones convertidas) --}}
@@ -303,45 +385,40 @@
               <input name="portal_resultado" placeholder="Ej. Licencia de funcionamiento, constancia, permiso" value="{{ old('portal_resultado') }}">
             </x-field-help>
             <x-field-help label="Modalidad de atención">
-              <select name="portal_modalidad">
+              <select name="portal_modalidad" id="portalModalidad" onchange="toggleModalidadCampos()">
                 <option value="Presencial" {{ old('portal_modalidad')==='Presencial'?'selected':'' }}>Presencial</option>
                 <option value="En línea"   {{ old('portal_modalidad')==='En línea'?'selected':'' }}>En línea</option>
                 <option value="Mixta"      {{ old('portal_modalidad')==='Mixta'?'selected':'' }}>Mixta</option>
               </select>
             </x-field-help>
+            <div id="modalidadDireccion" class="field span-2" style="display:none">
+              <x-field-help label="Dirección donde se realiza el trámite">
+                <input name="portal_direccion" placeholder="Calle, número, colonia, La Paz, B.C.S." value="{{ old('portal_direccion') }}">
+              </x-field-help>
+            </div>
+            <div id="modalidadUrl" class="field span-2" style="display:none">
+              <x-field-help label="URL donde se realiza el trámite en línea">
+                <input name="portal_url" type="url" placeholder="https://tramites.lapaz.gob.mx/..." value="{{ old('portal_url') }}">
+              </x-field-help>
+            </div>
             <x-field-help label="Objetivo del trámite" class="span-2">
               <textarea name="portal_descripcion" rows="3" placeholder="Descripción accesible para la ciudadanía...">{{ old('portal_descripcion') }}</textarea>
             </x-field-help>
-            <x-field-help label="Costo público">
-              <div class="costo-grupo">
-                <select id="costoTipo" onchange="actualizarCosto()">
-                  <option value="gratuito" {{ old('costo_tipo') === 'con_costo' ? '' : 'selected' }}>Gratuito</option>
-                  <option value="con_costo" {{ old('costo_tipo') === 'con_costo' ? 'selected' : '' }}>Con costo</option>
-                </select>
-                <input type="number" id="costoMonto" min="0" step="0.01"
-                  placeholder="0.00" value="{{ old('costo_monto', 0) }}"
-                  oninput="actualizarCosto()">
-                <span class="costo-moneda">MXN</span>
+
+            {{-- Costo y derechos: solo lectura. Se capturan en el paso 3
+                 (Operación) y aquí se muestran pre-llenados para la ficha. --}}
+            <x-field-help label="Costo público (capturado en Operación)" class="span-2">
+              <input type="text" id="costoPublicoResumen" readonly
+                value="{{ old('costo_tipo') === 'con_costo' ? ('Con costo: $' . old('costo_monto', 0) . ' MXN') : 'Gratuito' }}"
+                style="background:var(--surface-low);cursor:not-allowed">
+              <small class="campo-nota">Para cambiarlo, regrese al paso de Operación.</small>
+            </x-field-help>
+            <x-field-help label="Pago de derechos (capturado en Operación)" class="span-2">
+              <div id="derechosResumen" class="derechos-lista" style="background:var(--surface-low);border-radius:var(--radius-sm);padding:8px;min-height:34px">
+                {{-- filas de resumen generadas por JS, solo lectura --}}
               </div>
-              {{-- Lo que se guarda: texto legible generado del selector + monto --}}
-              <input type="hidden" name="portal_costo" id="costoTexto" value="{{ old('portal_costo', 'Gratuito') }}">
-              <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ old('costo_tipo', 'gratuito') }}">
-              <input type="hidden" name="costo_monto" id="costoMontoHidden" value="{{ old('costo_monto', 0) }}">
             </x-field-help>
 
-            {{-- Pago de derechos: conceptos de cobro ligados al trámite,
-                 independientes del costo público. Un trámite puede ser
-                 gratuito y aun así tener derechos por pagar. --}}
-            <x-field-help label="Pago de derechos" class="span-2">
-              <div id="derechosLista" class="derechos-lista">
-                {{-- filas generadas por JS --}}
-              </div>
-              <div class="derechos-pie">
-                <button type="button" class="btn btn-outline btn-sm" onclick="agregarDerecho()">+ Agregar derecho</button>
-                <span class="derechos-total">Total derechos: <strong id="derechosTotal">$0.00 MXN</strong></span>
-              </div>
-              <input type="hidden" name="derechos_json" id="derechosJson" value="{{ old('derechos_json', '[]') }}">
-            </x-field-help>
             {{-- Fase F.4: Horarios de atención estructurados --}}
             <x-field-help label="Horarios de atención">
               <div style="display:flex;gap:8px;align-items:center">
@@ -422,31 +499,59 @@
 
 @push('scripts')
 <script>
-// #8 Costo público: sincroniza selector + monto con los campos ocultos.
+// #8 Costo público: muestra el monto y el selector UMA/Pesos solo cuando es
+// "Con precio". El monto que se guarda (costo_monto) siempre va en PESOS.
 function actualizarCosto() {
-  var tipo  = document.getElementById('costoTipo');
-  var monto = document.getElementById('costoMonto');
-  if (!tipo || !monto) return;
+  var tipo    = document.getElementById('costoTipo');
+  var monto   = document.getElementById('costoMonto');
+  var unidad  = document.getElementById('costoUnidad');
+  var equiv   = document.getElementById('costoEquiv');
+  if (!tipo || !monto || !unidad) return;
 
   var esGratuito = tipo.value === 'gratuito';
+
+  // Mostrar u ocultar el monto y la unidad según el tipo.
+  monto.style.display  = esGratuito ? 'none' : '';
+  unidad.style.display = esGratuito ? 'none' : '';
+
   if (esGratuito) {
     monto.value = 0;
-    monto.disabled = true;
-  } else {
-    monto.disabled = false;
+    if (equiv) equiv.textContent = '';
   }
 
-  var valor = parseFloat(monto.value) || 0;
-  var texto = esGratuito ? 'Gratuito' : ('$' + valor.toFixed(2) + ' MXN');
+  var valorCapturado = parseFloat(monto.value) || 0;
+  var esUma = unidad.value === 'UMA';
+  // El monto en pesos: si es UMA, convertir con el valor vigente.
+  var valorPesos = esUma ? (valorCapturado * (typeof VALOR_UMA !== 'undefined' ? VALOR_UMA : 0)) : valorCapturado;
 
-  document.getElementById('costoTexto').value      = texto;
-  document.getElementById('costoTipoHidden').value = tipo.value;
-  document.getElementById('costoMontoHidden').value= valor;
+  // Mostrar la equivalencia cuando es UMA.
+  if (equiv) {
+    equiv.textContent = esGratuito ? '' : (esUma ? ('≈ $' + valorPesos.toFixed(2) + ' MXN') : 'MXN');
+  }
+
+  var texto = esGratuito ? 'Gratuito' : ('$' + valorPesos.toFixed(2) + ' MXN');
+
+  document.getElementById('costoTexto').value       = texto;
+  document.getElementById('costoTipoHidden').value  = tipo.value;
+  document.getElementById('costoMontoHidden').value = valorPesos;
+  document.getElementById('costoUnidadHidden').value = esGratuito ? 'pesos' : unidad.value;
+  if (typeof actualizarResumenPortal === 'function') actualizarResumenPortal();
 }
 document.addEventListener('DOMContentLoaded', actualizarCosto);
 
 // Pago de derechos: lista dinámica de conceptos (concepto + monto).
 var _derechos = [];
+
+// Valor de la UMA vigente (en pesos), inyectado desde PHP para convertir
+// los derechos en UMA a pesos al mostrar el total. La fórmula real vive en
+// PHP; esto es solo para la vista previa del total.
+var VALOR_UMA = {{ \App\Models\TramiteDerecho::valorUmaVigente() ?: 0 }};
+
+// Convierte el monto de un derecho a pesos según su unidad.
+function derechoEnPesos(d) {
+  var m = parseFloat(d.monto) || 0;
+  return (d.unidad === 'UMA') ? m * VALOR_UMA : m;
+}
 
 function renderDerechos() {
   var cont = document.getElementById('derechosLista');
@@ -458,17 +563,40 @@ function renderDerechos() {
   }
 
   _derechos.forEach(function (d, i) {
-    var fila = document.createElement('div');
-    fila.className = 'derecho-fila';
-    fila.innerHTML =
-      '<input type="text" placeholder="Concepto (ej. Derecho de inspección)" value="' + (d.concepto || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'concepto\', this.value)">' +
-      '<input type="number" min="0" step="0.01" placeholder="0.00" value="' + (d.monto || 0) + '" oninput="setDerecho(' + i + ', \'monto\', this.value)">' +
-      '<button type="button" class="btn btn-outline btn-sm" onclick="quitarDerecho(' + i + ')">Quitar</button>';
-    cont.appendChild(fila);
+    var wrap = document.createElement('div');
+    wrap.className = 'derecho-wrap';
+    var esUma = d.unidad === 'UMA';
+    var equiv = esUma ? (' ≈ $' + derechoEnPesos(d).toFixed(2)) : '';
+    var tieneFj = !!(d.fj_norma || d.fj_capitulo || d.fj_articulo);
+    wrap.innerHTML =
+      '<div class="derecho-fila">' +
+        '<input type="text" placeholder="Concepto (ej. Derecho de inspección)" value="' + (d.concepto || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'concepto\', this.value)">' +
+        '<input type="number" min="0" step="0.01" placeholder="0.00" value="' + (d.monto || 0) + '" oninput="setDerecho(' + i + ', \'monto\', this.value)">' +
+        '<select onchange="setDerecho(' + i + ', \'unidad\', this.value)">' +
+          '<option value="pesos"' + (esUma ? '' : ' selected') + '>Pesos</option>' +
+          '<option value="UMA"' + (esUma ? ' selected' : '') + '>UMA</option>' +
+        '</select>' +
+        '<label><input type="checkbox"' + (d.es_variable ? ' checked' : '') + ' onchange="setDerecho(' + i + ', \'es_variable\', this.checked)"> Variable</label>' +
+        '<span class="derecho-equiv">' + equiv + '</span>' +
+        '<button type="button" class="btn btn-outline btn-sm" onclick="quitarDerecho(' + i + ')">Quitar</button>' +
+      '</div>' +
+      '<div class="fj-bloque" style="margin-top:6px">' +
+        '<label class="fj-pregunta">¿Este derecho tiene fundamento jurídico? *</label>' +
+        '<div class="fj-radios">' +
+          '<label><input type="radio" name="der_fj_' + i + '" value="1"' + (tieneFj ? ' checked' : '') + ' onchange="setDerechoFj(' + i + ', true); toggleFjRadio(this)"> Sí</label>' +
+          '<label><input type="radio" name="der_fj_' + i + '" value="0"' + (tieneFj ? '' : ' checked') + ' onchange="setDerechoFj(' + i + ', false); toggleFjRadio(this)"> No</label>' +
+        '</div>' +
+        '<div class="fj-campos fj-linea" style="display:' + (tieneFj ? '' : 'none') + '">' +
+          '<div><label>Ley o reglamento</label><input value="' + (d.fj_norma || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_norma\', this.value)" placeholder="Ej. Ley de Hacienda"></div>' +
+          '<div><label>Capítulo</label><input value="' + (d.fj_capitulo || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_capitulo\', this.value)" placeholder="Ej. Cap. II"></div>' +
+          '<div><label>Artículo</label><input value="' + (d.fj_articulo || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_articulo\', this.value)" placeholder="Ej. Art. 45"></div>' +
+        '</div>' +
+      '</div>';
+    cont.appendChild(wrap);
   });
 
-  // Recalcular total y sincronizar el hidden.
-  var total = _derechos.reduce(function (s, d) { return s + (parseFloat(d.monto) || 0); }, 0);
+  // Recalcular total (en pesos, convirtiendo UMA) y sincronizar el hidden.
+  var total = _derechos.reduce(function (s, d) { return s + derechoEnPesos(d); }, 0);
   document.getElementById('derechosTotal').textContent = '$' + total.toFixed(2) + ' MXN';
   document.getElementById('derechosJson').value = JSON.stringify(_derechos);
   sincronizarMontoDerechos(total);
@@ -479,10 +607,63 @@ function renderDerechos() {
 function sincronizarMontoDerechos(total) {
   var campo = document.getElementById('montoDerechosCalc');
   if (campo) campo.value = total.toFixed(2);
+  actualizarResumenPortal();
 }
 
+// Copia el costo público y los derechos (capturados en Operación) al
+// resumen de solo lectura de la Ficha Portal (paso 6).
+function actualizarResumenPortal() {
+  // Resumen del costo público.
+  var resCosto = document.getElementById('costoPublicoResumen');
+  var tipo = document.getElementById('costoTipoHidden');
+  var monto = document.getElementById('costoMontoHidden');
+  if (resCosto && tipo) {
+    if (tipo.value === 'con_costo') {
+      var v = parseFloat(monto ? monto.value : 0) || 0;
+      resCosto.value = 'Con costo: $' + v.toFixed(2) + ' MXN';
+    } else {
+      resCosto.value = 'Gratuito';
+    }
+  }
+  // Resumen de los derechos.
+  var resDer = document.getElementById('derechosResumen');
+  if (resDer) {
+    if (!_derechos || _derechos.length === 0) {
+      resDer.innerHTML = '<p class="derechos-vacio">Sin conceptos de derechos.</p>';
+    } else {
+      var html = '';
+      var total = 0;
+      _derechos.forEach(function (d) {
+        var m = derechoEnPesos(d);
+        total += m;
+        var etiqueta = (d.concepto || 'Sin concepto').replace(/</g, '&lt;');
+        if (d.unidad === 'UMA') etiqueta += ' <small>(' + (parseFloat(d.monto) || 0) + ' UMA)</small>';
+        if (d.es_variable) etiqueta += ' <small>(variable)</small>';
+        html += '<div style="display:flex;justify-content:space-between;padding:2px 0">' +
+                '<span>' + etiqueta + '</span>' +
+                '<strong>$' + m.toFixed(2) + '</strong></div>';
+      });
+      html += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--surface-high);margin-top:4px;padding-top:4px">' +
+              '<span>Total</span><strong>$' + total.toFixed(2) + ' MXN</strong></div>';
+      resDer.innerHTML = html;
+    }
+  }
+}
+
+// Muestra el campo de dirección y/o URL según la modalidad elegida.
+function toggleModalidadCampos() {
+  var sel = document.getElementById('portalModalidad');
+  var dir = document.getElementById('modalidadDireccion');
+  var url = document.getElementById('modalidadUrl');
+  if (!sel) return;
+  var v = sel.value;
+  if (dir) dir.style.display = (v === 'Presencial' || v === 'Mixta') ? '' : 'none';
+  if (url) url.style.display = (v === 'En línea'   || v === 'Mixta') ? '' : 'none';
+}
+document.addEventListener('DOMContentLoaded', toggleModalidadCampos);
+
 function agregarDerecho() {
-  _derechos.push({ concepto: '', monto: 0 });
+  _derechos.push({ concepto: '', monto: 0, unidad: 'pesos', es_variable: false });
   renderDerechos();
 }
 
@@ -493,12 +674,31 @@ function quitarDerecho(i) {
 
 function setDerecho(i, campo, valor) {
   if (_derechos[i]) {
-    _derechos[i][campo] = campo === 'monto' ? (parseFloat(valor) || 0) : valor;
-    // Solo actualizar total/hidden sin re-render (para no perder el foco).
-    var total = _derechos.reduce(function (s, d) { return s + (parseFloat(d.monto) || 0); }, 0);
+    if (campo === 'monto') {
+      _derechos[i][campo] = parseFloat(valor) || 0;
+    } else {
+      _derechos[i][campo] = valor;
+    }
+    // Cambiar la unidad re-renderiza para refrescar la equivalencia en pesos.
+    if (campo === 'unidad') {
+      renderDerechos();
+      return;
+    }
+    // Para monto/concepto/variable: recalcular total sin re-render (no perder foco).
+    var total = _derechos.reduce(function (s, d) { return s + derechoEnPesos(d); }, 0);
     document.getElementById('derechosTotal').textContent = '$' + total.toFixed(2) + ' MXN';
     document.getElementById('derechosJson').value = JSON.stringify(_derechos);
     sincronizarMontoDerechos(total);
+  }
+}
+
+// Cuando el derecho elige "No tiene fundamento", limpia los 3 campos.
+function setDerechoFj(i, tiene) {
+  if (_derechos[i] && !tiene) {
+    _derechos[i].fj_norma = '';
+    _derechos[i].fj_capitulo = '';
+    _derechos[i].fj_articulo = '';
+    document.getElementById('derechosJson').value = JSON.stringify(_derechos);
   }
 }
 
@@ -693,11 +893,30 @@ document.addEventListener('DOMContentLoaded', function () {
       +'</div></div>'
       +'<div class="field span-2"><label>Observaciones</label>'
       +'<textarea name="requisitos['+i+'][observaciones]" rows="2"></textarea></div>'
+      +'<div class="field span-2 fj-bloque">'
+      +'<label class="fj-pregunta">¿Este requisito tiene fundamento jurídico? *</label>'
+      +'<div class="fj-radios">'
+      +'<label><input type="radio" name="requisitos['+i+'][fj_tiene]" value="1" required onchange="toggleFjRadio(this)"> Sí</label>'
+      +'<label><input type="radio" name="requisitos['+i+'][fj_tiene]" value="0" required onchange="toggleFjRadio(this)"> No</label>'
+      +'</div>'
+      +'<div class="fj-campos fj-linea" style="display:none">'
+      +'<div><label>Ley o reglamento</label><input name="requisitos['+i+'][fj_norma]" placeholder="Ej. Reglamento de Comercio"></div>'
+      +'<div><label>Capítulo</label><input name="requisitos['+i+'][fj_capitulo]" placeholder="Ej. Cap. III"></div>'
+      +'<div><label>Artículo</label><input name="requisitos['+i+'][fj_articulo]" placeholder="Ej. Art. 12"></div>'
+      +'</div></div>'
       +'</div>'
       +'<div class="section-actions mt-2">'
       +'<button type="button" class="btn btn-outline btn-sm danger" onclick="eliminarRequisito(this)">Eliminar requisito</button>'
       +'</div>';
     container.appendChild(a);
+  };
+
+  // Muestra u oculta los campos de fundamento según el radio Sí/No.
+  window.toggleFjRadio = function(radio) {
+    var bloque = radio.closest('.fj-bloque');
+    if (!bloque) return;
+    var campos = bloque.querySelector('.fj-campos');
+    if (campos) campos.style.display = (radio.value === '1') ? '' : 'none';
   };
 
   window.eliminarRequisito = function(btn) {
@@ -804,6 +1023,57 @@ document.addEventListener('DOMContentLoaded', function () {
   function abrirHorarios() { renderHorariosGrid(); document.getElementById('modalHorarios').classList.add('open'); }
   function cerrarHorarios() { document.getElementById('modalHorarios').classList.remove('open'); }
 
+  // ─── Pasos para realizar el trámite ──────────────────────────────────
+  // Cada paso: { es_subpaso: bool, area: '', accion: '' }. La numeración
+  // 1, 2, 3 / 1.1, 1.2 se calcula al pintar según la posición.
+  var _pasos = [];
+  try { _pasos = JSON.parse(document.getElementById('pasosJson').value || '[]'); } catch (e) { _pasos = []; }
+
+  function numeroDePaso(indice) {
+    // Calcula "1", "2", "1.1"... recorriendo desde el inicio.
+    var principal = 0, sub = 0;
+    for (var k = 0; k <= indice; k++) {
+      if (_pasos[k].es_subpaso) { sub++; }
+      else { principal++; sub = 0; }
+    }
+    var p = _pasos[indice];
+    return p.es_subpaso ? (principal + '.' + sub) : ('' + principal);
+  }
+
+  function renderPasos() {
+    var cont = document.getElementById('pasosLista');
+    if (!cont) return;
+    cont.innerHTML = '';
+    if (_pasos.length === 0) {
+      cont.innerHTML = '<p class="derechos-vacio">Sin pasos. Use "Agregar paso" para enumerar el proceso.</p>';
+    }
+    _pasos.forEach(function (p, i) {
+      var art = document.createElement('article');
+      art.className = 'paso-card' + (p.es_subpaso ? ' paso-sub' : '');
+      art.innerHTML =
+        '<div class="paso-num">' + numeroDePaso(i) + '</div>' +
+        '<div class="paso-campos">' +
+          '<input type="text" placeholder="¿Quién lo realiza? (área o responsable)" value="' + (p.area || '').replace(/"/g, '&quot;') + '" oninput="setPaso(' + i + ', \'area\', this.value)">' +
+          '<textarea rows="2" placeholder="¿En qué consiste este paso?" oninput="setPaso(' + i + ', \'accion\', this.value)">' + (p.accion || '') + '</textarea>' +
+        '</div>' +
+        '<button type="button" class="btn btn-outline btn-sm" onclick="quitarPaso(' + i + ')">Quitar</button>';
+      cont.appendChild(art);
+    });
+    document.getElementById('pasosJson').value = JSON.stringify(_pasos);
+  }
+
+  function agregarPaso(esSubpaso) {
+    _pasos.push({ es_subpaso: !!esSubpaso, area: '', accion: '' });
+    renderPasos();
+  }
+  function setPaso(i, campo, valor) {
+    if (_pasos[i]) { _pasos[i][campo] = valor; document.getElementById('pasosJson').value = JSON.stringify(_pasos); }
+  }
+  function quitarPaso(i) {
+    _pasos.splice(i, 1);
+    renderPasos();
+  }
+  document.addEventListener('DOMContentLoaded', renderPasos);
 
 </script>
 @endpush

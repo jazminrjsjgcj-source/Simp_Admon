@@ -193,6 +193,16 @@
                 @endforeach
               </select>
             </div>
+
+            <div class="field">
+              <label>Tipo de relación con otros trámites</label>
+              <select name="tipo_relacion">
+                @foreach(['' => '— Sin relación / no aplica —', 'Naturaleza' => 'Naturaleza', 'Secuencia' => 'Secuencia', 'Dependencia funcional' => 'Dependencia funcional'] as $valor => $etiqueta)
+                  <option value="{{ $valor }}" {{ old('tipo_relacion', $tramite->tipo_relacion) === $valor ? 'selected' : '' }}>{{ $etiqueta }}</option>
+                @endforeach
+              </select>
+              <small class="help-small">Rubro 10.1: cómo se relaciona este trámite con otros, si aplica.</small>
+            </div>
             {{-- Sector y subsector económico SCIAN --}}
             <x-selector-scian :sector="old('sector_id', $tramite->sector_id)" :subsector="old('subsector_id', $tramite->subsector_id)" />
 
@@ -240,6 +250,27 @@
               <label>Visitas requeridas</label>
               <input name="visitas_requeridas" type="number" min="0" value="{{ old('visitas_requeridas', $tramite->visitas_requeridas) }}">
             </div>
+            <x-field-help label="Costo público">
+              <div class="costo-grupo">
+                <select id="costoTipo" onchange="actualizarCosto()">
+                  @php $costoActual = old('portal_costo', $ficha->costo_publico ?? 'Gratuito'); $esConCosto = $costoActual !== 'Gratuito' && $costoActual !== ''; @endphp
+                  <option value="gratuito" {{ $esConCosto ? '' : 'selected' }}>Gratuito</option>
+                  <option value="con_costo" {{ $esConCosto ? 'selected' : '' }}>Con precio</option>
+                </select>
+                <input type="number" id="costoMonto" min="0" step="0.01" placeholder="0.00"
+                  value="{{ $esConCosto ? preg_replace('/[^0-9.]/', '', $costoActual) : 0 }}"
+                  oninput="actualizarCosto()" style="display:none">
+                <select id="costoUnidad" onchange="actualizarCosto()" style="display:none">
+                  <option value="pesos" selected>Pesos</option>
+                  <option value="UMA">UMA</option>
+                </select>
+                <span class="costo-moneda" id="costoEquiv"></span>
+              </div>
+              <input type="hidden" name="portal_costo" id="costoTexto" value="{{ $costoActual }}">
+              <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ $esConCosto ? 'con_costo' : 'gratuito' }}">
+              <input type="hidden" name="costo_monto" id="costoMontoHidden" value="0">
+              <input type="hidden" name="costo_unidad" id="costoUnidadHidden" value="pesos">
+            </x-field-help>
             <x-field-help label="Pago de derechos" class="span-2">
               <div id="derechosLista" class="derechos-lista">
                 {{-- filas generadas por JS --}}
@@ -249,14 +280,14 @@
                 <span class="derechos-total">Total derechos: <strong id="derechosTotal">$0.00 MXN</strong></span>
               </div>
               <input type="hidden" name="derechos_json" id="derechosJson"
-                value="{{ old('derechos_json', $tramite->derechos->map(fn($d) => ['concepto' => $d->concepto, 'monto' => (float) $d->monto])->toJson()) }}">
+                value="{{ old('derechos_json', $tramite->derechos->map(fn($d) => ['concepto' => $d->concepto, 'monto' => (float) $d->monto, 'unidad' => $d->unidad ?? 'pesos', 'es_variable' => (bool) ($d->es_variable ?? false)])->toJson()) }}">
             </x-field-help>
-            <div class="field">
+            <div class="field span-2">
               <label>Monto de derechos (MD) en pesos</label>
               <input id="montoDerechosCalc" name="monto_derechos_display" type="number" readonly
                 value="{{ old('monto_derechos', $tramite->monto_derechos) }}"
                 style="background:var(--surface-low);cursor:not-allowed">
-              <small class="campo-nota">Se calcula del total de "Pago de derechos".</small>
+              <small class="campo-nota">Resultado del total de "Pago de derechos" (convertido a pesos).</small>
             </div>
             <div class="field">
               <label>Copias simples solicitadas</label>
@@ -347,52 +378,16 @@
             <span class="acc-flecha">▾</span>
           </button>
           <div class="acc-cuerpo">
-            @php
-              $pasosAtencion   = $tramite->procesosAtencion->where('tipo', 'atencion')->sortBy('paso')->values();
-              $pasosResolucion = $tramite->procesosAtencion->where('tipo', 'resolucion')->sortBy('paso')->values();
-            @endphp
-
-            <h4 style="margin:0 0 4px">Proceso de atención</h4>
-            <p class="u-muted" style="font-size:13px;margin-bottom:8px">Cómo se atiende el trámite, paso a paso.</p>
-            <div id="pasosAtencion">
-              @foreach($pasosAtencion as $i => $p)
-                <div class="paso-fila" style="border:1px solid var(--surface-high);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;">
-                  <div style="display:flex;align-items:flex-end;gap:10px">
-                    <div style="flex:0 0 30px">
-                      <label class="split-label">#</label>
-                      <div class="paso-num-label" style="height:38px;display:flex;align-items:center;justify-content:center;font-weight:500">{{ $i + 1 }}</div>
-                    </div>
-                    <div class="field" style="flex:1.3;margin:0"><label class="split-label">Nombre del paso</label><input name="proceso_atencion[{{ $i }}][accion]" value="{{ $p->accion }}"></div>
-                    <div class="field" style="flex:1.7;margin:0"><label class="split-label">¿Qué se hace?</label><input name="proceso_atencion[{{ $i }}][detalle]" value="{{ $p->detalle }}"></div>
-                    <div class="field" style="flex:1.2;margin:0"><label class="split-label">Área que interviene</label><input name="proceso_atencion[{{ $i }}][area]" value="{{ $p->area }}"></div>
-                    <button type="button" class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="this.closest('.paso-fila').remove();renumerarPasos('atencion')">Quitar</button>
-                  </div>
-                  <input type="hidden" name="proceso_atencion[{{ $i }}][paso]" class="paso-num" value="{{ $i + 1 }}">
-                </div>
-              @endforeach
+            <p class="u-muted" style="font-size:13px;margin-bottom:8px">Enumere el proceso paso a paso: quién lo realiza y en qué consiste. Use subpasos (1.1, 1.2) para detallar dentro de un paso.</p>
+            <div id="pasosLista" class="pasos-lista">
+              {{-- filas generadas por JS --}}
             </div>
-            <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso('atencion')">+ Agregar paso de atención</button>
-
-            <h4 style="margin:20px 0 4px">Proceso de resolución</h4>
-            <p class="u-muted" style="font-size:13px;margin-bottom:8px">Cómo se resuelve el trámite hasta su conclusión.</p>
-            <div id="pasosResolucion">
-              @foreach($pasosResolucion as $i => $p)
-                <div class="paso-fila" style="border:1px solid var(--surface-high);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;">
-                  <div style="display:flex;align-items:flex-end;gap:10px">
-                    <div style="flex:0 0 30px">
-                      <label class="split-label">#</label>
-                      <div class="paso-num-label" style="height:38px;display:flex;align-items:center;justify-content:center;font-weight:500">{{ $i + 1 }}</div>
-                    </div>
-                    <div class="field" style="flex:1.3;margin:0"><label class="split-label">Nombre del paso</label><input name="proceso_resolucion[{{ $i }}][accion]" value="{{ $p->accion }}"></div>
-                    <div class="field" style="flex:1.7;margin:0"><label class="split-label">¿Qué se hace?</label><input name="proceso_resolucion[{{ $i }}][detalle]" value="{{ $p->detalle }}"></div>
-                    <div class="field" style="flex:1.2;margin:0"><label class="split-label">Área que interviene</label><input name="proceso_resolucion[{{ $i }}][area]" value="{{ $p->area }}"></div>
-                    <button type="button" class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="this.closest('.paso-fila').remove();renumerarPasos('resolucion')">Quitar</button>
-                  </div>
-                  <input type="hidden" name="proceso_resolucion[{{ $i }}][paso]" class="paso-num" value="{{ $i + 1 }}">
-                </div>
-              @endforeach
+            <div class="section-actions section-actions-start mt-3">
+              <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(false)">+ Agregar paso</button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(true)">+ Agregar subpaso</button>
             </div>
-            <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso('resolucion')">+ Agregar paso de resolución</button>
+            <input type="hidden" name="pasos_json" id="pasosJson"
+              value="{{ old('pasos_json', $tramite->procesosAtencion->sortBy([['paso','asc'],['subpaso','asc']])->map(fn($p) => ['es_subpaso' => $p->subpaso > 0, 'area' => $p->area, 'accion' => $p->accion])->values()->toJson()) }}">
           </div>
         </section>
 
@@ -456,8 +451,11 @@
                   <option value="Mixta"      {{ $modAct==='Mixta'?'selected':'' }}>Mixta</option>
                 </select>
               </div>
-              <div class="field"><label>Costo público</label>
-                <input name="portal_costo_publico" value="{{ old('portal_costo_publico', $ficha->costo_publico ?? 'Gratuito') }}" placeholder="Ej. Gratuito o $250.00 MXN"></div>
+              <div class="field span-2"><label>Costo público (capturado en Operación)</label>
+                <input type="text" id="costoPublicoResumen" readonly
+                  value="{{ old('portal_costo', $ficha->costo_publico ?? 'Gratuito') }}"
+                  style="background:var(--surface-low);cursor:not-allowed">
+                <small class="campo-nota">Para cambiarlo, regrese al paso de Operación.</small></div>
               <div class="field span-2"><label>Descripción accesible</label>
                 <textarea name="portal_descripcion" rows="3" placeholder="Descripción accesible para la ciudadanía...">{{ old('portal_descripcion', $ficha->descripcion ?? '') }}</textarea></div>
               <div class="field"><label>Horario de atención</label>
@@ -535,47 +533,53 @@
 
 @push('scripts')
 <script>
-// Procesos de atención y resolución por pasos (mismo patrón que en creación).
-// El índice arranca después de los pasos ya precargados del trámite.
-var _pasoIdx = {
-  atencion:   document.querySelectorAll('#pasosAtencion .paso-fila').length,
-  resolucion: document.querySelectorAll('#pasosResolucion .paso-fila').length,
-};
-function agregarPaso(tipo) {
-  var cont = document.getElementById(tipo === 'atencion' ? 'pasosAtencion' : 'pasosResolucion');
+// ─── Pasos para realizar el trámite (proceso único con subpasos 1.1) ────
+var _pasos = [];
+try { _pasos = JSON.parse(document.getElementById('pasosJson').value || '[]'); } catch (e) { _pasos = []; }
+
+function numeroDePaso(indice) {
+  var principal = 0, sub = 0;
+  for (var k = 0; k <= indice; k++) {
+    if (_pasos[k].es_subpaso) { sub++; } else { principal++; sub = 0; }
+  }
+  var p = _pasos[indice];
+  return p.es_subpaso ? (principal + '.' + sub) : ('' + principal);
+}
+
+function renderPasos() {
+  var cont = document.getElementById('pasosLista');
   if (!cont) return;
-  var i = _pasoIdx[tipo]++;
-  var num = cont.children.length + 1;
-  var fila = document.createElement('div');
-  fila.className = 'paso-fila';
-  fila.style.cssText = 'border:1px solid var(--surface-high);border-radius:var(--radius-sm);padding:10px;margin-bottom:8px;';
-  fila.innerHTML =
-    '<div style="display:flex;align-items:flex-end;gap:10px">' +
-      '<div style="flex:0 0 30px">' +
-        '<label class="split-label">#</label>' +
-        '<div class="paso-num-label" style="height:38px;display:flex;align-items:center;justify-content:center;font-weight:500">' + num + '</div>' +
+  cont.innerHTML = '';
+  if (_pasos.length === 0) {
+    cont.innerHTML = '<p class="derechos-vacio">Sin pasos. Use "Agregar paso" para enumerar el proceso.</p>';
+  }
+  _pasos.forEach(function (p, i) {
+    var art = document.createElement('article');
+    art.className = 'paso-card' + (p.es_subpaso ? ' paso-sub' : '');
+    art.innerHTML =
+      '<div class="paso-num">' + numeroDePaso(i) + '</div>' +
+      '<div class="paso-campos">' +
+        '<input type="text" placeholder="¿Quién lo realiza? (área o responsable)" value="' + (p.area || '').replace(/"/g, '&quot;') + '" oninput="setPaso(' + i + ', \'area\', this.value)">' +
+        '<textarea rows="2" placeholder="¿En qué consiste este paso?" oninput="setPaso(' + i + ', \'accion\', this.value)">' + (p.accion || '') + '</textarea>' +
       '</div>' +
-      '<div class="field" style="flex:1.3;margin:0"><label class="split-label">Nombre del paso</label>' +
-        '<input name="proceso_' + tipo + '[' + i + '][accion]" placeholder="Ej. Recepción de solicitud"></div>' +
-      '<div class="field" style="flex:1.7;margin:0"><label class="split-label">¿Qué se hace?</label>' +
-        '<input name="proceso_' + tipo + '[' + i + '][detalle]" placeholder="Describa la actividad"></div>' +
-      '<div class="field" style="flex:1.2;margin:0"><label class="split-label">Área que interviene</label>' +
-        '<input name="proceso_' + tipo + '[' + i + '][area]" placeholder="Ej. Ventanilla Única"></div>' +
-      '<button type="button" class="btn btn-outline btn-sm" style="flex:0 0 auto" onclick="this.closest(\'.paso-fila\').remove();renumerarPasos(\'' + tipo + '\')">Quitar</button>' +
-    '</div>' +
-    '<input type="hidden" name="proceso_' + tipo + '[' + i + '][paso]" class="paso-num" value="' + num + '">';
-  cont.appendChild(fila);
-}
-function renumerarPasos(tipo) {
-  var cont = document.getElementById(tipo === 'atencion' ? 'pasosAtencion' : 'pasosResolucion');
-  if (!cont) return;
-  Array.prototype.forEach.call(cont.children, function (fila, idx) {
-    var etiqueta = fila.querySelector('.paso-num-label');
-    var num = fila.querySelector('.paso-num');
-    if (etiqueta) etiqueta.textContent = idx + 1;
-    if (num) num.value = idx + 1;
+      '<button type="button" class="btn btn-outline btn-sm" onclick="quitarPaso(' + i + ')">Quitar</button>';
+    cont.appendChild(art);
   });
+  document.getElementById('pasosJson').value = JSON.stringify(_pasos);
 }
+
+function agregarPaso(esSubpaso) {
+  _pasos.push({ es_subpaso: !!esSubpaso, area: '', accion: '' });
+  renderPasos();
+}
+function setPaso(i, campo, valor) {
+  if (_pasos[i]) { _pasos[i][campo] = valor; document.getElementById('pasosJson').value = JSON.stringify(_pasos); }
+}
+function quitarPaso(i) {
+  _pasos.splice(i, 1);
+  renderPasos();
+}
+document.addEventListener('DOMContentLoaded', renderPasos);
 </script>
 @endpush
 
@@ -583,6 +587,41 @@ function renumerarPasos(tipo) {
 <script>
 // Pago de derechos: lista dinámica (idéntica a la de creación).
 var _derechos = [];
+
+var VALOR_UMA = {{ \App\Models\TramiteDerecho::valorUmaVigente() ?: 0 }};
+
+// Costo público: muestra monto y selector UMA/Pesos solo si es "Con precio".
+// El monto que se guarda (costo_monto / portal_costo) va siempre en PESOS.
+function actualizarCosto() {
+  var tipo   = document.getElementById('costoTipo');
+  var monto  = document.getElementById('costoMonto');
+  var unidad = document.getElementById('costoUnidad');
+  var equiv  = document.getElementById('costoEquiv');
+  if (!tipo || !monto || !unidad) return;
+
+  var esGratuito = tipo.value === 'gratuito';
+  monto.style.display  = esGratuito ? 'none' : '';
+  unidad.style.display = esGratuito ? 'none' : '';
+  if (esGratuito) { monto.value = 0; if (equiv) equiv.textContent = ''; }
+
+  var valorCapturado = parseFloat(monto.value) || 0;
+  var esUma = unidad.value === 'UMA';
+  var valorPesos = esUma ? (valorCapturado * VALOR_UMA) : valorCapturado;
+
+  if (equiv) equiv.textContent = esGratuito ? '' : (esUma ? ('≈ $' + valorPesos.toFixed(2) + ' MXN') : 'MXN');
+
+  document.getElementById('costoTexto').value        = esGratuito ? 'Gratuito' : ('$' + valorPesos.toFixed(2) + ' MXN');
+  document.getElementById('costoTipoHidden').value   = tipo.value;
+  document.getElementById('costoMontoHidden').value  = valorPesos;
+  document.getElementById('costoUnidadHidden').value = esGratuito ? 'pesos' : unidad.value;
+}
+document.addEventListener('DOMContentLoaded', actualizarCosto);
+
+// Monto de un derecho en pesos (convierte si está en UMA).
+function derechoEnPesos(d) {
+  var m = parseFloat(d.monto) || 0;
+  return (d.unidad === 'UMA') ? m * VALOR_UMA : m;
+}
 
 function renderDerechos() {
   var cont = document.getElementById('derechosLista');
@@ -596,14 +635,22 @@ function renderDerechos() {
   _derechos.forEach(function (d, i) {
     var fila = document.createElement('div');
     fila.className = 'derecho-fila';
+    var esUma = d.unidad === 'UMA';
+    var equiv = esUma ? (' ≈ $' + derechoEnPesos(d).toFixed(2)) : '';
     fila.innerHTML =
       '<input type="text" placeholder="Concepto (ej. Derecho de inspección)" value="' + (d.concepto || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'concepto\', this.value)">' +
       '<input type="number" min="0" step="0.01" placeholder="0.00" value="' + (d.monto || 0) + '" oninput="setDerecho(' + i + ', \'monto\', this.value)">' +
+      '<select onchange="setDerecho(' + i + ', \'unidad\', this.value)">' +
+        '<option value="pesos"' + (esUma ? '' : ' selected') + '>Pesos</option>' +
+        '<option value="UMA"' + (esUma ? ' selected' : '') + '>UMA</option>' +
+      '</select>' +
+      '<label><input type="checkbox"' + (d.es_variable ? ' checked' : '') + ' onchange="setDerecho(' + i + ', \'es_variable\', this.checked)"> Variable</label>' +
+      '<span class="derecho-equiv">' + equiv + '</span>' +
       '<button type="button" class="btn btn-outline btn-sm" onclick="quitarDerecho(' + i + ')">Quitar</button>';
     cont.appendChild(fila);
   });
 
-  var total = _derechos.reduce(function (s, d) { return s + (parseFloat(d.monto) || 0); }, 0);
+  var total = _derechos.reduce(function (s, d) { return s + derechoEnPesos(d); }, 0);
   document.getElementById('derechosTotal').textContent = '$' + total.toFixed(2) + ' MXN';
   document.getElementById('derechosJson').value = JSON.stringify(_derechos);
   sincronizarMontoDerechos(total);
@@ -627,7 +674,12 @@ function quitarDerecho(i) {
 function setDerecho(i, campo, valor) {
   if (_derechos[i]) {
     _derechos[i][campo] = campo === 'monto' ? (parseFloat(valor) || 0) : valor;
-    var total = _derechos.reduce(function (s, d) { return s + (parseFloat(d.monto) || 0); }, 0);
+    // Cambiar la unidad re-renderiza para refrescar la equivalencia en pesos.
+    if (campo === 'unidad') {
+      renderDerechos();
+      return;
+    }
+    var total = _derechos.reduce(function (s, d) { return s + derechoEnPesos(d); }, 0);
     document.getElementById('derechosTotal').textContent = '$' + total.toFixed(2) + ' MXN';
     document.getElementById('derechosJson').value = JSON.stringify(_derechos);
     sincronizarMontoDerechos(total);
