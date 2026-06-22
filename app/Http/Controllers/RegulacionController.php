@@ -135,6 +135,8 @@ class RegulacionController extends Controller
             'estatus'            => 'required|in:' . implode(',', Regulacion::ESTATUS_TODOS),
             'archivo'            => 'nullable|file|mimes:pdf,doc,docx|max:10240',
             'indice_manual'      => 'nullable|string',
+            // #6: el editor visual manda el índice serializado como JSON.
+            'indice_json'        => 'nullable|string',
         ]);
 
         $regulacion->update([
@@ -155,6 +157,16 @@ class RegulacionController extends Controller
                                         : null,
             'estatus'             => $validated['estatus'],
         ]);
+
+        // #6: guardar el índice editado manualmente (si viene del editor visual).
+        // Si el usuario no tocó el editor, el campo llega vacío y se conserva el
+        // índice extraído automáticamente del archivo.
+        if (!empty($validated['indice_json'])) {
+            $indiceEditado = json_decode($validated['indice_json'], true);
+            if (is_array($indiceEditado)) {
+                $regulacion->update(['indice' => $indiceEditado]);
+            }
+        }
 
         if ($request->hasFile('archivo')) {
             $this->conversor->guardarOriginal($regulacion, $request->file('archivo'));

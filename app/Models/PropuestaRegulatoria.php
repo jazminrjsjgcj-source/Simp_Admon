@@ -7,8 +7,32 @@ use Illuminate\Support\Facades\DB;
 
 class PropuestaRegulatoria extends Model
 {
-    protected $guarded = ['id'];
     protected $table   = 'propuestas_regulatorias';
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps). folio lo asigna
+     * el modelo en booted() al dejar de ser borrador. Reconstruido desde
+     * las migraciones de propuestas_regulatorias.
+     */
+    protected $fillable = [
+        'folio',
+        'nombre',
+        'tipo_regulacion',
+        'dependencia_id',
+        'sector_id',
+        'subsector_id',
+        'fecha_tentativa',
+        'justificacion',
+        'costo_burocratico',
+        'poblacion_afectada',
+        'determinacion_air',
+        'estatus',
+        'archivo_propuesta',
+        'created_by',
+        'genera_costos_burocraticos',
+        'impacta_comercio_inversion',
+        'impacta_tramites_existentes',
+    ];
 
     /** Estatus de la propuesta. */
     public const ESTATUS_BORRADOR    = 'borrador';
@@ -82,6 +106,8 @@ class PropuestaRegulatoria extends Model
     public function observaciones() { return $this->morphMany(Observacion::class,    'observable'); }
     public function firmas()        { return $this->morphMany(Firma::class,          'firmable'); }
     public function air()           { return $this->hasOne(AnalisisImpactoRegulatorio::class, 'propuesta_id'); }
+    /** #7: trámites y requisitos que esta propuesta declaró que va a modificar. */
+    public function impactos()      { return $this->hasMany(PropuestaTramiteImpacto::class, 'propuesta_id'); }
     public function exencion()      { return $this->hasOne(ExencionAir::class, 'propuesta_id'); }
 
     // ========== Helpers de determinación AIR ==========

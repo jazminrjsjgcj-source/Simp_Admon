@@ -39,7 +39,7 @@
 
 <div class="field">
     <label>Subsector económico</label>
-    <select name="{{ $name_sub }}" id="{{ $uid }}_subsector">
+    <select name="{{ $name_sub }}" id="{{ $uid }}_subsector" {{ $sector ? '' : 'disabled' }}>
         <option value="">Seleccione primero un sector</option>
         @foreach($subsectores as $sub)
             <option value="{{ $sub->id }}"
@@ -67,6 +67,8 @@
                 subsectorSel.appendChild(opt.cloneNode(true));
             }
         });
+        // Ítem B: el subsector queda bloqueado mientras no haya sector elegido.
+        subsectorSel.disabled = !sectorId;
     }
 
     sectorSel.addEventListener('change', filtrarSubsectores);

@@ -15,9 +15,6 @@
     </div>
   </div>
 
-  @if(session('success'))
-    <div class="toast toast-success">{{ session('success') }}</div>
-  @endif
 
   <div class="assist-box">
     Aparecen en el formulario de <strong>nuevo trámite</strong> (paso Identificación).

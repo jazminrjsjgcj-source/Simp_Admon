@@ -19,7 +19,16 @@ use Illuminate\Database\Eloquent\Model;
  */
 class SujetoObligado extends Model
 {
-    protected $guarded = ['id'];
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * Reconstruido desde la migración de sujetos_obligados.
+     */
+    protected $fillable = [
+        'dependencia_id',
+        'nombre',
+        'cargo',
+        'activo',
+    ];
     protected $table   = 'sujetos_obligados';
 
     protected $casts = [

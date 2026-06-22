@@ -2,6 +2,14 @@
 @section('title', $regulacion->nombre)
 
 @section('content')
+<style>
+  .indice-nav { display:flex; flex-direction:column; gap:2px; }
+  .indice-nav-item { font-size:13px; padding:4px 8px; border-radius:4px; }
+  .indice-nav-nivel-1 { font-weight:700; color:var(--text,#111); padding-left:0; }
+  .indice-nav-nivel-2 { color:var(--text,#333); padding-left:16px; }
+  .indice-nav-nivel-3 { color:var(--muted,#667085); padding-left:32px; }
+  .indice-nav-nivel-4 { color:var(--muted,#667085); padding-left:48px; font-size:12px; }
+</style>
 <div class="page-default">
 
   <div class="screen-head">
@@ -72,6 +80,27 @@
         El archivo está disponible en formato {{ strtoupper($regulacion->extension_original ?? 'original') }}.
         Usa el botón de descarga para consultarlo.
       </div>
+    </div>
+  </div>
+  @endif
+
+  {{-- #6: Índice de la regulación --}}
+  @if($regulacion->tieneIndice())
+  <div class="card">
+    <div class="panel-head">
+      <div><h3>Índice de la regulación</h3><p>Estructura de capítulos, títulos y artículos.</p></div>
+    </div>
+    <div class="card-body-padded">
+      <nav class="indice-nav">
+        @foreach($regulacion->indice as $item)
+          @php
+            $clases = ['indice-nav-item', 'indice-nav-nivel-' . ($item['nivel'] ?? 1)];
+          @endphp
+          <div class="{{ implode(' ', $clases) }}">
+            {{ $item['titulo'] }}
+          </div>
+        @endforeach
+      </nav>
     </div>
   </div>
   @endif

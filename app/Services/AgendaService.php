@@ -23,6 +23,7 @@ class AgendaService
         private TramiteService $tramiteService,
         private CalendarioEventoService $calendario,
         private HitoAgendaService $hitos,
+        private BitacoraService $bitacora,
     ) {}
 
     /**
@@ -87,6 +88,37 @@ class AgendaService
             $this->generarFolioSiEnvio($accion, $esEnvio);
             $this->crearEventoSiHayFecha($accion);
 
+            // 4) #20 — Auditoría EXPLÍCITA del flujo combinado.
+            // El AuditObserver ya registra la creación de Tramite y AccionAgenda
+            // por separado, pero esos eventos no dejan ver que fueron parte de
+            // un mismo flujo ni los datos relacionados (derechos, requisitos).
+            // Esta entrada explícita queda en la bitácora de AMBOS modelos con
+            // un resumen útil para la revisora.
+            $resumen = sprintf(
+                'Trámite "%s" creado desde Agenda SyD · %d derecho(s) · %d requisito(s) · monto derechos $%s',
+                \Illuminate\Support\Str::limit($tramite->nombre_oficial, 60),
+                count($derechos),
+                count($requisitos),
+                number_format((float) ($tramite->monto_derechos ?? 0), 2)
+            );
+
+            $this->bitacora->registrar(
+                $tramite,
+                'tramite',
+                'flujo_combinado',
+                'Trámite creado desde acción de Agenda SyD',
+                $resumen,
+                $autorId
+            );
+            $this->bitacora->registrar(
+                $accion,
+                'agenda',
+                'flujo_combinado',
+                'Acción creada con trámite nuevo',
+                $resumen . ' · folio trámite: ' . ($tramite->homoclave ?? '—'),
+                $autorId
+            );
+
             return $accion;
         });
     }
@@ -106,8 +138,15 @@ class AgendaService
             'fecha_compromiso' => $datos['fecha_compromiso'] ?: null,
             'responsable'      => $datos['responsable'] ?? null,
             'dependencia_id'   => $datos['dependencia_id'] ?? null,
+            'unidad_id'        => $datos['unidad_id'] ?? null,
             'indicador'        => $datos['indicador'] ?? null,
+            'indicador_avance' => $datos['indicador_avance'] ?? null,
             'tramite_id'       => $datos['tramite_id'] ?? null,
+            // Paquete 3: alcance (en la columna tipo), catálogos oficiales y niveles.
+            'acciones_simplificacion' => $datos['acciones_simplificacion'] ?? [],
+            'acciones_digitalizacion' => $datos['acciones_digitalizacion'] ?? [],
+            'nivel_actual'            => $datos['nivel_actual'] ?? null,
+            'nivel_meta'              => $datos['nivel_meta'] ?? null,
             'created_by'       => $autorId,
             'estatus'          => $esEnvio
                 ? AccionAgenda::ESTATUS_EN_OBSERVACION

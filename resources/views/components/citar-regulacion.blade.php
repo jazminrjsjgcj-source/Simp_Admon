@@ -19,11 +19,17 @@
 ])
 
 @php
+    // #29: solo filtramos por estatus VIGENTE. Antes también exigíamos
+    // conversion_estatus = LISTO, lo que dejaba fuera regulaciones recién
+    // cargadas (aún sin índice procesado) — y el enlace no podía citarlas.
+    // El JS de abajo ya maneja el caso "sin índice": muestra el mensaje
+    // "escriba el artículo abajo" y permite captura manual. De ese modo la
+    // cita queda con regulacion_id correcto y cuando el índice se procese
+    // después, las citas previas siguen funcionando.
     $regulacionesCitables = \App\Models\Regulacion::query()
-        ->where('conversion_estatus', \App\Models\Regulacion::CONVERSION_LISTO)
         ->where('estatus', \App\Models\Regulacion::ESTATUS_VIGENTE)
         ->orderBy('nombre')
-        ->get(['id', 'nombre', 'tipo', 'indice']);
+        ->get(['id', 'nombre', 'tipo', 'indice', 'conversion_estatus']);
 
     $citasPrevias = collect($citas)
         ->filter(fn ($c) => !empty($c->regulacion_id ?? $c['regulacion_id'] ?? null))
@@ -38,15 +44,17 @@
     <label>{{ $label }}</label>
     @if($regulacionesCitables->isEmpty())
         <div class="assist-box">
-            Aún no hay regulaciones convertidas en el catálogo. Puede escribir el
-            fundamento manualmente en los campos siguientes.
+            Aún no hay regulaciones vigentes en el catálogo. Puede escribir el
+            fundamento manualmente en los campos siguientes, o pídale al área
+            jurídica que dé de alta la regulación en Catálogo → Regulaciones.
         </div>
     @else
         {{-- Contenedor montado por la función global montarCitas --}}
         <div class="cita-widget" data-prefijo="citas" data-previas='@json($citasPrevias)'></div>
         <small class="help-small">
             Puede agregar varias. Al elegir una, el buscador se limpia para la siguiente.
-            Solo se listan regulaciones vigentes con conversión completada.
+            Las regulaciones marcadas como "sin índice" se pueden citar igual: solo capture
+            el artículo o fracción a mano.
         </small>
     @endif
 </div>
@@ -100,7 +108,12 @@ window.REGS_CITABLES = @json($regulacionesCitables);
       }
       resultados.innerHTML = l.map(function (r) {
         var tipo = r.tipo ? '<span class="cita-tipo">' + r.tipo + '</span>' : '';
-        return '<div class="cita-item" data-id="' + r.id + '"><span>' + r.nombre + '</span>' + tipo + '</div>';
+        // #29: badge cuando la regulación aún no tiene índice procesado,
+        // para que el enlace sepa que tendrá que escribir el artículo a mano.
+        var sinIdx = (r.conversion_estatus !== 'listo')
+          ? '<span class="cita-sinidx-badge" title="Esta regulación todavía no tiene índice; capture el artículo a mano">sin índice</span>'
+          : '';
+        return '<div class="cita-item" data-id="' + r.id + '"><span>' + r.nombre + sinIdx + '</span>' + tipo + '</div>';
       }).join('');
       resultados.querySelectorAll('.cita-item[data-id]').forEach(function (el) {
         el.addEventListener('click', function () { agregar(el.getAttribute('data-id')); });
@@ -197,9 +210,11 @@ window.REGS_CITABLES = @json($regulacionesCitables);
   .cita-item:hover { background: var(--surface-low); }
   .cita-vacio { color: var(--muted); cursor: default; }
   .cita-tipo { font-size: 11px; color: var(--primary-container); background: var(--primary-fixed); padding: 1px 8px; border-radius: var(--radius-pill); font-weight: 400; }
+  .cita-sinidx-badge { display: inline-block; margin-left: 6px; font-size: 10px; padding: 1px 6px; border-radius: var(--radius-pill); background: var(--surface-low); color: var(--muted); font-weight: 500; vertical-align: middle; }
   .cita-card { border: 0.5px solid var(--surface-high); border-radius: var(--radius-sm); padding: 10px; margin-bottom: 8px; background: var(--surface); }
   .cita-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; font-weight: 500; }
-  .cita-quitar { border: 0.5px solid var(--surface-high); background: var(--surface); border-radius: var(--radius-sm); padding: 3px 10px; font-size: 12px; cursor: pointer; font-weight: 400; }
+  .cita-quitar { border: 1px solid var(--primary); background: transparent; color: var(--primary); border-radius: var(--radius-sm); padding: 3px 10px; font-size: 12px; cursor: pointer; font-weight: 500; transition: background .15s ease; }
+  .cita-quitar:hover { background: var(--surface-tint); }
   .cita-indice-select { width: 100%; margin-bottom: 6px; }
   .cita-sin-idx { font-size: 12px; color: var(--muted); margin: 0 0 6px; }
   .cita-art-manual { width: 100%; box-sizing: border-box; font-size: 13px; }

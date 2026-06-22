@@ -4,8 +4,19 @@ use Illuminate\Database\Eloquent\Model;
 
 class UnidadAdministrativa extends Model
 {
-    protected $guarded = ['id'];
     protected $table   = 'unidades_administrativas';
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * Reconstruido desde las migraciones de unidades_administrativas.
+     */
+    protected $fillable = [
+        'dependencia_id',
+        'codigo',
+        'nombre',
+        'activo',
+        'siglas',
+    ];
 
     public function dependencia() { return $this->belongsTo(Dependencia::class); }
 }

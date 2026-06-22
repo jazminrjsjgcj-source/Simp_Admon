@@ -33,7 +33,7 @@
 
   <div class="detalle-con-timeline">
     <div class="detalle-main">
-  <form method="POST" action="{{ route('tramites.update', $tramite) }}" id="editForm">
+  <form method="POST" action="{{ route('tramites.update', $tramite) }}" id="editForm" novalidate>
     @csrf
     @method('PUT')
 
@@ -81,11 +81,10 @@
 
             {{-- Dependencia: la del trámite (no se puede cambiar desde aquí) --}}
             <input type="hidden" name="dependencia_id" value="{{ $tramite->dependencia_id }}">
-            <div class="field">
-              <label>Dependencia</label>
+            <x-field-help label="Dependencia">
               <input type="text" value="{{ $tramite->dependencia->nombre ?? '—' }}" disabled class="u-input-disabled">
               <small class="help-small">Asignada al momento de crear el trámite.</small>
-            </div>
+            </x-field-help>
 
             {{-- Fase F.1: Unidad administrativa con auto-selección --}}
             <div class="field">
@@ -138,25 +137,40 @@
               <small class="help-small">Se genera automáticamente con el código de la Unidad Responsable + correlativo. Cambie la UR para regenerar.</small>
             </div>
 
-            {{-- Sujeto Obligado y Enlace del trámite (se conservan los del registro) --}}
+            {{-- #18: Sujeto Obligado editable con precarga del actual.
+                 Antes el campo era un input disabled — si la titularidad
+                 de la dependencia cambiaba, el trámite quedaba con un
+                 titular obsoleto y no había forma de corregirlo desde la UI. --}}
             @php
-              $sujetoObligado = $tramite->sujeto_obligado_id
+              $sujetoActual = $tramite->sujeto_obligado_id
                   ? \App\Models\SujetoObligado::find($tramite->sujeto_obligado_id)
                   : \App\Models\SujetoObligado::vigenteDe($tramite->dependencia_id);
+              $sujetosDisponibles = \App\Models\SujetoObligado::activos()
+                  ->where('dependencia_id', $tramite->dependencia_id)
+                  ->orderBy('nombre')
+                  ->get();
               $enlaceTramite = $tramite->enlace_id ? \App\Models\User::find($tramite->enlace_id) : null;
             @endphp
-            <div class="field">
-              <label>Sujeto Obligado</label>
-              <input type="text" value="{{ $sujetoObligado?->nombre ?? 'Sin titular registrado' }}" disabled class="u-input-disabled">
-              <input type="hidden" name="sujeto_obligado_id" value="{{ old('sujeto_obligado_id', $tramite->sujeto_obligado_id ?? $sujetoObligado?->id) }}">
-            </div>
+            <x-field-help label="Sujeto Obligado">
+              <select name="sujeto_obligado_id">
+                <option value="">— Sin titular asignado —</option>
+                @foreach($sujetosDisponibles as $so)
+                  <option value="{{ $so->id }}"
+                    {{ old('sujeto_obligado_id', $sujetoActual?->id) == $so->id ? 'selected' : '' }}>
+                    {{ $so->nombre }}@if($so->cargo) — {{ $so->cargo }}@endif
+                  </option>
+                @endforeach
+              </select>
+              @if($sujetosDisponibles->isEmpty())
+                <small class="help-small">No hay sujetos obligados registrados para esta dependencia. Pídele al administrador que los agregue en Catálogos → Sujetos obligados.</small>
+              @endif
+            </x-field-help>
 
-            <div class="field">
-              <label>Enlace</label>
+            <x-field-help label="Enlace">
               <input type="text" value="{{ $enlaceTramite?->name ?? auth()->user()->name }}" disabled class="u-input-disabled">
               <input type="hidden" name="enlace_id" value="{{ old('enlace_id', $tramite->enlace_id ?? auth()->id()) }}">
               <small class="help-small">Persona que registra el trámite.</small>
-            </div>
+            </x-field-help>
 
           </div>
           </div>
@@ -173,51 +187,44 @@
           {{-- Observaciones de Información general se muestran en el aviso de "Datos generales" --}}
 
           <div class="wizard-fields">
-            <div class="field span-2">
-              <label>Objetivo del trámite *</label>
+            <x-field-help label="Objetivo del trámite" :required="true" class="span-2">
               <textarea required name="objetivo" rows="4" placeholder="Describa qué resuelve o qué beneficio otorga...">{{ old('objetivo', $tramite->objetivo) }}</textarea>
-            </div>
+            </x-field-help>
             <div class="field">
-              <label>Dirigido a</label>
-              <select name="dirigido_a">
-                <option value="ambas"  {{ $tramite->dirigido_a === 'ambas'  ? 'selected' : '' }}>Ambas</option>
-                <option value="fisica" {{ $tramite->dirigido_a === 'fisica' ? 'selected' : '' }}>Personas físicas</option>
-                <option value="moral"  {{ $tramite->dirigido_a === 'moral'  ? 'selected' : '' }}>Personas morales</option>
-              </select>
+              <x-field-help label="¿A quién va dirigido el trámite?">
+                <select name="dirigido_a" onchange="toggleEtapaOperacion()">
+                  <option value="ambas"  {{ old('dirigido_a', $tramite->dirigido_a) === 'ambas'  ? 'selected' : '' }}>Personas físicas y morales</option>
+                  <option value="fisica" {{ old('dirigido_a', $tramite->dirigido_a) === 'fisica' ? 'selected' : '' }}>Solo personas físicas</option>
+                  <option value="moral"  {{ old('dirigido_a', $tramite->dirigido_a) === 'moral'  ? 'selected' : '' }}>Solo personas morales</option>
+                </select>
+              </x-field-help>
+              {{-- Etapa de operación: vive junto a "¿a quién va dirigido?" porque
+                   depende lógicamente de él. Aparece solo cuando va dirigido a
+                   personas morales o a ambas. --}}
+              @php $dirigidoActual = old('dirigido_a', $tramite->dirigido_a ?? 'ambas'); @endphp
+              <div id="etapaOperacionWrap" style="display:{{ in_array($dirigidoActual, ['moral','ambas']) ? '' : 'none' }}; margin-top:12px">
+                <x-field-help label="Etapa de operación de la persona moral">
+                  <select name="etapa_operacion">
+                    <option value="">— No aplica / sin especificar —</option>
+                    <option value="APERTURA"  {{ old('etapa_operacion', $tramite->etapa_operacion) === 'APERTURA'  ? 'selected' : '' }}>Apertura — la empresa va a iniciar operaciones</option>
+                    <option value="OPERACIÓN" {{ old('etapa_operacion', $tramite->etapa_operacion) === 'OPERACIÓN' ? 'selected' : '' }}>Operación — la empresa ya está operando</option>
+                    <option value="CIERRE"    {{ old('etapa_operacion', $tramite->etapa_operacion) === 'CIERRE'    ? 'selected' : '' }}>Cierre — la empresa va a cerrar operaciones</option>
+                  </select>
+                </x-field-help>
+              </div>
             </div>
-            <div class="field">
-              <label>Frecuencia</label>
+            <x-field-help label="Frecuencia">
               <select name="frecuencia">
                 @foreach(['Alta','Media','Baja','Eventual'] as $f)
                   <option {{ $tramite->frecuencia === $f ? 'selected' : '' }}>{{ $f }}</option>
                 @endforeach
               </select>
-            </div>
-
-            <div class="field">
-              <label>Tipo de relación con otros trámites</label>
-              <select name="tipo_relacion">
-                @foreach(['' => '— Sin relación / no aplica —', 'Naturaleza' => 'Naturaleza', 'Secuencia' => 'Secuencia', 'Dependencia funcional' => 'Dependencia funcional'] as $valor => $etiqueta)
-                  <option value="{{ $valor }}" {{ old('tipo_relacion', $tramite->tipo_relacion) === $valor ? 'selected' : '' }}>{{ $etiqueta }}</option>
-                @endforeach
-              </select>
-              <small class="help-small">Rubro 10.1: cómo se relaciona este trámite con otros, si aplica.</small>
-            </div>
-            {{-- Sector y subsector económico SCIAN --}}
-            <x-selector-scian :sector="old('sector_id', $tramite->sector_id)" :subsector="old('subsector_id', $tramite->subsector_id)" />
+            </x-field-help>
 
             <x-input-validado tipo="numero_entero" name="volumen_anual" label="Volumen anual estimado" min="0" placeholder="Ej. 1250" :value="old('volumen_anual', $tramite->volumen_anual)" />
-            <div class="field">
-              <label>Plazo máximo de resolución</label>
-              <div class="split-fields">
-                <input name="plazo_resolucion_cantidad" type="number" min="0" inputmode="numeric" value="{{ old('plazo_resolucion_cantidad', $tramite->plazo_resolucion_cantidad) }}" placeholder="Cantidad">
-                <select name="plazo_resolucion_unidad">
-                  <option value="habiles"   {{ ($tramite->plazo_resolucion_unidad ?? 'habiles') === 'habiles'   ? 'selected' : '' }}>Días hábiles</option>
-                  <option value="naturales" {{ $tramite->plazo_resolucion_unidad === 'naturales' ? 'selected' : '' }}>Días naturales</option>
-                  <option value="meses"     {{ $tramite->plazo_resolucion_unidad === 'meses'     ? 'selected' : '' }}>Meses</option>
-                </select>
-              </div>
-            </div>
+
+            {{-- Sector y subsector económico SCIAN --}}
+            <x-selector-scian :sector="old('sector_id', $tramite->sector_id)" :subsector="old('subsector_id', $tramite->subsector_id)" />
           </div>
           </div>
         </section>
@@ -237,79 +244,231 @@
             'campos'  => $camposObservables['Costo burocrático'] ?? [],
           ])
 
-          <div class="wizard-fields">
-            <div class="field">
-              <label>Número de áreas que participan</label>
-              <input name="num_areas" type="number" min="0" value="{{ old('num_areas', $tramite->num_areas) }}">
+          {{-- Sub-tarjeta 1: Esfuerzo administrativo --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Esfuerzo administrativo</h4>
+              <p>Cuántas áreas tocan el expediente, cuántas visitas hace la persona y plazo legal de resolución.</p>
             </div>
-            <div class="field">
-              <label>Áreas que participan</label>
-              <input name="areas_participantes" value="{{ old('areas_participantes', $tramite->areas_participantes) }}" placeholder="Ej. Ventanilla, Tesorería">
-            </div>
-            <div class="field">
-              <label>Visitas requeridas</label>
-              <input name="visitas_requeridas" type="number" min="0" value="{{ old('visitas_requeridas', $tramite->visitas_requeridas) }}">
-            </div>
-            <x-field-help label="Costo público">
-              <div class="costo-grupo">
-                <select id="costoTipo" onchange="actualizarCosto()">
-                  @php $costoActual = old('portal_costo', $ficha->costo_publico ?? 'Gratuito'); $esConCosto = $costoActual !== 'Gratuito' && $costoActual !== ''; @endphp
-                  <option value="gratuito" {{ $esConCosto ? '' : 'selected' }}>Gratuito</option>
-                  <option value="con_costo" {{ $esConCosto ? 'selected' : '' }}>Con precio</option>
-                </select>
-                <input type="number" id="costoMonto" min="0" step="0.01" placeholder="0.00"
-                  value="{{ $esConCosto ? preg_replace('/[^0-9.]/', '', $costoActual) : 0 }}"
-                  oninput="actualizarCosto()" style="display:none">
-                <select id="costoUnidad" onchange="actualizarCosto()" style="display:none">
-                  <option value="pesos" selected>Pesos</option>
-                  <option value="UMA">UMA</option>
-                </select>
-                <span class="costo-moneda" id="costoEquiv"></span>
+            <div class="wizard-fields">
+              <div class="field">
+                <label>Número de áreas que participan</label>
+                <input name="num_areas" id="numAreas" type="number" min="0" value="{{ old('num_areas', $tramite->num_areas) }}">
               </div>
-              <input type="hidden" name="portal_costo" id="costoTexto" value="{{ $costoActual }}">
-              <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ $esConCosto ? 'con_costo' : 'gratuito' }}">
-              <input type="hidden" name="costo_monto" id="costoMontoHidden" value="0">
-              <input type="hidden" name="costo_unidad" id="costoUnidadHidden" value="pesos">
-            </x-field-help>
-            <x-field-help label="Pago de derechos" class="span-2">
-              <div id="derechosLista" class="derechos-lista">
-                {{-- filas generadas por JS --}}
+              <div id="areasParticipantesWrap" style="display:none">
+                <x-field-help label="Áreas que participan">
+                  <input name="areas_participantes" value="{{ old('areas_participantes', $tramite->areas_participantes) }}" placeholder="Ej. Ventanilla, Tesorería">
+                </x-field-help>
               </div>
-              <div class="derechos-pie">
-                <button type="button" class="btn btn-outline btn-sm" onclick="agregarDerecho()">+ Agregar derecho</button>
-                <span class="derechos-total">Total derechos: <strong id="derechosTotal">$0.00 MXN</strong></span>
+              <div class="field">
+                <label>Visitas requeridas</label>
+                <input name="visitas_requeridas" type="number" min="0" value="{{ old('visitas_requeridas', $tramite->visitas_requeridas) }}">
               </div>
-              <input type="hidden" name="derechos_json" id="derechosJson"
-                value="{{ old('derechos_json', $tramite->derechos->map(fn($d) => ['concepto' => $d->concepto, 'monto' => (float) $d->monto, 'unidad' => $d->unidad ?? 'pesos', 'es_variable' => (bool) ($d->es_variable ?? false)])->toJson()) }}">
-            </x-field-help>
-            <div class="field span-2">
-              <label>Monto de derechos (MD) en pesos</label>
-              <input id="montoDerechosCalc" name="monto_derechos_display" type="number" readonly
-                value="{{ old('monto_derechos', $tramite->monto_derechos) }}"
-                style="background:var(--surface-low);cursor:not-allowed">
-              <small class="campo-nota">Resultado del total de "Pago de derechos" (convertido a pesos).</small>
-            </div>
-            <div class="field">
-              <label>Copias simples solicitadas</label>
-              <input name="copias_cantidad" type="number" min="0" value="{{ old('copias_cantidad', $tramite->copias_cantidad) }}">
-            </div>
-            <div class="field">
-              <label>Precio por copia (pesos)</label>
-              <input name="copias_precio" type="number" min="0" step="0.01" value="{{ old('copias_precio', $tramite->copias_precio ?? 1.50) }}">
-            </div>
-            <div class="field">
-              <label>Salario promedio por hora (W)</label>
-              <input name="salario_hora_w" type="number" min="0" step="0.01" value="{{ old('salario_hora_w', $tramite->salario_hora_w ?? 68.20) }}">
-            </div>
-            <div class="field">
-              <label>Nivel de digitalización</label>
-              <select name="nivel_digitalizacion">
-                @for($i = 1; $i <= 5; $i++)
-                  <option value="{{ $i }}" {{ $tramite->nivel_digitalizacion == $i ? 'selected' : '' }}>{{ $i }}</option>
-                @endfor
-              </select>
+
+              {{-- Ítem C: Plazo de resolución --}}
+              <div class="field">
+                <label>Plazo máximo de resolución</label>
+                <div class="split-fields">
+                  <input name="plazo_resolucion_cantidad" type="number" min="0" inputmode="numeric" value="{{ old('plazo_resolucion_cantidad', $tramite->plazo_resolucion_cantidad) }}" placeholder="Cantidad">
+                  <select name="plazo_resolucion_unidad">
+                    <option value="habiles"   {{ ($tramite->plazo_resolucion_unidad ?? 'habiles') === 'habiles'   ? 'selected' : '' }}>Días hábiles</option>
+                    <option value="naturales" {{ $tramite->plazo_resolucion_unidad === 'naturales' ? 'selected' : '' }}>Días naturales</option>
+                    <option value="meses"     {{ $tramite->plazo_resolucion_unidad === 'meses'     ? 'selected' : '' }}>Meses</option>
+                    <option value="anios"     {{ $tramite->plazo_resolucion_unidad === 'anios'     ? 'selected' : '' }}>Años</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
+
+          {{-- Sub-tarjeta 2: Tiempos del ciudadano (CBI) --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Tiempos del ciudadano (CBI)</h4>
+              <p>Tiempos invertidos por la persona usuaria. Entran al Costo Burocrático Indirecto.</p>
+            </div>
+            <div class="wizard-fields">
+              <x-field-help label="Tiempo de traslado a la oficina">
+                <div class="split-fields">
+                  <input name="tiempo_traslado_horas" type="number" min="0" inputmode="numeric" placeholder="Horas" value="{{ old('tiempo_traslado_horas', $tramite->tiempo_traslado_horas) }}">
+                  <input name="tiempo_traslado_min" type="number" min="0" max="59" inputmode="numeric" placeholder="Minutos" value="{{ old('tiempo_traslado_min', $tramite->tiempo_traslado_min) }}">
+                </div>
+              </x-field-help>
+              <x-field-help label="Tiempo de espera en la oficina">
+                <div class="split-fields">
+                  <input name="tiempo_espera_horas" type="number" min="0" inputmode="numeric" placeholder="Horas" value="{{ old('tiempo_espera_horas', $tramite->tiempo_espera_horas) }}">
+                  <input name="tiempo_espera_min" type="number" min="0" max="59" inputmode="numeric" placeholder="Minutos" value="{{ old('tiempo_espera_min', $tramite->tiempo_espera_min) }}">
+                </div>
+              </x-field-help>
+              <x-field-help label="Tiempo de atención (duración del trámite)">
+                <div class="split-fields">
+                  <input name="tiempo_atencion_horas" type="number" min="0" inputmode="numeric" placeholder="Horas" value="{{ old('tiempo_atencion_horas', $tramite->tiempo_atencion_horas) }}">
+                  <input name="tiempo_atencion_min" type="number" min="0" max="59" inputmode="numeric" placeholder="Minutos" value="{{ old('tiempo_atencion_min', $tramite->tiempo_atencion_min) }}">
+                </div>
+              </x-field-help>
+              <div class="field">
+                <label>Salario promedio por hora (W)</label>
+                <input name="salario_hora_w" type="number" min="0" step="0.01" value="{{ old('salario_hora_w', $tramite->salario_hora_w ?? 68.20) }}">
+                <small class="campo-nota">Multiplicador para convertir los tiempos en pesos en el CBI.</small>
+              </div>
+            </div>
+          </div>
+
+          {{-- Sub-tarjeta 3: Nivel de digitalización --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Nivel de digitalización</h4>
+              <p>Nivel actual del trámite según la escala oficial ATDT (0 a 5). Use la calculadora si no está seguro.</p>
+            </div>
+            <div class="wizard-fields">
+              <x-field-help label="Nivel de digitalización">
+                {{-- Bug #B10: el select queda BLOQUEADO. El valor sólo se establece
+                     vía calculadora oficial (35 criterios ATDT). El hidden input
+                     lleva el valor real al backend porque los <select disabled>
+                     no se envían con el form. --}}
+                <select name="nivel_digitalizacion_display" id="nivelDigSelect" disabled style="background:var(--surface-low);cursor:not-allowed">
+                  @php
+                    $nivelesDig = [
+                      0 => 'Nivel 0 — Sin digitalización',
+                      1 => 'Nivel 1 — Eficiencia administrativa básica',
+                      2 => 'Nivel 2 — Productividad y reducción de costos',
+                      3 => 'Nivel 3 — Acceso electrónico transaccional',
+                      4 => 'Nivel 4 — Experiencia ciudadana unificada',
+                      5 => 'Nivel 5 — Innovación, transparencia y participación',
+                    ];
+                  @endphp
+                  @foreach($nivelesDig as $valor => $etiqueta)
+                    <option value="{{ $valor }}" {{ (string) $tramite->nivel_digitalizacion === (string) $valor ? 'selected' : '' }}>{{ $etiqueta }}</option>
+                  @endforeach
+                </select>
+                <input type="hidden" name="nivel_digitalizacion" id="nivelDigHidden" value="{{ old('nivel_digitalizacion', $tramite->nivel_digitalizacion ?? 1) }}">
+                <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px" onclick="abrirCalcDig()">Calcular nivel con el cuestionario oficial</button>
+                <small class="campo-nota">Use la calculadora oficial para establecer el nivel. No se puede editar a mano.</small>
+              </x-field-help>
+            </div>
+          </div>
+
+          {{-- Sub-tarjeta 4: Costos del trámite (CBD) --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Costos del trámite (CBD)</h4>
+              <p>Costo público, derechos, copias y fundamento jurídico del cobro. Entran al Costo Burocrático Directo.</p>
+            </div>
+            <div class="wizard-fields">
+              <x-field-help label="Costo público">
+                <div class="costo-grupo">
+                  <select id="costoTipo" onchange="actualizarCosto()">
+                    @php $costoActual = old('portal_costo', $ficha->costo_publico ?? 'Gratuito'); $esConCosto = $costoActual !== 'Gratuito' && $costoActual !== ''; @endphp
+                    <option value="gratuito" {{ $esConCosto ? '' : 'selected' }}>Gratuito</option>
+                    <option value="con_costo" {{ $esConCosto ? 'selected' : '' }}>Con precio</option>
+                  </select>
+                  <input type="number" id="costoMonto" min="0" step="0.01" placeholder="0.00"
+                    value="{{ $esConCosto ? preg_replace('/[^0-9.]/', '', $costoActual) : 0 }}"
+                    oninput="actualizarCosto()" style="display:none">
+                  <select id="costoUnidad" onchange="actualizarCosto()" style="display:none">
+                    <option value="pesos" selected>Pesos</option>
+                    <option value="UMA">UMA</option>
+                  </select>
+                  <span class="costo-moneda" id="costoEquiv"></span>
+                </div>
+                <input type="hidden" name="portal_costo" id="costoTexto" value="{{ $costoActual }}">
+                <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ $esConCosto ? 'con_costo' : 'gratuito' }}">
+                <input type="hidden" name="costo_monto" id="costoMontoHidden" value="0">
+                <input type="hidden" name="costo_unidad" id="costoUnidadHidden" value="pesos">
+              </x-field-help>
+              @php $costoTieneFj = $tramite->fj_norma || $tramite->fj_capitulo || $tramite->fj_articulo; @endphp
+              <div class="field span-2 fj-bloque">
+                <label class="fj-pregunta">¿El costo del trámite tiene fundamento jurídico? *</label>
+                <div class="fj-radios">
+                  <label><input type="radio" name="costo_fj_tiene" value="1" required onchange="toggleFjRadio(this)" {{ $costoTieneFj ? 'checked' : '' }}> Sí</label>
+                  <label><input type="radio" name="costo_fj_tiene" value="0" required onchange="toggleFjRadio(this)" {{ $costoTieneFj ? '' : 'checked' }}> No</label>
+                </div>
+                <div class="fj-campos fj-linea" style="display:{{ $costoTieneFj ? '' : 'none' }}">
+                  <div>
+                    @php $hLey = config('helpTexts')['Ley o reglamento'] ?? null; @endphp
+                    <label>Ley o reglamento @if($hLey)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Ley o reglamento">?</button>@endif</label>
+                    @if($hLey)<div class="field-help-box">{{ $hLey }}</div>@endif
+                    <input name="costo_fj_norma" placeholder="Ej. Ley de Hacienda Municipal" value="{{ $tramite->fj_norma }}">
+                  </div>
+                  <div>
+                    @php $hCap = config('helpTexts')['Capítulo'] ?? null; @endphp
+                    <label>Capítulo @if($hCap)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Capítulo">?</button>@endif</label>
+                    @if($hCap)<div class="field-help-box">{{ $hCap }}</div>@endif
+                    <input name="costo_fj_capitulo" placeholder="Ej. Cap. II" value="{{ $tramite->fj_capitulo }}">
+                  </div>
+                  <div>
+                    @php $hArt = config('helpTexts')['Artículo'] ?? null; @endphp
+                    <label>Artículo @if($hArt)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Artículo">?</button>@endif</label>
+                    @if($hArt)<div class="field-help-box">{{ $hArt }}</div>@endif
+                    <input name="costo_fj_articulo" placeholder="Ej. Art. 45" value="{{ $tramite->fj_articulo }}">
+                  </div>
+                </div>
+              </div>
+              <x-field-help label="Pago de derechos" class="span-2">
+                <div id="derechosLista" class="derechos-lista">
+                  {{-- filas generadas por JS --}}
+                </div>
+                <div class="derechos-pie">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="agregarDerecho()">+ Agregar derecho</button>
+                  <span class="derechos-total">Total derechos: <strong id="derechosTotal">$0.00 MXN</strong></span>
+                </div>
+                <input type="hidden" name="derechos_json" id="derechosJson"
+                  value="{{ old('derechos_json', $tramite->derechos->map(fn($d) => ['concepto' => $d->concepto, 'monto' => (float) $d->monto, 'unidad' => $d->unidad ?? 'pesos', 'es_variable' => (bool) ($d->es_variable ?? false), 'fj_norma' => $d->fj_norma, 'fj_capitulo' => $d->fj_capitulo, 'fj_articulo' => $d->fj_articulo])->toJson()) }}">
+              </x-field-help>
+              {{-- Bug #B11: Monto de derechos. Se oculta cuando "es variable"
+                   está marcado, porque mostrar $0.00 confunde al enlace.
+                   En su lugar aparece el aviso #montoDerechosVariableAviso. --}}
+              <div id="montoDerechosFijoWrap" class="span-2" style="display:{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? 'none' : '' }}">
+                <div class="field span-2">
+                  <label>Monto de derechos (MD) en pesos</label>
+                  <input id="montoDerechosCalc" name="monto_derechos_display" type="number" readonly
+                    value="{{ old('monto_derechos', $tramite->monto_derechos) }}"
+                    style="background:var(--surface-low);cursor:not-allowed">
+                  <small class="campo-nota">Resultado del total de "Pago de derechos" (convertido a pesos).</small>
+                </div>
+              </div>
+              {{-- Aviso cuando "es variable": explica al enlace por qué no se calcula. --}}
+              <div id="montoDerechosVariableAviso" class="assist-box span-2" style="display:{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? '' : 'none' }}">
+                <strong>Costo variable.</strong> El monto de derechos no se incluye en el cálculo del CBD porque depende del caso (ej. el predial varía según el valor catastral). El costo total del trámite seguirá considerando el tiempo del ciudadano (CBI) y las copias.
+              </div>
+              {{-- Ítem E: pago de derechos variable (ej. predial). Checkbox fuera
+                   de <div class="field"> para que no herede el estilo uppercase
+                   de los labels de los campos. --}}
+              <label class="checkbox-opcion span-2">
+                <input type="checkbox" name="monto_derechos_variable" value="1" id="montoVariableChk"
+                  onchange="toggleMontoReferencia()" {{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? 'checked' : '' }}>
+                <span>El pago de derechos es variable (depende del caso, ej. predial)</span>
+              </label>
+              <div id="montoReferenciaWrap" style="display:{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? '' : 'none' }}">
+                <x-field-help label="Base de cálculo del monto (referencia)" class="span-2">
+                  <input name="monto_derechos_referencia" placeholder="Ej. tarifa mínima de la tabla municipal" value="{{ old('monto_derechos_referencia', $tramite->monto_derechos_referencia) }}">
+                  <small class="campo-nota">El monto capturado se usa como estimación; esta nota explica de dónde sale.</small>
+                </x-field-help>
+              </div>
+              <div class="field">
+                <label>Copias simples solicitadas</label>
+                <input name="copias_cantidad" type="number" min="0" value="{{ old('copias_cantidad', $tramite->copias_cantidad) }}">
+              </div>
+              <div class="field">
+                <label>Precio por copia (pesos)</label>
+                <input name="copias_precio" type="number" min="0" step="0.01" value="{{ old('copias_precio', $tramite->copias_precio ?? 1.50) }}">
+              </div>
+            </div>
+          </div>
+
+          {{-- Sub-tarjeta 5: Grupos de atención prioritaria (Art. 19 LNETB) --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Grupos de atención prioritaria</h4>
+              <p>Art. 19 LNETB. La agenda los lee para priorizar simplificaciones y digitalizaciones.</p>
+            </div>
+            <div class="wizard-fields">
+              @include('partials.catalogos-tramite', [
+                'gruposSel' => old('grupos_atencion', $tramite->grupos_atencion ?? []),
+              ])
+            </div>
+          </div>
+
           <div class="assist-box mt-4">
             <strong>Costos actuales (ATDT):</strong>
             CBD ${{ number_format($tramite->cbd_directo ?? 0, 2) }} +
@@ -322,77 +481,8 @@
           </div>
         </section>
 
-        {{-- SECCIÓN 4: Requisitos --}}
+        {{-- SECCIÓN 4: Fundamento jurídico --}}
         <section class="acc-seccion" data-acc="4">
-          <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
-            <span class="acc-titulo">Requisitos</span>
-            <span class="acc-sub">Documentos que solicita el trámite</span>
-            <span class="acc-flecha">▾</span>
-          </button>
-          <div class="acc-cuerpo">
-          {{-- Observaciones de esta sección (#18) --}}
-          @include('partials.observaciones-seccion', [
-            'seccion' => 'Requisitos',
-            'items'   => $observacionesPorSeccion['Requisitos'] ?? collect(),
-            'campos'  => $camposObservables['Requisitos'] ?? [],
-          ])
-          <div id="reqContainer">
-            @forelse($tramite->requisitos as $i => $req)
-              <article class="requirement-card">
-                <strong>Requisito {{ $i + 1 }}: {{ $req->nombre }}</strong>
-                <div class="wizard-fields">
-                  <div class="field"><label>Nombre *</label><input name="requisitos[{{ $i }}][nombre]" value="{{ $req->nombre }}" required></div>
-                  <div class="field"><label>¿Original?</label>
-                    <select name="requisitos[{{ $i }}][original]">
-                      <option value="1" {{ $req->original ? 'selected' : '' }}>Sí</option>
-                      <option value="0" {{ !$req->original ? 'selected' : '' }}>No</option>
-                    </select>
-                  </div>
-                  <div class="field"><label>¿Copia?</label>
-                    <select name="requisitos[{{ $i }}][copia]">
-                      <option value="1" {{ $req->copia ? 'selected' : '' }}>Sí</option>
-                      <option value="0" {{ !$req->copia ? 'selected' : '' }}>No</option>
-                    </select>
-                  </div>
-                  <div class="field"><label>Días estimados</label><input name="requisitos[{{ $i }}][dias]" type="number" min="0" value="{{ $req->dias_estimados }}"></div>
-                  <div class="field"><label>Horas estimadas</label><input name="requisitos[{{ $i }}][horas]" type="number" min="0" value="{{ $req->horas_estimadas }}"></div>
-                  <div class="field span-2"><label>Observaciones</label><textarea name="requisitos[{{ $i }}][observaciones]" rows="2">{{ $req->observaciones }}</textarea></div>
-                  <input type="hidden" name="requisitos[{{ $i }}][id]" value="{{ $req->id }}">
-                </div>
-              </article>
-            @empty
-              <div class="cal-empty-state">No hay requisitos registrados.</div>
-            @endforelse
-          </div>
-          <div class="section-actions section-actions-start mt-3">
-            <button type="button" class="btn btn-outline btn-sm" onclick="addReq()">+ Agregar requisito</button>
-          </div>
-          </div>
-        </section>
-
-        {{-- SECCIÓN: Procesos del trámite (atención y resolución por pasos) --}}
-        <section class="acc-seccion" data-acc="proc">
-          <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
-            <span class="acc-titulo">Procesos del trámite</span>
-            <span class="acc-sub">Atención y resolución, paso a paso</span>
-            <span class="acc-flecha">▾</span>
-          </button>
-          <div class="acc-cuerpo">
-            <p class="u-muted" style="font-size:13px;margin-bottom:8px">Enumere el proceso paso a paso: quién lo realiza y en qué consiste. Use subpasos (1.1, 1.2) para detallar dentro de un paso.</p>
-            <div id="pasosLista" class="pasos-lista">
-              {{-- filas generadas por JS --}}
-            </div>
-            <div class="section-actions section-actions-start mt-3">
-              <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(false)">+ Agregar paso</button>
-              <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(true)">+ Agregar subpaso</button>
-            </div>
-            <input type="hidden" name="pasos_json" id="pasosJson"
-              value="{{ old('pasos_json', $tramite->procesosAtencion->sortBy([['paso','asc'],['subpaso','asc']])->map(fn($p) => ['es_subpaso' => $p->subpaso > 0, 'area' => $p->area, 'accion' => $p->accion])->values()->toJson()) }}">
-          </div>
-        </section>
-
-        {{-- SECCIÓN 5: Fundamento jurídico --}}
-        <section class="acc-seccion" data-acc="5">
           <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
             <span class="acc-titulo">Fundamento jurídico</span>
             <span class="acc-sub">Normativa que da origen al trámite</span>
@@ -429,6 +519,162 @@
           </div>
         </section>
 
+        {{-- SECCIÓN 5: Requisitos --}}
+        <section class="acc-seccion" data-acc="5">
+          <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
+            <span class="acc-titulo">Requisitos</span>
+            <span class="acc-sub">Documentos que solicita el trámite</span>
+            <span class="acc-flecha">▾</span>
+          </button>
+          <div class="acc-cuerpo">
+          {{-- Observaciones de esta sección (#18) --}}
+          @include('partials.observaciones-seccion', [
+            'seccion' => 'Requisitos',
+            'items'   => $observacionesPorSeccion['Requisitos'] ?? collect(),
+            'campos'  => $camposObservables['Requisitos'] ?? [],
+          ])
+          {{-- Ítem A #21: ¿Guarda relación? Radio Sí/No con detalle condicional.
+               Antes era un select con 4 opciones que confundía al enlace
+               (las distinciones eran sutiles). Ahora es una pregunta binaria
+               y el subtipo se describe en el campo de detalle. --}}
+          <div class="wizard-fields" style="margin-bottom:1.2rem">
+            <x-field-help label="¿Guarda relación con otros trámites?" class="span-2">
+              @php
+                // Migración suave del dato viejo: cualquier valor distinto a
+                // "Ninguna" se interpreta como "Sí" para no perder el registro.
+                $rel = old('tipo_relacion', $tramite->tipo_relacion ?? 'Ninguna');
+                $relSi = ($rel !== 'Ninguna' && $rel !== '');
+              @endphp
+              <div class="radio-group" style="display:flex; gap:24px; padding:8px 0;">
+                <label class="radio-item">
+                  <input type="radio" name="tipo_relacion" value="Ninguna"
+                    {{ !$relSi ? 'checked' : '' }}
+                    onchange="toggleRelacionados()">
+                  <span>No</span>
+                </label>
+                <label class="radio-item">
+                  <input type="radio" name="tipo_relacion" value="Sí"
+                    {{ $relSi ? 'checked' : '' }}
+                    onchange="toggleRelacionados()">
+                  <span>Sí</span>
+                </label>
+              </div>
+            </x-field-help>
+            <div id="relacionadosDetalleWrap" style="display:{{ $relSi ? '' : 'none' }}">
+              <x-field-help label="Trámites relacionados" class="span-2">
+                <textarea name="relacionados_detalle" rows="3" placeholder="Ej. Licencia de uso de suelo (la requiere antes), Visto bueno de Protección Civil (lo habilita)">{{ old('relacionados_detalle', $tramite->relacionados_detalle) }}</textarea>
+              </x-field-help>
+            </div>
+          </div>
+
+          <div id="reqContainer">
+            @forelse($tramite->requisitos as $i => $req)
+              <article class="requirement-card">
+                <strong>Requisito {{ $i + 1 }}: {{ $req->nombre }}</strong>
+                <div class="wizard-fields">
+                  <div class="field"><label>Nombre *</label><input name="requisitos[{{ $i }}][nombre]" value="{{ $req->nombre }}" required></div>
+                  <div class="field"><label>¿Original?</label>
+                    <select name="requisitos[{{ $i }}][original]">
+                      <option value="1" {{ $req->original ? 'selected' : '' }}>Sí</option>
+                      <option value="0" {{ !$req->original ? 'selected' : '' }}>No</option>
+                    </select>
+                  </div>
+                  <div class="field"><label>¿Copia?</label>
+                    <select name="requisitos[{{ $i }}][copia]">
+                      <option value="1" {{ $req->copia ? 'selected' : '' }}>Sí</option>
+                      <option value="0" {{ !$req->copia ? 'selected' : '' }}>No</option>
+                    </select>
+                  </div>
+                  <div class="field"><label>Días estimados</label><input name="requisitos[{{ $i }}][dias]" type="number" min="0" value="{{ $req->dias_estimados }}"></div>
+                  <div class="field"><label>Horas estimadas</label><input name="requisitos[{{ $i }}][horas]" type="number" min="0" value="{{ $req->horas_estimadas }}"></div>
+                  <div class="field"><label>Minutos estimados</label><input name="requisitos[{{ $i }}][minutos]" type="number" min="0" max="59" value="{{ $req->minutos_estimados }}"></div>
+                  <div class="field span-2"><label>Observaciones</label><textarea name="requisitos[{{ $i }}][observaciones]" rows="2">{{ $req->observaciones }}</textarea></div>
+                  {{-- Ítem E: costo del requisito (pre-cargado según lo guardado) --}}
+                  @php
+                    $reqModoCosto = $req->costo_variable ? 'variable' : ($req->tiene_costo ? 'fijo' : 'sin');
+                  @endphp
+                  <x-field-help label="¿Este requisito tiene costo?">
+                    <select name="requisitos[{{ $i }}][costo_modo]" onchange="toggleCostoReq(this)">
+                      <option value="sin"      {{ $reqModoCosto === 'sin'      ? 'selected' : '' }}>Sin costo</option>
+                      <option value="fijo"     {{ $reqModoCosto === 'fijo'     ? 'selected' : '' }}>Sí, monto fijo</option>
+                      <option value="variable" {{ $reqModoCosto === 'variable' ? 'selected' : '' }}>Sí, costo variable (no cuantificable)</option>
+                    </select>
+                  </x-field-help>
+                  <div class="req-costo-monto" style="display:{{ $reqModoCosto === 'fijo' ? '' : 'none' }}">
+                    <x-field-help label="Monto del requisito">
+                      <input name="requisitos[{{ $i }}][costo_monto]" type="number" min="0" step="0.01" value="{{ $req->costo_requisito ?? 0 }}" placeholder="Ej. 250.00">
+                    </x-field-help>
+                  </div>
+                  <div class="req-costo-monto" style="display:{{ $reqModoCosto === 'fijo' ? '' : 'none' }}">
+                    <x-field-help label="Unidad del costo">
+                      <select name="requisitos[{{ $i }}][costo_unidad]">
+                        <option value="PESOS" {{ ($req->costo_unidad ?? 'PESOS') === 'PESOS' ? 'selected' : '' }}>Pesos</option>
+                        <option value="UMA"   {{ ($req->costo_unidad ?? '') === 'UMA' ? 'selected' : '' }}>UMA</option>
+                      </select>
+                    </x-field-help>
+                  </div>
+                  @php $reqTieneFj = $req->fj_norma || $req->fj_capitulo || $req->fj_articulo; @endphp
+                  <div class="field span-2 fj-bloque">
+                    <label class="fj-pregunta">¿Este requisito tiene fundamento jurídico? *</label>
+                    <div class="fj-radios">
+                      <label><input type="radio" name="requisitos[{{ $i }}][fj_tiene]" value="1" required onchange="toggleFjRadio(this)" {{ $reqTieneFj ? 'checked' : '' }}> Sí</label>
+                      <label><input type="radio" name="requisitos[{{ $i }}][fj_tiene]" value="0" required onchange="toggleFjRadio(this)" {{ $reqTieneFj ? '' : 'checked' }}> No</label>
+                    </div>
+                    <div class="fj-campos fj-linea" style="display:{{ $reqTieneFj ? '' : 'none' }}">
+                      <div>
+                        @php $hReqLey = config('helpTexts')['Ley o reglamento'] ?? null; @endphp
+                        <label>Ley o reglamento @if($hReqLey)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Ley o reglamento">?</button>@endif</label>
+                        @if($hReqLey)<div class="field-help-box">{{ $hReqLey }}</div>@endif
+                        <input name="requisitos[{{ $i }}][fj_norma]" placeholder="Ej. Reglamento de Comercio" value="{{ $req->fj_norma }}">
+                      </div>
+                      <div>
+                        @php $hReqCap = config('helpTexts')['Capítulo'] ?? null; @endphp
+                        <label>Capítulo @if($hReqCap)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Capítulo">?</button>@endif</label>
+                        @if($hReqCap)<div class="field-help-box">{{ $hReqCap }}</div>@endif
+                        <input name="requisitos[{{ $i }}][fj_capitulo]" placeholder="Ej. Cap. III" value="{{ $req->fj_capitulo }}">
+                      </div>
+                      <div>
+                        @php $hReqArt = config('helpTexts')['Artículo'] ?? null; @endphp
+                        <label>Artículo @if($hReqArt)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Artículo">?</button>@endif</label>
+                        @if($hReqArt)<div class="field-help-box">{{ $hReqArt }}</div>@endif
+                        <input name="requisitos[{{ $i }}][fj_articulo]" placeholder="Ej. Art. 12" value="{{ $req->fj_articulo }}">
+                      </div>
+                    </div>
+                  </div>
+                  <input type="hidden" name="requisitos[{{ $i }}][id]" value="{{ $req->id }}">
+                </div>
+              </article>
+            @empty
+              <div class="cal-empty-state">No hay requisitos registrados.</div>
+            @endforelse
+          </div>
+          <div class="section-actions section-actions-start mt-3">
+            <button type="button" class="btn btn-outline btn-sm" onclick="addReq()">+ Agregar requisito</button>
+          </div>
+          </div>
+        </section>
+
+        {{-- SECCIÓN: Procesos del trámite (atención y resolución por pasos) --}}
+        <section class="acc-seccion" data-acc="proc">
+          <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
+            <span class="acc-titulo">Procesos del trámite</span>
+            <span class="acc-sub">Atención y resolución, paso a paso</span>
+            <span class="acc-flecha">▾</span>
+          </button>
+          <div class="acc-cuerpo">
+            <p class="u-muted" style="font-size:13px;margin-bottom:8px">Enumere el proceso paso a paso: quién lo realiza y en qué consiste. Use subpasos (1.1, 1.2) para detallar dentro de un paso.</p>
+            <div id="pasosLista" class="pasos-lista">
+              {{-- filas generadas por JS --}}
+            </div>
+            <div class="section-actions section-actions-start mt-3">
+              <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(false)">+ Agregar paso</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btnAgregarSubpaso" onclick="agregarPaso(true)">+ Agregar subpaso</button>
+            </div>
+            <input type="hidden" name="pasos_json" id="pasosJson"
+              value="{{ old('pasos_json', $tramite->procesosAtencion->sortBy([['paso','asc'],['subpaso','asc']])->map(fn($p) => ['es_subpaso' => $p->subpaso > 0, 'area' => $p->area, 'accion' => $p->accion])->values()->toJson()) }}">
+          </div>
+        </section>
+
         {{-- SECCIÓN: Ficha para portal ciudadano --}}
         @php $ficha = $tramite->fichaPortal; @endphp
         <section class="acc-seccion" data-acc="portal">
@@ -444,13 +690,17 @@
               <div class="field"><label>Resultado que se obtiene</label>
                 <input name="portal_resultado" value="{{ old('portal_resultado', $ficha->resultado ?? '') }}" placeholder="Ej. Licencia, constancia, permiso"></div>
               <div class="field"><label>Modalidad de atención</label>
-                <select name="portal_modalidad">
+                <select name="portal_modalidad" id="portalModalidad" onchange="toggleModalidadCampos()">
                   @php $modAct = old('portal_modalidad', $ficha->modalidad ?? 'Presencial'); @endphp
                   <option value="Presencial" {{ $modAct==='Presencial'?'selected':'' }}>Presencial</option>
                   <option value="En línea"   {{ $modAct==='En línea'?'selected':'' }}>En línea</option>
                   <option value="Mixta"      {{ $modAct==='Mixta'?'selected':'' }}>Mixta</option>
                 </select>
               </div>
+              <div id="modalidadDireccion" class="field span-2" style="display:none"><label>Dirección donde se realiza el trámite</label>
+                <input name="portal_direccion" value="{{ old('portal_direccion', $ficha->direccion ?? '') }}" placeholder="Calle, número, colonia, La Paz, B.C.S."></div>
+              <div id="modalidadUrl" class="field span-2" style="display:none"><label>URL donde se realiza el trámite en línea</label>
+                <input name="portal_url" type="url" value="{{ old('portal_url', $ficha->url ?? '') }}" placeholder="https://tramites.lapaz.gob.mx/..."></div>
               <div class="field span-2"><label>Costo público (capturado en Operación)</label>
                 <input type="text" id="costoPublicoResumen" readonly
                   value="{{ old('portal_costo', $ficha->costo_publico ?? 'Gratuito') }}"
@@ -458,8 +708,16 @@
                 <small class="campo-nota">Para cambiarlo, regrese al paso de Operación.</small></div>
               <div class="field span-2"><label>Descripción accesible</label>
                 <textarea name="portal_descripcion" rows="3" placeholder="Descripción accesible para la ciudadanía...">{{ old('portal_descripcion', $ficha->descripcion ?? '') }}</textarea></div>
-              <div class="field"><label>Horario de atención</label>
-                <input name="portal_horario" value="{{ old('portal_horario', $ficha->horario ?? '') }}" placeholder="Ej. Lun a Vie 8:00-15:00"></div>
+              <div class="field span-2"><label>Horario de atención</label>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input id="horarioResumen" name="portal_horario" readonly
+                    placeholder="Haga clic en 'Configurar' para establecer horarios"
+                    value="{{ old('portal_horario', $ficha->horario ?? '') }}"
+                    style="background:#f9fafb;flex:1;cursor:pointer"
+                    onclick="abrirHorarios()">
+                  <input type="hidden" id="horariosJson" name="horarios_json" value="{{ old('horarios_json', $ficha->horarios_json ? json_encode($ficha->horarios_json) : '') }}">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="abrirHorarios()" style="white-space:nowrap">Configurar</button>
+                </div></div>
               <div class="field"><label>Teléfono</label>
                 <input name="portal_telefono" value="{{ old('portal_telefono', $ficha->telefono ?? '') }}" placeholder="(612) 123-4567"></div>
               <div class="field"><label>Correo</label>
@@ -495,6 +753,8 @@
 
     </div>{{-- /acordeon-tramite --}}
   </form>
+
+  @include('partials.calculadora-digitalizacion')
     </div>{{-- /detalle-main --}}
 
     <aside class="detalle-aside">
@@ -512,16 +772,48 @@
 <div id="modalHorarios">
   <div class="horario-modal-inner">
     <h3 style="margin:0 0 4px">Horarios de atención</h3>
-    <p style="margin:0 0 16px;font-size:13px;color:#6b7280">Configure los días y horarios en que se atiende el trámite.</p>
-    <div class="horario-accesos">
-      <span style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;align-self:center">Accesos:</span>
-      <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('lv')">Lun–Vie</button>
-      <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('ls')">Lun–Sáb</button>
-      <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('todos')">Todos</button>
-      <button type="button" class="btn btn-outline btn-sm" onclick="horarioLimpiar()">Limpiar</button>
+    <p style="margin:0 0 18px;font-size:13px;color:#6b7280">Configure en tres pasos los días y horarios en que se atiende el trámite.</p>
+
+    {{-- PASO 1: horario base --}}
+    <div class="horario-paso">
+      <div class="horario-paso-num">1</div>
+      <div class="horario-paso-cuerpo">
+        <h4 class="horario-paso-titulo">Elija el horario base</h4>
+        <p class="horario-paso-ayuda">Este horario se aplica a todos los días que marque abajo. Después puede ajustar un día concreto si tiene horario diferente.</p>
+        <div class="horario-base-inputs">
+          <label>Apertura <input type="time" id="horarioBaseInicio" value="09:00" onchange="setHorarioBase('inicio', this.value)"></label>
+          <label>Cierre <input type="time" id="horarioBaseFin" value="15:00" onchange="setHorarioBase('fin', this.value)"></label>
+        </div>
+      </div>
     </div>
-    <div id="horariosGrid"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+
+    {{-- PASO 2: días aplicables --}}
+    <div class="horario-paso">
+      <div class="horario-paso-num">2</div>
+      <div class="horario-paso-cuerpo">
+        <h4 class="horario-paso-titulo">Marque los días aplicables</h4>
+        <div id="horarioChips" class="horario-chips"><!-- chips generados por JS --></div>
+        <div class="horario-accesos">
+          <span class="horario-accesos-label">Accesos rápidos:</span>
+          <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('lv')">Lun – Vie</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('ls')">Lun – Sáb</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('todos')">Todos</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="horarioLimpiar()">Limpiar</button>
+        </div>
+      </div>
+    </div>
+
+    {{-- PASO 3: vista previa editable --}}
+    <div class="horario-paso">
+      <div class="horario-paso-num">3</div>
+      <div class="horario-paso-cuerpo">
+        <h4 class="horario-paso-titulo">Vista previa</h4>
+        <p class="horario-paso-ayuda">Revise los días marcados. Puede editar el horario de un día concreto si difiere del base (por ejemplo, sábado reducido).</p>
+        <div id="horarioPreview" class="horario-preview"><!-- generado por JS --></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
       <button type="button" class="btn btn-outline" onclick="cerrarHorarios()">Cancelar</button>
       <button type="button" class="btn btn-success" onclick="guardarHorarios()">Aplicar</button>
     </div>
@@ -554,21 +846,44 @@ function renderPasos() {
     cont.innerHTML = '<p class="derechos-vacio">Sin pasos. Use "Agregar paso" para enumerar el proceso.</p>';
   }
   _pasos.forEach(function (p, i) {
+    var num = numeroDePaso(i);
+    var etiqueta = p.es_subpaso ? ('Subpaso ' + num) : ('Paso ' + num);
     var art = document.createElement('article');
-    art.className = 'paso-card' + (p.es_subpaso ? ' paso-sub' : '');
+    art.className = 'requirement-card';
+    // Sangría leve en subpasos para conservar la jerarquía visual (1.1 dentro de 1).
+    if (p.es_subpaso) art.style.marginLeft = '28px';
     art.innerHTML =
-      '<div class="paso-num">' + numeroDePaso(i) + '</div>' +
-      '<div class="paso-campos">' +
-        '<input type="text" placeholder="¿Quién lo realiza? (área o responsable)" value="' + (p.area || '').replace(/"/g, '&quot;') + '" oninput="setPaso(' + i + ', \'area\', this.value)">' +
-        '<textarea rows="2" placeholder="¿En qué consiste este paso?" oninput="setPaso(' + i + ', \'accion\', this.value)">' + (p.accion || '') + '</textarea>' +
+      '<strong>' + etiqueta + '</strong>' +
+      '<div class="wizard-fields">' +
+        '<div class="field span-2"><label>¿Quién lo realiza? (área o responsable)</label>' +
+          '<input type="text" placeholder="Ej. Ventanilla de Comercio" value="' + (p.area || '').replace(/"/g, '&quot;') + '" oninput="setPaso(' + i + ', \'area\', this.value)"></div>' +
+        '<div class="field span-2"><label>¿En qué consiste este paso?</label>' +
+          '<textarea rows="2" placeholder="Ej. Recibe la solicitud y verifica los documentos" oninput="setPaso(' + i + ', \'accion\', this.value)">' + (p.accion || '') + '</textarea></div>' +
       '</div>' +
-      '<button type="button" class="btn btn-outline btn-sm" onclick="quitarPaso(' + i + ')">Quitar</button>';
+      '<div class="section-actions mt-2">' +
+        '<button type="button" class="btn btn-outline btn-sm danger" onclick="quitarPaso(' + i + ')">Quitar</button>' +
+      '</div>';
     cont.appendChild(art);
   });
   document.getElementById('pasosJson').value = JSON.stringify(_pasos);
+  actualizarBotonSubpaso();
+}
+
+// Habilita o deshabilita el botón "+ Agregar subpaso": un subpaso (1.1, 1.2)
+// solo tiene sentido dentro de un paso principal ya existente.
+function actualizarBotonSubpaso() {
+  var btn = document.getElementById('btnAgregarSubpaso');
+  if (!btn) return;
+  var hayPasoPrincipal = _pasos.some(function (p) { return !p.es_subpaso; });
+  btn.disabled = !hayPasoPrincipal;
+  btn.title = hayPasoPrincipal ? '' : 'Primero agregue un paso';
 }
 
 function agregarPaso(esSubpaso) {
+  // No se permite un subpaso si todavía no hay ningún paso principal.
+  if (esSubpaso && !_pasos.some(function (p) { return !p.es_subpaso; })) {
+    return;
+  }
   _pasos.push({ es_subpaso: !!esSubpaso, area: '', accion: '' });
   renderPasos();
 }
@@ -580,6 +895,43 @@ function quitarPaso(i) {
   renderPasos();
 }
 document.addEventListener('DOMContentLoaded', renderPasos);
+
+// Muestra el campo de dirección y/o URL según la modalidad elegida (igual que en el alta).
+function toggleModalidadCampos() {
+  var sel = document.getElementById('portalModalidad');
+  var dir = document.getElementById('modalidadDireccion');
+  var url = document.getElementById('modalidadUrl');
+  if (!sel) return;
+  var v = sel.value;
+  if (dir) dir.style.display = (v === 'Presencial' || v === 'Mixta') ? '' : 'none';
+  if (url) url.style.display = (v === 'En línea'   || v === 'Mixta') ? '' : 'none';
+}
+document.addEventListener('DOMContentLoaded', toggleModalidadCampos);
+
+// Ítem A: mostrar campo de trámites relacionados solo cuando se elige "Sí"
+// (rubro 10.2 del instrumento ATDT). El campo cambió de un <select> a radios
+// Sí/No; se muestra el detalle solo cuando el radio "Sí" está marcado. Misma
+// lógica que public/js/tramites-create.js para que alta y edición coincidan.
+function toggleRelacionados() {
+  var radioSi = document.querySelector('input[name="tipo_relacion"][value="Sí"]');
+  var wrap = document.getElementById('relacionadosDetalleWrap');
+  if (!wrap) return;
+  wrap.style.display = (radioSi && radioSi.checked) ? '' : 'none';
+}
+document.addEventListener('DOMContentLoaded', function () {
+  toggleRelacionados();
+});
+function toggleAreasParticipantes() {
+  var n = document.getElementById('numAreas');
+  var wrap = document.getElementById('areasParticipantesWrap');
+  if (!n || !wrap) return;
+  wrap.style.display = (parseInt(n.value, 10) > 0) ? '' : 'none';
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var n = document.getElementById('numAreas');
+  if (n) n.addEventListener('input', toggleAreasParticipantes);
+  toggleAreasParticipantes();
+});
 </script>
 @endpush
 
@@ -633,21 +985,36 @@ function renderDerechos() {
   }
 
   _derechos.forEach(function (d, i) {
-    var fila = document.createElement('div');
-    fila.className = 'derecho-fila';
+    var wrap = document.createElement('div');
+    wrap.className = 'derecho-wrap';
     var esUma = d.unidad === 'UMA';
     var equiv = esUma ? (' ≈ $' + derechoEnPesos(d).toFixed(2)) : '';
-    fila.innerHTML =
-      '<input type="text" placeholder="Concepto (ej. Derecho de inspección)" value="' + (d.concepto || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'concepto\', this.value)">' +
-      '<input type="number" min="0" step="0.01" placeholder="0.00" value="' + (d.monto || 0) + '" oninput="setDerecho(' + i + ', \'monto\', this.value)">' +
-      '<select onchange="setDerecho(' + i + ', \'unidad\', this.value)">' +
-        '<option value="pesos"' + (esUma ? '' : ' selected') + '>Pesos</option>' +
-        '<option value="UMA"' + (esUma ? ' selected' : '') + '>UMA</option>' +
-      '</select>' +
-      '<label><input type="checkbox"' + (d.es_variable ? ' checked' : '') + ' onchange="setDerecho(' + i + ', \'es_variable\', this.checked)"> Variable</label>' +
-      '<span class="derecho-equiv">' + equiv + '</span>' +
-      '<button type="button" class="btn btn-outline btn-sm" onclick="quitarDerecho(' + i + ')">Quitar</button>';
-    cont.appendChild(fila);
+    var tieneFj = !!(d.fj_norma || d.fj_capitulo || d.fj_articulo);
+    wrap.innerHTML =
+      '<div class="derecho-fila">' +
+        '<input type="text" placeholder="Concepto (ej. Derecho de inspección)" value="' + (d.concepto || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'concepto\', this.value)">' +
+        '<input type="number" min="0" step="0.01" placeholder="0.00" value="' + (d.monto || 0) + '" oninput="setDerecho(' + i + ', \'monto\', this.value)">' +
+        '<select onchange="setDerecho(' + i + ', \'unidad\', this.value)">' +
+          '<option value="pesos"' + (esUma ? '' : ' selected') + '>Pesos</option>' +
+          '<option value="UMA"' + (esUma ? ' selected' : '') + '>UMA</option>' +
+        '</select>' +
+        '<label><input type="checkbox"' + (d.es_variable ? ' checked' : '') + ' onchange="setDerecho(' + i + ', \'es_variable\', this.checked)"> Variable</label>' +
+        '<span class="derecho-equiv">' + equiv + '</span>' +
+        '<button type="button" class="btn btn-outline btn-sm" onclick="quitarDerecho(' + i + ')">Quitar</button>' +
+      '</div>' +
+      '<div class="fj-bloque" style="margin-top:6px">' +
+        '<label class="fj-pregunta">¿Este derecho tiene fundamento jurídico? *</label>' +
+        '<div class="fj-radios">' +
+          '<label><input type="radio" name="der_fj_' + i + '" value="1"' + (tieneFj ? ' checked' : '') + ' onchange="setDerechoFj(' + i + ', true); toggleFjRadio(this)"> Sí</label>' +
+          '<label><input type="radio" name="der_fj_' + i + '" value="0"' + (tieneFj ? '' : ' checked') + ' onchange="setDerechoFj(' + i + ', false); toggleFjRadio(this)"> No</label>' +
+        '</div>' +
+        '<div class="fj-campos fj-linea" style="display:' + (tieneFj ? '' : 'none') + '">' +
+          '<div><label>Ley o reglamento</label><input value="' + (d.fj_norma || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_norma\', this.value)" placeholder="Ej. Ley de Hacienda"></div>' +
+          '<div><label>Capítulo</label><input value="' + (d.fj_capitulo || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_capitulo\', this.value)" placeholder="Ej. Cap. II"></div>' +
+          '<div><label>Artículo</label><input value="' + (d.fj_articulo || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_articulo\', this.value)" placeholder="Ej. Art. 45"></div>' +
+        '</div>' +
+      '</div>';
+    cont.appendChild(wrap);
   });
 
   var total = _derechos.reduce(function (s, d) { return s + derechoEnPesos(d); }, 0);
@@ -684,6 +1051,59 @@ function setDerecho(i, campo, valor) {
     document.getElementById('derechosJson').value = JSON.stringify(_derechos);
     sincronizarMontoDerechos(total);
   }
+}
+
+// Cuando el derecho elige "No tiene fundamento", limpia los 3 campos del JSON.
+function setDerechoFj(i, tiene) {
+  if (_derechos[i] && !tiene) {
+    _derechos[i].fj_norma = '';
+    _derechos[i].fj_capitulo = '';
+    _derechos[i].fj_articulo = '';
+    document.getElementById('derechosJson').value = JSON.stringify(_derechos);
+  }
+}
+
+// Muestra u oculta los campos de fundamento de un bloque según el radio Sí/No.
+// La usan el costo, los requisitos y los derechos (misma estructura .fj-bloque).
+// Ítem F: la etapa de operación solo aplica a personas morales.
+function toggleEtapaOperacion() {
+  var sel  = document.querySelector('select[name="dirigido_a"]');
+  var wrap = document.getElementById('etapaOperacionWrap');
+  if (!sel || !wrap) return;
+  wrap.style.display = (sel.value === 'moral' || sel.value === 'ambas') ? '' : 'none';
+}
+document.addEventListener('DOMContentLoaded', function () {
+  var sel = document.querySelector('select[name="dirigido_a"]');
+  if (sel) sel.addEventListener('change', toggleEtapaOperacion);
+  toggleEtapaOperacion();
+});
+
+// Ítem E: muestra el campo de monto solo cuando el requisito tiene costo fijo.
+function toggleCostoReq(sel) {
+  var card = sel.closest('article.requirement-card');
+  if (!card) return;
+  var montoWrap = card.querySelector('.req-costo-monto');
+  if (montoWrap) montoWrap.style.display = (sel.value === 'fijo') ? '' : 'none';
+}
+// Ítem E: muestra la base de cálculo solo cuando el pago de derechos es variable.
+// Bug #B11: también oculta el campo "Monto de derechos" y muestra un aviso
+// explicativo cuando es variable (para evitar el confuso $0.00).
+function toggleMontoReferencia() {
+  var chk      = document.getElementById('montoVariableChk');
+  var wrap     = document.getElementById('montoReferenciaWrap');
+  var fijo     = document.getElementById('montoDerechosFijoWrap');
+  var aviso    = document.getElementById('montoDerechosVariableAviso');
+  if (!chk) return;
+  if (wrap)  wrap.style.display  = chk.checked ? '' : 'none';
+  if (fijo)  fijo.style.display  = chk.checked ? 'none' : '';
+  if (aviso) aviso.style.display = chk.checked ? '' : 'none';
+}
+
+function toggleFjRadio(radio) {
+  var bloque = radio.closest('.fj-bloque');
+  if (!bloque) return;
+  var campos = bloque.querySelector('.fj-campos');
+  if (campos) campos.style.display = (radio.value === '1') ? '' : 'none';
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -749,7 +1169,27 @@ document.addEventListener('DOMContentLoaded', function () {
       +'<div class="field"><label>¿Copia?</label><select name="requisitos['+i+'][copia]"><option value="1">Sí</option><option value="0" selected>No</option></select></div>'
       +'<div class="field"><label>Días</label><input name="requisitos['+i+'][dias]" type="number" min="0" value="0"></div>'
       +'<div class="field"><label>Horas</label><input name="requisitos['+i+'][horas]" type="number" min="0" value="0"></div>'
+      +'<div class="field"><label>Minutos</label><input name="requisitos['+i+'][minutos]" type="number" min="0" max="59" value="0"></div>'
       +'<div class="field span-2"><label>Observaciones</label><textarea name="requisitos['+i+'][observaciones]" rows="2"></textarea></div>'
+      +'<div class="field"><label>¿Este requisito tiene costo?</label>'
+      +'<select name="requisitos['+i+'][costo_modo]" onchange="toggleCostoReq(this)">'
+      +'<option value="sin">Sin costo</option>'
+      +'<option value="fijo">Sí, monto fijo</option>'
+      +'<option value="variable">Sí, costo variable (no cuantificable)</option>'
+      +'</select></div>'
+      +'<div class="field req-costo-monto" style="display:none"><label>Monto del requisito (pesos)</label>'
+      +'<input name="requisitos['+i+'][costo_monto]" type="number" min="0" step="0.01" value="0" placeholder="Ej. 250.00"></div>'
+      +'<div class="field span-2 fj-bloque">'
+      +'<label class="fj-pregunta">¿Este requisito tiene fundamento jurídico? *</label>'
+      +'<div class="fj-radios">'
+      +'<label><input type="radio" name="requisitos['+i+'][fj_tiene]" value="1" required onchange="toggleFjRadio(this)"> Sí</label>'
+      +'<label><input type="radio" name="requisitos['+i+'][fj_tiene]" value="0" required onchange="toggleFjRadio(this)"> No</label>'
+      +'</div>'
+      +'<div class="fj-campos fj-linea" style="display:none">'
+      +'<div><label>Ley o reglamento</label><input name="requisitos['+i+'][fj_norma]" placeholder="Ej. Reglamento de Comercio"></div>'
+      +'<div><label>Capítulo</label><input name="requisitos['+i+'][fj_capitulo]" placeholder="Ej. Cap. III"></div>'
+      +'<div><label>Artículo</label><input name="requisitos['+i+'][fj_articulo]" placeholder="Ej. Art. 12"></div>'
+      +'</div></div>'
       +'</div>'
       +'<div class="section-actions mt-2"><button type="button" class="btn btn-outline btn-sm danger" onclick="this.closest(\'article\').remove()">Eliminar</button></div>';
     document.getElementById('reqContainer').appendChild(a);
@@ -767,44 +1207,81 @@ document.addEventListener('DOMContentLoaded', function () {
     try { return JSON.parse(el.value); } catch(e) { return {}; }
   })();
 
-  function renderHorariosGrid() {
-    var g = document.getElementById('horariosGrid');
-    if (!g) return;
-    g.innerHTML = '';
-    DIAS_H.forEach(function (dia, i) {
-      var r = document.createElement('div');
-      r.className = 'horario-row';
-      var act = horariosData[dia]?.activo || false;
-      var ini = horariosData[dia]?.inicio || H_INI;
-      var fin = horariosData[dia]?.fin    || H_FIN;
-      r.innerHTML = '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;width:110px">'
-        + '<input type="checkbox" onchange="hToggle(\''+dia+'\')" '+(act?'checked':'')+'>'
-        + '<span style="font-size:13px;font-weight:'+(i<5?'700':'400')+'">'+dia+'</span></label>'
-        + '<div style="display:flex;flex-direction:column;gap:2px"><label class="u-meta-label">Apertura</label>'
-        + '<input type="time" value="'+ini+'" '+(act?'':'disabled')+' class="u-text-sm" onchange="hHora(\''+dia+'\',\'inicio\',this.value)"></div>'
-        + '<div style="display:flex;flex-direction:column;gap:2px"><label class="u-meta-label">Cierre</label>'
-        + '<input type="time" value="'+fin+'" '+(act?'':'disabled')+' class="u-text-sm" onchange="hHora(\''+dia+'\',\'fin\',this.value)"></div>';
-      g.appendChild(r);
-    });
+  // Horario base: si ya hay días guardados, toma el del primero; si no, el default.
+  var horarioBase = (function () {
+    var primero = DIAS_H.find(function (d) { return horariosData[d] && horariosData[d].activo; });
+    if (primero) return { inicio: horariosData[primero].inicio, fin: horariosData[primero].fin };
+    return { inicio: H_INI, fin: H_FIN };
+  })();
+
+  function setHorarioBase(campo, valor) { horarioBase[campo] = valor; }
+
+  function toggleDiaChip(dia) {
+    if (horariosData[dia] && horariosData[dia].activo) {
+      horariosData[dia].activo = false;
+    } else {
+      horariosData[dia] = { activo: true, inicio: horarioBase.inicio, fin: horarioBase.fin };
+    }
+    renderHorariosUI();
   }
 
-  function hToggle(dia) {
-    if (!horariosData[dia]) horariosData[dia] = { inicio: H_INI, fin: H_FIN };
-    horariosData[dia].activo = !horariosData[dia].activo;
-    renderHorariosGrid();
-  }
-  function hHora(dia, campo, val) {
-    if (!horariosData[dia]) horariosData[dia] = { activo: true, inicio: H_INI, fin: H_FIN };
-    horariosData[dia][campo] = val;
-  }
   function horarioPreset(t) {
     var dias = t==='lv' ? DIAS_H.slice(0,5) : t==='ls' ? DIAS_H.slice(0,6) : DIAS_H;
-    DIAS_H.forEach(function(d){ horariosData[d]={activo:dias.includes(d),inicio:H_INI,fin:H_FIN}; });
-    renderHorariosGrid();
+    DIAS_H.forEach(function (d) {
+      if (dias.includes(d)) {
+        horariosData[d] = { activo: true, inicio: horarioBase.inicio, fin: horarioBase.fin };
+      } else if (horariosData[d]) {
+        horariosData[d].activo = false;
+      }
+    });
+    renderHorariosUI();
   }
-  function horarioLimpiar() { horariosData = {}; renderHorariosGrid(); }
+
+  function horarioLimpiar() { horariosData = {}; renderHorariosUI(); }
+
+  function updateHoraDia(dia, campo, val) {
+    if (!horariosData[dia]) horariosData[dia] = { activo: true, inicio: horarioBase.inicio, fin: horarioBase.fin };
+    horariosData[dia][campo] = val;
+  }
+
+  function renderHorariosUI() {
+    var baseIni = document.getElementById('horarioBaseInicio');
+    var baseFin = document.getElementById('horarioBaseFin');
+    if (baseIni) baseIni.value = horarioBase.inicio;
+    if (baseFin) baseFin.value = horarioBase.fin;
+
+    var chips = document.getElementById('horarioChips');
+    if (chips) {
+      chips.innerHTML = DIAS_H.map(function (dia) {
+        var act = horariosData[dia] && horariosData[dia].activo;
+        return '<button type="button" class="horario-chip' + (act ? ' activo' : '') + '" ' +
+               'onclick="toggleDiaChip(\'' + dia + '\')">' + dia.substring(0,3) + '</button>';
+      }).join('');
+    }
+
+    var preview = document.getElementById('horarioPreview');
+    if (preview) {
+      var activos = DIAS_H.filter(function (d) { return horariosData[d] && horariosData[d].activo; });
+      if (!activos.length) {
+        preview.innerHTML = '<p class="horario-preview-vacio">Marque al menos un día arriba para ver la vista previa.</p>';
+      } else {
+        preview.innerHTML = activos.map(function (dia) {
+          var h = horariosData[dia];
+          return '<div class="horario-preview-row">' +
+                   '<span class="horario-preview-dia">' + dia + '</span>' +
+                   '<input type="time" value="' + h.inicio + '" class="u-text-sm" ' +
+                     'onchange="updateHoraDia(\'' + dia + '\',\'inicio\',this.value)">' +
+                   '<span class="horario-preview-sep">–</span>' +
+                   '<input type="time" value="' + h.fin + '" class="u-text-sm" ' +
+                     'onchange="updateHoraDia(\'' + dia + '\',\'fin\',this.value)">' +
+                 '</div>';
+        }).join('');
+      }
+    }
+  }
+
   function guardarHorarios() {
-    var activos = DIAS_H.filter(function(d){ return horariosData[d]?.activo; });
+    var activos = DIAS_H.filter(function (d) { return horariosData[d] && horariosData[d].activo; });
     var jsonEl = document.getElementById('horariosJson');
     var resEl  = document.getElementById('horarioResumen');
     if (jsonEl) jsonEl.value = JSON.stringify(horariosData);
@@ -821,7 +1298,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     cerrarHorarios();
   }
-  function abrirHorarios()  { renderHorariosGrid(); document.getElementById('modalHorarios').classList.add('open'); }
+  function abrirHorarios()  { renderHorariosUI(); document.getElementById('modalHorarios').classList.add('open'); }
   function cerrarHorarios() { document.getElementById('modalHorarios').classList.remove('open'); }
 
 

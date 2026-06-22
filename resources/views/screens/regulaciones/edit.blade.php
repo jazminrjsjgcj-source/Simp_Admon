@@ -127,20 +127,111 @@
           <textarea name="resumen" rows="3">{{ old('resumen', $regulacion->resumen) }}</textarea>
         </x-field-help>
 
-        {{-- Índice auto-extraído --}}
+        {{-- #6: Editor visual del índice --}}
         @if($regulacion->tieneIndice())
         <div class="field span-2">
-          <x-field-help label="Índice de la regulación" class="span-2">
-            <div class="indice-preview" style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:12px;max-height:300px;overflow-y:auto;font-size:13px;line-height:1.6">
-              @foreach($regulacion->indice as $item)
-                <div style="padding-left:{{ ($item['nivel'] - 1) * 16 }}px">
-                  {{ $item['titulo'] }}
-                </div>
-              @endforeach
-            </div>
-          </x-field-help>
+          <label style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span>Índice de la regulación</span>
+            <small class="muted">Puede agregar, editar o quitar entradas. Al guardar se actualiza el índice.</small>
+          </label>
+          {{-- Campo oculto que viaja con el form --}}
+          <input type="hidden" name="indice_json" id="indiceJsonInput">
+
+          <div class="indice-editor" id="indiceEditor">
+            {{-- Las filas se generan por JS desde los datos del modelo --}}
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button type="button" class="btn btn-outline btn-sm" onclick="agregarFilaIndice(1)">+ Título</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="agregarFilaIndice(2)">+ Capítulo</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="agregarFilaIndice(3)">+ Artículo</button>
+          </div>
         </div>
         @endif
+
+        <style>
+          .indice-editor { border:1px solid var(--surface-high,#e5e7eb); border-radius:8px; overflow:hidden; max-height:420px; overflow-y:auto; }
+          .indice-fila { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--surface-high,#f0f0f0); }
+          .indice-fila:last-child { border-bottom:none; }
+          .indice-fila-nivel { font-size:11px; color:var(--muted,#667085); background:var(--surface-high,#f3f4f6); border-radius:4px; padding:2px 6px; min-width:60px; text-align:center; }
+          .indice-fila input[type="text"] { flex:1; border:none; background:transparent; font-size:13px; color:var(--text,#111); padding:2px 4px; outline:none; }
+          .indice-fila input[type="text"]:focus { background:var(--surface-high,#f8f9fa); border-radius:4px; }
+          .indice-fila-del { background:none; border:none; color:var(--muted,#999); cursor:pointer; font-size:16px; padding:0 4px; line-height:1; }
+          .indice-fila-del:hover { color:#dc2626; }
+          .indice-nivel-1 { background:var(--surface,#fff); font-weight:600; }
+          .indice-nivel-2 { background:#fafafa; padding-left:20px; }
+          .indice-nivel-3 { background:#f9f9f9; padding-left:36px; }
+        </style>
+
+        <script>
+        (function () {
+          // Datos del modelo (PHP → JS)
+          var INDICE = @json($regulacion->indice ?? []);
+          var ETIQUETAS = { 1: 'Título', 2: 'Capítulo', 3: 'Artículo' };
+
+          var editor = document.getElementById('indiceEditor');
+          var jsonInput = document.getElementById('indiceJsonInput');
+          if (!editor) return;
+
+          // Renderiza todas las filas.
+          function renderizar() {
+            editor.innerHTML = '';
+            INDICE.forEach(function (item, i) {
+              editor.appendChild(crearFila(item, i));
+            });
+            sincronizar();
+          }
+
+          // Crea una fila de edición.
+          function crearFila(item, idx) {
+            var div = document.createElement('div');
+            div.className = 'indice-fila indice-nivel-' + item.nivel;
+            var etq = document.createElement('span');
+            etq.className = 'indice-fila-nivel';
+            etq.textContent = ETIQUETAS[item.nivel] || 'Nivel ' + item.nivel;
+            var inp = document.createElement('input');
+            inp.type = 'text';
+            inp.value = item.titulo || '';
+            inp.placeholder = 'Texto del ' + (ETIQUETAS[item.nivel] || 'ítem');
+            inp.addEventListener('input', function () {
+              INDICE[idx].titulo = this.value;
+              sincronizar();
+            });
+            var del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'indice-fila-del';
+            del.textContent = '×';
+            del.title = 'Eliminar';
+            del.addEventListener('click', function () {
+              INDICE.splice(idx, 1);
+              renderizar();
+            });
+            div.appendChild(etq);
+            div.appendChild(inp);
+            div.appendChild(del);
+            return div;
+          }
+
+          // Serializa el índice en el input oculto para que viaje con el form.
+          function sincronizar() {
+            jsonInput.value = JSON.stringify(INDICE);
+          }
+
+          // Agrega una fila nueva al final.
+          window.agregarFilaIndice = function (nivel) {
+            INDICE.push({ nivel: nivel, titulo: '', linea: 0 });
+            renderizar();
+            // Foco en la última fila.
+            setTimeout(function () {
+              var inputs = editor.querySelectorAll('input[type="text"]');
+              if (inputs.length) inputs[inputs.length - 1].focus();
+            }, 50);
+          };
+
+          // Inicializar al cargar.
+          document.addEventListener('DOMContentLoaded', renderizar);
+        })();
+        </script>
 
         {{-- Archivo --}}
         <div class="field span-2">

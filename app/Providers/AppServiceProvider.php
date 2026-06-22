@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Database\Eloquent\Model;
 use App\Observers\AuditObserver;
 use App\Models\Tramite;
 use App\Models\AccionAgenda;
@@ -18,6 +19,14 @@ class AppServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
+        // Red de seguridad para mass-assignment: fuera de producción, Eloquent
+        // lanza una excepción si se intenta asignar un atributo que no está en
+        // $fillable, en vez de descartarlo en silencio. Así, al convertir un
+        // modelo de $guarded a $fillable, cualquier columna olvidada truena de
+        // inmediato (con su nombre) en desarrollo, en lugar de perderse callada.
+        // En producción queda desactivada para no tumbar la operación real.
+        Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
+
         Tramite::observe(AuditObserver::class);
         AccionAgenda::observe(AuditObserver::class);
         PropuestaRegulatoria::observe(AuditObserver::class);

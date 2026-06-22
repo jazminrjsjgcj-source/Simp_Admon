@@ -12,7 +12,24 @@ use Illuminate\Database\Eloquent\Model;
 class Observacion extends Model
 {
     protected $table   = 'observaciones';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * observable_type/observable_id los llena morphMany al crear; se incluyen
+     * por si se crea una observación directamente. Reconstruido desde las
+     * migraciones de observaciones.
+     */
+    protected $fillable = [
+        'observable_type',
+        'observable_id',
+        'seccion',
+        'campo',
+        'texto',
+        'realizada_por',
+        'destinatario_id',
+        'atendida',
+        'estatus',
+    ];
 
     /** Estatus rico de una observación (corrección #18). */
     public const ESTATUS_PENDIENTE   = 'pendiente';

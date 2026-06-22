@@ -8,8 +8,8 @@ use App\Models\Tramite;
 use App\Models\Dependencia;
 use App\Models\FichaPortal;
 use App\Models\TipoTramite;
-use App\Models\Requisito;
 use Illuminate\Http\Request;
+use App\Http\Requests\TramiteRequest;
 
 class TramiteController extends Controller
 {
@@ -23,7 +23,10 @@ class TramiteController extends Controller
     {
         $user  = $request->user();
         $query = Tramite::with('dependencia')
-            // Todos los roles ven todos los trámites; la restricción es en edición, no en consulta
+            // Visibilidad por rol (C2): admin y revisora ven todas las dependencias;
+            // jurídico, enlace y sujeto solo ven los trámites de su propia dependencia.
+            ->when(!$user->veTodoElModulo('tramites'),
+                fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
             ->when($request->estatus,      fn ($q, $v) => $q->where('estatus', $v))
             ->when($request->dependencia,  fn ($q, $v) => $q->where('dependencia_id', $v))
             ->when($request->q, fn ($q, $v) => $q->where(function ($sub) use ($v) {
@@ -117,7 +120,12 @@ class TramiteController extends Controller
             'copias_cantidad'           => $tramite->copias_cantidad,
             'copias_precio'             => $tramite->copias_precio,
             'monto_derechos'            => $tramite->monto_derechos,
+            // Grupos de atención prioritaria del trámite (Art. 19 fracc. III LNETB).
+            // La agenda los lee para precargarlos automáticamente al vincular el
+            // trámite (Art. 27 fracc. II y Art. 29 fracc. V).
+            'grupos_atencion'           => $tramite->grupos_atencion ?? [],
             'requisitos'                => $tramite->requisitos->map(fn ($r) => [
+                'id'                => $r->id,
                 'nombre'            => $r->nombre,
                 'tipo_presentacion' => $r->tipo_presentacion,
             ])->values(),
@@ -153,26 +161,30 @@ class TramiteController extends Controller
         return view('screens.tramites.create', compact('dependencias', 'tramites', 'misUnidades', 'unidadAutoId'));
     }
 
-    public function store(Request $request)
+    public function store(TramiteRequest $request)
     {
-        $esEnvio = $request->input('accion') === 'enviar';
-
-        // Borrador: validación mínima. Enviar: validación completa.
-        $reglas = $esEnvio
-            ? $this->reglasValidacionTramite()
-            : $this->reglasValidacionBorrador();
-
-        $validated = $request->validate($reglas);
+        $esEnvio   = $request->input('accion') === 'enviar';
+        $validated = $request->validated();
 
         $validated['tipo_tramite_id'] = $request->input('tipo_tramite_id') ?: null;
         $validated['created_by'] = $request->user()->id;
         $validated['dirigido_a'] = $validated['dirigido_a'] ?? 'ambas';
         $validated['tipo_relacion'] = $request->input('tipo_relacion') ?: null;
+        $validated['relacionados_detalle'] = $request->input('relacionados_detalle') ?: null;
+        // Ítem E: pago de derechos variable (ej. predial). El monto capturado se
+        // usa como estimación; la referencia explica la base de cálculo.
+        $validated['monto_derechos_variable']   = $request->boolean('monto_derechos_variable');
+        $validated['monto_derechos_referencia'] = $request->input('monto_derechos_referencia') ?: null;
+        // Ítem F: catálogos oficiales (selección múltiple + etapa de operación).
+        $validated['acciones_simplificacion'] = $request->input('acciones_simplificacion', []);
+        $validated['grupos_atencion']         = $request->input('grupos_atencion', []);
+        $validated['etapa_operacion']          = $request->input('etapa_operacion') ?: null;
 
         // Fundamento jurídico: varias citas del catálogo y/o captura manual.
         $validated['citas']                = $request->input('citas', []);
         $validated['fundamento_normativa'] = $request->input('fundamento_normativa');
         $validated['fundamento_tipo']      = $request->input('fundamento_tipo');
+        $validated['fundamento_articulo']  = $request->input('fundamento_articulo');
         $validated['fundamento_resumen']   = $request->input('fundamento_resumen');
 
         // Fundamento jurídico opcional del costo del trámite.
@@ -199,6 +211,15 @@ class TramiteController extends Controller
 
     public function show(Tramite $tramite)
     {
+        // Control de acceso por dependencia (cierra fuga: antes cualquiera con
+        // el ID en la URL podía ver un trámite de otra dependencia). Pueden ver:
+        //   - admin y revisora (transversales, vía puedeVerRegistro)
+        //   - quien es de la misma dependencia del trámite
+        // El jurídico observa SOLO lo de su dependencia, igual que enlace y sujeto.
+        if (!request()->user()->puedeVerRegistro($tramite, 'tramites')) {
+            abort(403, 'No tiene permiso para ver este trámite.');
+        }
+
         $tramite->load(['dependencia', 'unidad', 'requisitos', 'fundamentos', 'fichaPortal', 'observaciones.realizadaPor', 'firmas.firmante', 'derechos']);
         $snapshotCosto = $this->costoService->ultimoSnapshot($tramite);
 
@@ -263,7 +284,7 @@ class TramiteController extends Controller
         ));
     }
 
-    public function update(Request $request, Tramite $tramite)
+    public function update(TramiteRequest $request, Tramite $tramite)
     {
         if (!$request->user()->puedeEditarTramite($tramite)) {
             abort(403, 'No tiene permiso para editar este trámite.');
@@ -274,53 +295,51 @@ class TramiteController extends Controller
                 ->with('error', 'Este trámite no se puede editar en su estado actual.');
         }
 
-        $request->validate($this->reglasValidacionTramite());
-
+        // La validación se ejecutó automáticamente en TramiteRequest antes de
+        // entrar al método. El controlador solo extrae lo que necesita con only().
         $data = $request->only([
             'nombre_oficial', 'tipo_tramite_id', 'dependencia_id', 'unidad_id',
             'sector_id', 'subsector_id',
             'servidor_publico', 'homoclave', 'sujeto_obligado_id', 'enlace_id',
             'objetivo', 'dirigido_a', 'frecuencia', 'volumen_anual', 'plazo_resolucion_cantidad',
             'plazo_resolucion_unidad', 'num_areas', 'areas_participantes', 'visitas_requeridas',
+            'tiempo_traslado_horas', 'tiempo_traslado_min',
+            'tiempo_espera_horas', 'tiempo_espera_min',
+            'tiempo_atencion_horas', 'tiempo_atencion_min',
             'copias_cantidad', 'copias_precio', 'salario_hora_w', 'nivel_digitalizacion',
         ]);
 
-        // Opción B: la lista de derechos es la fuente única del monto_derechos.
-        // Convierte los derechos en UMA a pesos antes de sumar.
-        $derechos = $this->leerDerechos($request);
-        $data['monto_derechos'] = \App\Models\TramiteDerecho::totalEnPesos($derechos);
+        $data['tipo_tramite_id'] = $request->input('tipo_tramite_id') ?: null;
+        $data['tipo_relacion']   = $request->input('tipo_relacion') ?: null;
+        $data['relacionados_detalle'] = $request->input('relacionados_detalle') ?: null;
+        // Ítem E: pago de derechos variable (ej. predial).
+        $data['monto_derechos_variable']   = $request->boolean('monto_derechos_variable');
+        $data['monto_derechos_referencia'] = $request->input('monto_derechos_referencia') ?: null;
+        // Ítem F: catálogos oficiales (selección múltiple + etapa de operación).
+        $data['acciones_simplificacion'] = $request->input('acciones_simplificacion', []);
+        $data['grupos_atencion']         = $request->input('grupos_atencion', []);
+        $data['etapa_operacion']          = $request->input('etapa_operacion') ?: null;
 
-        // Si el enlace edita un trámite que está en periodo de observación,
-        // al guardar pasa a corrección para indicar que ya empezó a atender.
-        if ($tramite->estatus === Tramite::ESTATUS_EN_OBSERVACION) {
-            $data['estatus'] = Tramite::ESTATUS_EN_CORRECCION;
-        }
+        // Fundamento jurídico opcional del costo del trámite (columnas fj_*).
+        $data['fj_norma']    = $request->input('costo_fj_norma');
+        $data['fj_capitulo'] = $request->input('costo_fj_capitulo');
+        $data['fj_articulo'] = $request->input('costo_fj_articulo');
 
-        $data = array_merge($data, Tramite::calcularCostoDesde(array_merge($tramite->toArray(), $data)));
-        $tramite->update($data);
+        // Fundamento jurídico del trámite (citas del catálogo + captura manual).
+        $data['citas']                = $request->input('citas', []);
+        $data['fundamento_normativa'] = $request->input('fundamento_normativa');
+        $data['fundamento_tipo']      = $request->input('fundamento_tipo');
+        $data['fundamento_articulo']  = $request->input('fundamento_articulo');
+        $data['fundamento_resumen']   = $request->input('fundamento_resumen');
 
-        // Guardar los conceptos de derechos (reemplazo total).
-        $this->sincronizarDerechos($tramite, $derechos);
-
-        // Regenerar homoclave si está vacía y hay dependencia y unidad
-        if (empty($tramite->fresh()->homoclave) && $tramite->dependencia_id && $tramite->unidad_id) {
-            $tramite->update(['homoclave' => $tramite->generarHomoclave()]);
-        }
-
-        $this->sincronizarRequisitos($tramite, $request->input('requisitos', []));
-        $this->sincronizarFichaPortal($tramite, $request);
-        $this->tramiteService->sincronizarProcesos($tramite, $this->extraerProcesos($request));
-
-        // Sincronizar fundamento jurídico (citas del catálogo + captura manual).
-        // Estaba ausente en update — solo existía en store. Ahora se guarda en ambos.
-        $this->tramiteService->sincronizarFundamentoPublico($tramite, [
-            'citas'                => $request->input('citas', []),
-            'fundamento_normativa' => $request->input('fundamento_normativa'),
-            'fundamento_tipo'      => $request->input('fundamento_tipo'),
-            'fundamento_resumen'   => $request->input('fundamento_resumen'),
-        ]);
-
-        $this->costoService->recalcularYGuardar($tramite->fresh('requisitos'));
+        $this->tramiteService->actualizar(
+            tramite:     $tramite,
+            datos:       $data,
+            derechos:    $this->leerDerechos($request),
+            requisitos:  $request->input('requisitos', []),
+            fichaPortal: $this->extraerFichaPortal($request),
+            procesos:    $this->extraerProcesos($request),
+        );
 
         return redirect()->route('tramites.show', $tramite)
             ->with('success', 'Trámite actualizado exitosamente.');
@@ -410,34 +429,11 @@ class TramiteController extends Controller
      * Devuelve un arreglo de ['concepto' => ..., 'monto' => ...], ya
      * filtrado: descarta filas sin concepto.
      */
-    private function leerDerechos($request): array
+    private function leerDerechos(Request $request): array
     {
         return \App\Models\TramiteDerecho::parsearJson($request->input('derechos_json'));
     }
 
-    /**
-     * Guarda los conceptos de derechos de un trámite. Borra los anteriores
-     * y crea los nuevos (estrategia simple de reemplazo total).
-     */
-    private function sincronizarDerechos(Tramite $tramite, array $derechos): void
-    {
-        $tramite->derechos()->delete();
-        foreach ($derechos as $d) {
-            $tramite->derechos()->create($d);
-        }
-    }
-
-    /**
-     * Fase F.4 — Sincroniza los datos de la ficha portal (incluyendo horarios JSON).
-     *
-     * Usa updateOrCreate para no duplicar el registro y mantener integridad.
-     * Los campos portal_* vienen del wizard paso 6 (ficha ciudadana).
-     */
-    /**
-     * Extrae los datos de la ficha portal del request a un array limpio,
-     * para pasarlos al TramiteService. Misma lógica que sincronizarFichaPortal
-     * pero devuelve los datos en vez de guardarlos.
-     */
     /**
      * Convierte el JSON de "pasos para realizar el trámite" al formato que
      * espera el servicio. Todos los pasos van como tipo 'atencion' (proceso
@@ -508,168 +504,4 @@ class TramiteController extends Controller
         return $datos;
     }
 
-    private function sincronizarFichaPortal(Tramite $tramite, $request): void
-    {
-        $camposPortal = [
-            'nombre_ciudadano', 'tipo', 'descripcion', 'casos_realizarse',
-            'modalidad', 'canal_principal', 'costo_publico', 'forma_pago',
-            'resultado', 'doc_resultado', 'medio_entrega', 'vigencia',
-            'oficina', 'telefono', 'correo', 'enlace_cita',
-            'direccion', 'url',
-        ];
-
-        $datos = [];
-        foreach ($camposPortal as $campo) {
-            $valor = $request->input('portal_' . $campo) ?? $request->input($campo);
-            if ($valor !== null) {
-                $datos[$campo] = $valor;
-            }
-        }
-
-        // Horario legible (texto)
-        if ($request->filled('portal_horario')) {
-            $datos['horario'] = $request->input('portal_horario');
-        }
-
-        // Fase F.4: guardar estructura JSON de horarios
-        if ($request->filled('horarios_json')) {
-            $raw = $request->input('horarios_json');
-            $decoded = json_decode($raw, true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $datos['horarios_json'] = $decoded;
-            }
-        }
-
-        $datos['requiere_cita'] = $request->boolean('requiere_cita');
-
-        if (!empty($datos)) {
-            $tramite->fichaPortal()->updateOrCreate(
-                ['tramite_id' => $tramite->id],
-                $datos
-            );
-        }
-    }
-
-    /**
-     * Sincroniza los requisitos enviados desde el formulario con los del trámite.
-     * Crea los nuevos, actualiza los existentes y elimina los que ya no están.
-     */
-    private function sincronizarRequisitos(Tramite $tramite, array $enviados): void
-    {
-        $existentes   = $tramite->requisitos->pluck('id')->toArray();
-        $actualizados = [];
-
-        foreach ($enviados as $i => $req) {
-            if (empty($req['nombre'])) {
-                continue;
-            }
-
-            $datos = $this->extraerDatosRequisito($req, $i);
-
-            if (!empty($req['id'])) {
-                Requisito::where('id', $req['id'])->update($datos);
-                $actualizados[] = (int) $req['id'];
-            } else {
-                $nuevo = $tramite->requisitos()->create($datos);
-                $actualizados[] = $nuevo->id;
-            }
-        }
-
-        $eliminar = array_diff($existentes, $actualizados);
-        if ($eliminar) {
-            Requisito::whereIn('id', $eliminar)->delete();
-        }
-    }
-
-    /**
-     * Normaliza los datos de un requisito recibido del formulario.
-     */
-    private function extraerDatosRequisito(array $req, int $orden): array
-    {
-        return [
-            'orden'           => $orden + 1,
-            'nombre'          => $req['nombre'],
-            'original'        => !empty($req['original']),
-            'copia'           => !empty($req['copia']),
-            'dias_estimados'  => $req['dias']  ?? 0,
-            'horas_estimadas' => $req['horas'] ?? 0,
-            'observaciones'   => $req['observaciones'] ?? null,
-        ];
-    }
-
-    /**
-     * Reglas de validación para la creación y edición de un trámite.
-     * Centralizadas para reutilizar y aplicar consistentemente los patrones
-     * definidos en config/validation_patterns.php.
-     */
-    private function reglasValidacionTramite(): array
-    {
-        $patronTexto = config('validation_patterns.solo_texto.regex_php');
-
-        return [
-            'nombre_oficial'            => 'required|string|max:500',
-            'tipo_tramite_id'           => 'nullable|exists:tipos_tramite,id',
-            'homoclave'                 => 'nullable|string|max:50',
-            'dependencia_id'            => 'required|exists:dependencias,id',
-            'unidad_id'                 => 'nullable|exists:unidades_administrativas,id',
-            'sector_id'                 => 'nullable|exists:sectores_scian,id',
-            'subsector_id'              => 'nullable|exists:subsectores_scian,id',
-            'servidor_publico'          => 'nullable|string|max:255' . ($patronTexto ? '|regex:' . $patronTexto : ''),
-            'objetivo'                  => 'nullable|string',
-            'dirigido_a'                => 'nullable|in:fisica,moral,ambas',
-            'volumen_anual'             => 'nullable|integer|min:0',
-            'monto_derechos'            => 'nullable|numeric|min:0',
-            'plazo_resolucion_cantidad' => 'nullable|integer|min:0',
-            'plazo_resolucion_unidad'   => 'nullable|in:habiles,naturales,meses',
-            'salario_hora_w'            => 'nullable|numeric|min:0',
-            'copias_cantidad'           => 'nullable|integer|min:0',
-            'copias_precio'             => 'nullable|numeric|min:0',
-            'nivel_digitalizacion'      => 'nullable|integer|min:1|max:5',
-            'visitas_requeridas'        => 'nullable|integer|min:0',
-            'num_areas'                 => 'nullable|integer|min:0',
-            'areas_participantes'       => 'nullable|string|max:500',
-            'tiempo_traslado_horas'     => 'nullable|integer|min:0',
-            'tiempo_traslado_min'       => 'nullable|integer|min:0|max:59',
-            'tiempo_espera_horas'       => 'nullable|integer|min:0',
-            'tiempo_espera_min'         => 'nullable|integer|min:0|max:59',
-            'tiempo_atencion_horas'     => 'nullable|integer|min:0',
-            'tiempo_atencion_min'       => 'nullable|integer|min:0|max:59',
-        ];
-    }
-
-    /**
-     * Reglas mínimas para guardar como borrador.
-     * Solo exige nombre y dependencia para identificar el registro.
-     */
-    private function reglasValidacionBorrador(): array
-    {
-        return [
-            'nombre_oficial'            => 'required|string|max:500',
-            'dependencia_id'            => 'required|exists:dependencias,id',
-            'homoclave'                 => 'nullable|string|max:50',
-            'unidad_id'                 => 'nullable|exists:unidades_administrativas,id',
-            'sector_id'                 => 'nullable|exists:sectores_scian,id',
-            'subsector_id'              => 'nullable|exists:subsectores_scian,id',
-            'servidor_publico'          => 'nullable|string|max:255',
-            'objetivo'                  => 'nullable|string',
-            'dirigido_a'                => 'nullable|in:fisica,moral,ambas',
-            'volumen_anual'             => 'nullable|integer|min:0',
-            'monto_derechos'            => 'nullable|numeric|min:0',
-            'plazo_resolucion_cantidad' => 'nullable|integer|min:0',
-            'plazo_resolucion_unidad'   => 'nullable|in:habiles,naturales,meses',
-            'salario_hora_w'            => 'nullable|numeric|min:0',
-            'copias_cantidad'           => 'nullable|integer|min:0',
-            'copias_precio'             => 'nullable|numeric|min:0',
-            'nivel_digitalizacion'      => 'nullable|integer|min:1|max:5',
-            'visitas_requeridas'        => 'nullable|integer|min:0',
-            'num_areas'                 => 'nullable|integer|min:0',
-            'areas_participantes'       => 'nullable|string|max:500',
-            'tiempo_traslado_horas'     => 'nullable|integer|min:0',
-            'tiempo_traslado_min'       => 'nullable|integer|min:0|max:59',
-            'tiempo_espera_horas'       => 'nullable|integer|min:0',
-            'tiempo_espera_min'         => 'nullable|integer|min:0|max:59',
-            'tiempo_atencion_horas'     => 'nullable|integer|min:0',
-            'tiempo_atencion_min'       => 'nullable|integer|min:0|max:59',
-        ];
-    }
 }

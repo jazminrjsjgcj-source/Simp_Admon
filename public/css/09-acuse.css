@@ -303,7 +303,7 @@
   padding: 12px;
   background: #f0fdf4;
   border-radius: var(--radius-sm);
-  border-left: 3px solid #16a34a;
+  border-left: 3px solid var(--success);
 }
 
 .modal-approved-text {
@@ -367,7 +367,7 @@
 .modal-download-available {
   font-size: 12px;
   font-weight: 700;
-  color: #16a34a;
+  color: var(--success);
 }
 
 .modal-download-missing {

@@ -295,6 +295,9 @@
   </div>
   @endif
 
+  {{-- #7: citas de impacto (trámites que esta propuesta modifica) --}}
+  @include('partials.citas-impacto-propuesta', ['propuesta' => $propuesta, 'modoEdicion' => false])
+
   {{-- Registro --}}
   <div class="card">
     <div class="panel-head">

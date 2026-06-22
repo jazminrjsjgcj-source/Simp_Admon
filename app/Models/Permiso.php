@@ -7,7 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class Permiso extends Model
 {
     protected $table   = 'permisos';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     */
+    protected $fillable = [
+        'codigo',
+        'modulo',
+        'accion',
+        'descripcion',
+    ];
 
     public function roles()
     {

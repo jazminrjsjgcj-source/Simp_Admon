@@ -15,12 +15,7 @@
   {{-- HEADER --}}
   <div class="card card-pad">
     <div class="row-center mb-4">
-      <span class="badge {{ match($tramite->estatus) {
-        'completado','en_firma' => 'success-b',
-        'en_correccion' => 'warning-b',
-        'en_observacion' => '',
-        default => ''
-      } }}" style="text-transform:uppercase">@estatus($tramite->estatus)</span>
+      <x-badge-estatus :estatus="$tramite->estatus" mayuscula />
       <span class="text-primary-bold">{{ $tramite->homoclave ?? 'Sin folio' }}</span>
       <div class="actions-right">
         @if(auth()->user()->puedeEditarTramite($tramite) && $tramite->puedeSerEditado())
@@ -29,13 +24,13 @@
         @if(auth()->user()->puedeEditarTramite($tramite) && $tramite->puedeSerPublicado())
           <form method="POST" action="{{ route('tramites.actualizar.estatus',$tramite) }}" class="d-inline">
             @csrf <input type="hidden" name="accion" value="publicar">
-            <button type="submit" class="btn btn-sm" onclick="return confirm('¿Enviar a revisión? El trámite será visible para Jurídico, Sujeto Obligado y Revisora.')">Enviar a revisión</button>
+            <button type="submit" class="btn btn-sm" onclick="return confirmarAccion(this, '¿Enviar a revisión? El trámite será visible para Jurídico, Sujeto Obligado y Revisora.')">Enviar a revisión</button>
           </form>
         @endif
         @if(auth()->user()->puedeEditarTramite($tramite) && $tramite->puedeSerRepublicado())
           <form method="POST" action="{{ route('tramites.actualizar.estatus',$tramite) }}" class="d-inline">
             @csrf <input type="hidden" name="accion" value="republicar">
-            <button type="submit" class="btn btn-sm" onclick="return confirm('¿Republicar para nueva revisión?')">Republicar</button>
+            <button type="submit" class="btn btn-sm" onclick="return confirmarAccion(this, '¿Republicar para nueva revisión?')">Republicar</button>
           </form>
         @endif
         @if($tramite->estaEnObservacion() && auth()->user()->tienePermiso('tramites.observar'))
@@ -44,13 +39,13 @@
         @if($tramite->estaEnObservacion() && $tramite->tieneObservacionesPendientes() && auth()->user()->puedeEditarTramite($tramite))
           <form method="POST" action="{{ route('tramites.actualizar.estatus',$tramite) }}" class="d-inline">
             @csrf <input type="hidden" name="accion" value="atender_observaciones">
-            <button type="submit" class="btn btn-sm" onclick="return confirm('¿Cerrar el periodo de observaciones y pasar a corrección?')">Atender observaciones</button>
+            <button type="submit" class="btn btn-sm" onclick="return confirmarAccion(this, '¿Cerrar el periodo de observaciones y pasar a corrección?')">Atender observaciones</button>
           </form>
         @endif
         @if($tramite->puedeAvanzarAFirma() && auth()->user()->isAnyRol(['revisora','admin']))
           <form method="POST" action="{{ route('tramites.actualizar.estatus',$tramite) }}" class="d-inline">
             @csrf <input type="hidden" name="accion" value="enviar_firma">
-            <button type="submit" class="btn btn-sm" onclick="return confirm('¿Enviar a firma?')">Enviar a firma</button>
+            <button type="submit" class="btn btn-sm" onclick="return confirmarAccion(this, '¿Enviar a firma?')">Enviar a firma</button>
           </form>
         @endif
         @if($tramite->puedeSerFirmado())

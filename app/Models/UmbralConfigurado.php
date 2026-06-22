@@ -18,7 +18,30 @@ use Illuminate\Database\Eloquent\Model;
 class UmbralConfigurado extends Model
 {
     protected $table   = 'umbrales_configurados';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * cargado_por lo asigna el controlador al guardar.
+     */
+    protected $fillable = [
+        'sector_id',
+        'subsector_id',
+        'monto_base',
+        'unidad_base',
+        'monto_pesos',
+        'monto_uma',
+        'monto_salario_minimo',
+        'monto_udis',
+        'anio',
+        'vigencia_inicio',
+        'vigencia_fin',
+        'estatus',
+        'fuente',
+        'fecha_fuente',
+        'fecha_carga',
+        'cargado_por',
+        'observaciones',
+    ];
 
     public const ESTATUS_ACTIVO   = 'activo';
     public const ESTATUS_INACTIVO = 'inactivo';

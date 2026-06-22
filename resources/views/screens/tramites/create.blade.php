@@ -9,7 +9,7 @@
     <div class="head-actions"><x-btn-ejemplo tipo="tramite" /></div>
   </div>
 
-  <form method="POST" action="{{ route('tramites.store') }}" id="tramiteForm">
+  <form method="POST" action="{{ route('tramites.store') }}" id="tramiteForm" novalidate>
     @csrf
     <div class="wizard-shell">
 
@@ -72,11 +72,10 @@
             @endphp
             <input type="hidden" name="dependencia_id" value="{{ auth()->user()->dependencia_id }}">
 
-            <div class="field">
-              <label>Dependencia</label>
+            <x-field-help label="Dependencia">
               <input type="text" value="{{ $miDependencia?->nombre ?? 'Sin dependencia asignada' }}" disabled class="u-input-disabled">
               <small class="help-small">Asignada desde tu perfil de usuario. Contacta al administrador para cambiarla.</small>
-            </div>
+            </x-field-help>
 
             {{-- Fase F.1: Unidad administrativa auto-selección --}}
             <div class="field">
@@ -107,8 +106,7 @@
             @php
               $sujetoObligado = \App\Models\SujetoObligado::vigenteDe(auth()->user()->dependencia_id);
             @endphp
-            <div class="field">
-              <label>Sujeto Obligado</label>
+            <x-field-help label="Sujeto Obligado">
               <input type="text"
                 value="{{ $sujetoObligado?->nombre ?? 'Sin titular registrado' }}"
                 disabled class="u-input-disabled">
@@ -120,15 +118,14 @@
               @elseif(!$sujetoObligado)
                 <small class="help-small">Tu dependencia no tiene titular registrado. Pídele al administrador que lo agregue en Catálogos → Sujetos obligados.</small>
               @endif
-            </div>
+            </x-field-help>
 
             {{-- Enlace: la persona que captura (usuario logueado, auto, solo lectura) --}}
-            <div class="field">
-              <label>Enlace</label>
+            <x-field-help label="Enlace">
               <input type="text" value="{{ auth()->user()->name }}" disabled class="u-input-disabled">
               <input type="hidden" name="enlace_id" value="{{ auth()->id() }}">
               <small class="help-small">Persona que registra el trámite.</small>
-            </div>
+            </x-field-help>
 
             {{-- Homoclave: se genera automáticamente al elegir la unidad administrativa --}}
             <div class="field">
@@ -149,153 +146,313 @@
         <div class="wizard-content" data-panel="2">
           <div class="wizard-panel-head"><span class="wizard-panel-icon"></span><div><h3>Información general</h3><p>Objetivo, población, sector económico y plazos.</p></div></div>
           <div class="wizard-fields">
-            <div class="field span-2">
-              <label>Objetivo del trámite *</label>
+            <x-field-help label="Objetivo del trámite" :required="true" class="span-2">
               <textarea required name="objetivo" rows="4" placeholder="Describa qué resuelve o qué beneficio otorga...">{{ old('objetivo') }}</textarea>
-            </div>
+            </x-field-help>
             <div class="field">
-              <label>Población objetivo</label>
-              <select name="dirigido_a">
-                <option value="ambas"  {{ old('dirigido_a','ambas')==='ambas'?'selected':'' }}>Personas físicas y morales</option>
-                <option value="fisica" {{ old('dirigido_a')==='fisica'?'selected':'' }}>Solo personas físicas</option>
-                <option value="moral"  {{ old('dirigido_a')==='moral'?'selected':'' }}>Solo personas morales</option>
-              </select>
+              <x-field-help label="¿A quién va dirigido el trámite?">
+                <select name="dirigido_a" onchange="toggleEtapaOperacion()">
+                  <option value="ambas"  {{ old('dirigido_a','ambas')==='ambas'?'selected':'' }}>Personas físicas y morales</option>
+                  <option value="fisica" {{ old('dirigido_a')==='fisica'?'selected':'' }}>Solo personas físicas</option>
+                  <option value="moral"  {{ old('dirigido_a')==='moral'?'selected':'' }}>Solo personas morales</option>
+                </select>
+              </x-field-help>
+              {{-- Etapa de operación: vive junto a "¿a quién va dirigido?" porque
+                   depende lógicamente de él. Aparece solo cuando el trámite va
+                   dirigido a personas morales o a ambas (se controla por JS). --}}
+              @php $dirigidoActual = old('dirigido_a', 'ambas'); @endphp
+              <div id="etapaOperacionWrap" style="display:{{ in_array($dirigidoActual, ['moral','ambas']) ? '' : 'none' }}; margin-top:12px">
+                <x-field-help label="Etapa de operación de la persona moral">
+                  <select name="etapa_operacion">
+                    <option value="">— No aplica / sin especificar —</option>
+                    <option value="APERTURA"  {{ old('etapa_operacion')==='APERTURA'  ? 'selected' : '' }}>Apertura — la empresa va a iniciar operaciones</option>
+                    <option value="OPERACIÓN" {{ old('etapa_operacion')==='OPERACIÓN' ? 'selected' : '' }}>Operación — la empresa ya está operando</option>
+                    <option value="CIERRE"    {{ old('etapa_operacion')==='CIERRE'    ? 'selected' : '' }}>Cierre — la empresa va a cerrar operaciones</option>
+                  </select>
+                </x-field-help>
+              </div>
             </div>
-            <div class="field">
-              <label>Frecuencia</label>
+            <x-field-help label="Frecuencia">
               <select name="frecuencia">
                 <option {{ old('frecuencia')==='Alta'?'selected':'' }}>Alta</option>
                 <option {{ old('frecuencia')==='Media'?'selected':'' }}>Media</option>
                 <option {{ old('frecuencia')==='Baja'?'selected':'' }}>Baja</option>
                 <option {{ old('frecuencia')==='Eventual'?'selected':'' }}>Eventual</option>
               </select>
-            </div>
+            </x-field-help>
 
-            <div class="field">
-              <label>Tipo de relación con otros trámites</label>
-              <select name="tipo_relacion">
-                <option value="" {{ old('tipo_relacion')==='' ? 'selected' : '' }}>— Sin relación / no aplica —</option>
-                <option value="Naturaleza" {{ old('tipo_relacion')==='Naturaleza' ? 'selected' : '' }}>Naturaleza</option>
-                <option value="Secuencia" {{ old('tipo_relacion')==='Secuencia' ? 'selected' : '' }}>Secuencia</option>
-                <option value="Dependencia funcional" {{ old('tipo_relacion')==='Dependencia funcional' ? 'selected' : '' }}>Dependencia funcional</option>
-              </select>
-              <small class="help-small">Rubro 10.1: cómo se relaciona este trámite con otros, si aplica.</small>
-            </div>
+            <x-input-validado tipo="numero_entero" name="volumen_anual" label="Volumen anual estimado *" min="0" placeholder="Ej. 1250" :value="old('volumen_anual')" />
 
             {{-- Sector y subsector económico SCIAN --}}
             <x-selector-scian :sector="old('sector_id')" :subsector="old('subsector_id')" />
-
-            <x-input-validado tipo="numero_entero" name="volumen_anual" label="Volumen anual estimado *" min="0" placeholder="Ej. 1250" :value="old('volumen_anual')" />
-            <div class="field">
-              <label>Plazo máximo de resolución</label>
-              <div class="split-fields">
-                <input name="plazo_resolucion_cantidad" type="number" min="0" step="1" inputmode="numeric" placeholder="Cantidad" value="{{ old('plazo_resolucion_cantidad') }}">
-                <select name="plazo_resolucion_unidad">
-                  <option value="habiles"   {{ old('plazo_resolucion_unidad','habiles')==='habiles'?'selected':'' }}>Días hábiles</option>
-                  <option value="naturales" {{ old('plazo_resolucion_unidad')==='naturales'?'selected':'' }}>Días naturales</option>
-                  <option value="meses"     {{ old('plazo_resolucion_unidad')==='meses'?'selected':'' }}>Meses</option>
-                </select>
-              </div>
-            </div>
           </div>
         </div>
 
         {{-- PASO 3: Operación ATDT --}}
         <div class="wizard-content" data-panel="3">
           <div class="wizard-panel-head"><span class="wizard-panel-icon"></span><div><h3>Operación y costos burocráticos</h3><p>Capture el esfuerzo que representa para la ciudadanía (metodología ATDT).</p></div></div>
-          <div class="wizard-fields">
-            <x-input-validado tipo="numero_entero" name="num_areas" label="Número de áreas que participan" min="0" placeholder="Ej. 3" :value="old('num_areas')" />
-            <div class="field">
-              <label>Áreas que participan</label>
-              <input name="areas_participantes" placeholder="Ej. Ventanilla, Tesorería, Protección Civil" value="{{ old('areas_participantes') }}">
+
+          {{-- Sub-tarjeta 1: Esfuerzo administrativo --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Esfuerzo administrativo</h4>
+              <p>Cuántas áreas tocan el expediente, cuántas visitas hace la persona y plazo legal de resolución.</p>
             </div>
-            <x-input-validado tipo="numero_entero" name="visitas_requeridas" label="Visitas requeridas" min="0" placeholder="0" :value="old('visitas_requeridas')" />
-            <div class="field">
-              <label>Nivel de digitalización</label>
-              <select name="nivel_digitalizacion">
-                <option value="1" {{ old('nivel_digitalizacion',1)==1?'selected':'' }}>1 — Presencial completo</option>
-                <option value="2" {{ old('nivel_digitalizacion')==2?'selected':'' }}>2 — Descarga de formatos</option>
-                <option value="3" {{ old('nivel_digitalizacion')==3?'selected':'' }}>3 — Envío digital parcial</option>
-                <option value="4" {{ old('nivel_digitalizacion')==4?'selected':'' }}>4 — Digital con pago en línea</option>
-                <option value="5" {{ old('nivel_digitalizacion')==5?'selected':'' }}>5 — 100% en línea</option>
-              </select>
-            </div>
-            <x-field-help label="Costo público">
-              <div class="costo-grupo">
-                <select id="costoTipo" onchange="actualizarCosto()">
-                  <option value="gratuito" {{ old('costo_tipo') === 'con_costo' ? '' : 'selected' }}>Gratuito</option>
-                  <option value="con_costo" {{ old('costo_tipo') === 'con_costo' ? 'selected' : '' }}>Con precio</option>
-                </select>
-                <input type="number" id="costoMonto" min="0" step="0.01"
-                  placeholder="0.00" value="{{ old('costo_monto', 0) }}"
-                  oninput="actualizarCosto()" style="display:none">
-                <select id="costoUnidad" onchange="actualizarCosto()" style="display:none">
-                  <option value="pesos" {{ old('costo_unidad') === 'UMA' ? '' : 'selected' }}>Pesos</option>
-                  <option value="UMA" {{ old('costo_unidad') === 'UMA' ? 'selected' : '' }}>UMA</option>
-                </select>
-                <span class="costo-moneda" id="costoEquiv"></span>
+            <div class="wizard-fields">
+              <x-input-validado tipo="numero_entero" name="num_areas" id="numAreas" label="Número de áreas que participan" min="0" placeholder="Ej. 3" :value="old('num_areas')" />
+              <div id="areasParticipantesWrap" style="display:none">
+                <x-field-help label="Áreas que participan">
+                  <input name="areas_participantes" placeholder="Ej. Ventanilla, Tesorería, Protección Civil" value="{{ old('areas_participantes') }}">
+                </x-field-help>
               </div>
-              {{-- Lo que se guarda: texto legible + monto YA en pesos + unidad original --}}
-              <input type="hidden" name="portal_costo" id="costoTexto" value="{{ old('portal_costo', 'Gratuito') }}">
-              <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ old('costo_tipo', 'gratuito') }}">
-              <input type="hidden" name="costo_monto" id="costoMontoHidden" value="{{ old('costo_monto', 0) }}">
-              <input type="hidden" name="costo_unidad" id="costoUnidadHidden" value="{{ old('costo_unidad', 'pesos') }}">
-            </x-field-help>
-            <div class="field span-2 fj-bloque">
-              <label class="fj-pregunta">¿El costo del trámite tiene fundamento jurídico? *</label>
-              <div class="fj-radios">
-                <label><input type="radio" name="costo_fj_tiene" value="1" required onchange="toggleFjRadio(this)" {{ old('costo_fj_tiene') === '1' ? 'checked' : '' }}> Sí</label>
-                <label><input type="radio" name="costo_fj_tiene" value="0" required onchange="toggleFjRadio(this)" {{ old('costo_fj_tiene') === '0' ? 'checked' : '' }}> No</label>
-              </div>
-              <div class="fj-campos fj-linea" style="display:{{ old('costo_fj_tiene') === '1' ? '' : 'none' }}">
-                <div><label>Ley o reglamento</label><input name="costo_fj_norma" placeholder="Ej. Ley de Hacienda Municipal" value="{{ old('costo_fj_norma') }}"></div>
-                <div><label>Capítulo</label><input name="costo_fj_capitulo" placeholder="Ej. Cap. II" value="{{ old('costo_fj_capitulo') }}"></div>
-                <div><label>Artículo</label><input name="costo_fj_articulo" placeholder="Ej. Art. 45" value="{{ old('costo_fj_articulo') }}"></div>
+              <x-input-validado tipo="numero_entero" name="visitas_requeridas" label="Visitas requeridas" min="0" placeholder="0" :value="old('visitas_requeridas')" />
+
+              {{-- Ítem C: Plazo de resolución --}}
+              <div class="field">
+                <label>Plazo máximo de resolución</label>
+                <div class="split-fields">
+                  <input name="plazo_resolucion_cantidad" type="number" min="0" step="1" inputmode="numeric" placeholder="Cantidad" value="{{ old('plazo_resolucion_cantidad') }}">
+                  <select name="plazo_resolucion_unidad">
+                    <option value="habiles"   {{ old('plazo_resolucion_unidad','habiles')==='habiles'?'selected':'' }}>Días hábiles</option>
+                    <option value="naturales" {{ old('plazo_resolucion_unidad')==='naturales'?'selected':'' }}>Días naturales</option>
+                    <option value="meses"     {{ old('plazo_resolucion_unidad')==='meses'?'selected':'' }}>Meses</option>
+                    <option value="anios"     {{ old('plazo_resolucion_unidad')==='anios'?'selected':'' }}>Años</option>
+                  </select>
+                </div>
               </div>
             </div>
-            {{-- Pago de derechos: conceptos de cobro ligados al trámite,
-                 independientes del costo público. Un trámite puede ser
-                 gratuito y aun así tener derechos por pagar. --}}
-            <x-field-help label="Pago de derechos" class="span-2">
-              <div id="derechosLista" class="derechos-lista">
-                {{-- filas generadas por JS --}}
-              </div>
-              <div class="derechos-pie">
-                <button type="button" class="btn btn-outline btn-sm" onclick="agregarDerecho()">+ Agregar derecho</button>
-                <span class="derechos-total">Total derechos: <strong id="derechosTotal">$0.00 MXN</strong></span>
-              </div>
-              <input type="hidden" name="derechos_json" id="derechosJson" value="{{ old('derechos_json', '[]') }}">
-            </x-field-help>
-            <x-field-help label="Monto de derechos (pesos)" class="span-2">
-              <input type="number" id="montoDerechosCalc" name="monto_derechos_display" readonly
-                value="{{ old('monto_derechos', 0) }}"
-                style="background:var(--surface-low);cursor:not-allowed">
-              <small class="campo-nota">Resultado del total de "Pago de derechos" (convertido a pesos).</small>
-            </x-field-help>
-            <x-input-validado tipo="numero_entero" name="copias_cantidad" label="Número de copias requeridas" min="0" placeholder="0" :value="old('copias_cantidad', 0)" />
-            <x-input-validado tipo="numero_decimal" name="copias_precio" label="Precio por copia (pesos)" min="0" step="0.01" placeholder="1.50" :value="old('copias_precio', 1.50)" />
           </div>
-          <div class="assist-box" style="margin-top:16px">
+
+          {{-- Sub-tarjeta 2: Tiempos del ciudadano (CBI) --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Tiempos del ciudadano (CBI)</h4>
+              <p>Tiempos invertidos por la persona usuaria. Entran al Costo Burocrático Indirecto.</p>
+            </div>
+            <div class="wizard-fields">
+              <x-field-help label="Tiempo de traslado a la oficina">
+                <div class="split-fields">
+                  <input name="tiempo_traslado_horas" type="number" min="0" step="1" inputmode="numeric" placeholder="Horas" value="{{ old('tiempo_traslado_horas') }}">
+                  <input name="tiempo_traslado_min" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="Minutos" value="{{ old('tiempo_traslado_min') }}">
+                </div>
+              </x-field-help>
+              <x-field-help label="Tiempo de espera en la oficina">
+                <div class="split-fields">
+                  <input name="tiempo_espera_horas" type="number" min="0" step="1" inputmode="numeric" placeholder="Horas" value="{{ old('tiempo_espera_horas') }}">
+                  <input name="tiempo_espera_min" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="Minutos" value="{{ old('tiempo_espera_min') }}">
+                </div>
+              </x-field-help>
+              <x-field-help label="Tiempo de atención (duración del trámite)">
+                <div class="split-fields">
+                  <input name="tiempo_atencion_horas" type="number" min="0" step="1" inputmode="numeric" placeholder="Horas" value="{{ old('tiempo_atencion_horas') }}">
+                  <input name="tiempo_atencion_min" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="Minutos" value="{{ old('tiempo_atencion_min') }}">
+                </div>
+              </x-field-help>
+            </div>
+          </div>
+
+          {{-- Sub-tarjeta 3: Nivel de digitalización --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Nivel de digitalización</h4>
+              <p>Nivel actual del trámite según la escala oficial ATDT (0 a 5). Use la calculadora si no está seguro.</p>
+            </div>
+            <div class="wizard-fields">
+              <x-field-help label="Nivel de digitalización">
+                {{-- Bug #B10: el select queda BLOQUEADO. El valor sólo se establece
+                     vía calculadora oficial (35 criterios ATDT). El hidden input
+                     lleva el valor real al backend porque los <select disabled>
+                     no se envían con el form. --}}
+                <select name="nivel_digitalizacion_display" id="nivelDigSelect" disabled style="background:var(--surface-low);cursor:not-allowed">
+                  <option value="0" {{ old('nivel_digitalizacion')==='0' || old('nivel_digitalizacion')===0 ? 'selected' : '' }}>Nivel 0 — Sin digitalización</option>
+                  <option value="1" {{ old('nivel_digitalizacion',1)==1?'selected':'' }}>Nivel 1 — Eficiencia administrativa básica</option>
+                  <option value="2" {{ old('nivel_digitalizacion')==2?'selected':'' }}>Nivel 2 — Productividad y reducción de costos</option>
+                  <option value="3" {{ old('nivel_digitalizacion')==3?'selected':'' }}>Nivel 3 — Acceso electrónico transaccional</option>
+                  <option value="4" {{ old('nivel_digitalizacion')==4?'selected':'' }}>Nivel 4 — Experiencia ciudadana unificada</option>
+                  <option value="5" {{ old('nivel_digitalizacion')==5?'selected':'' }}>Nivel 5 — Innovación, transparencia y participación</option>
+                </select>
+                <input type="hidden" name="nivel_digitalizacion" id="nivelDigHidden" value="{{ old('nivel_digitalizacion', 1) }}">
+                <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px" onclick="abrirCalcDig()">Calcular nivel con el cuestionario oficial</button>
+                <small class="campo-nota">Use la calculadora oficial para establecer el nivel. No se puede editar a mano.</small>
+              </x-field-help>
+            </div>
+          </div>
+
+          {{-- Sub-tarjeta 4: Costos del trámite (CBD) --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Costos del trámite (CBD)</h4>
+              <p>Costo público, derechos, copias y fundamento jurídico del cobro. Entran al Costo Burocrático Directo.</p>
+            </div>
+            <div class="wizard-fields">
+              <x-field-help label="Costo público">
+                <div class="costo-grupo">
+                  <select id="costoTipo" onchange="actualizarCosto()">
+                    <option value="gratuito" {{ old('costo_tipo') === 'con_costo' ? '' : 'selected' }}>Gratuito</option>
+                    <option value="con_costo" {{ old('costo_tipo') === 'con_costo' ? 'selected' : '' }}>Con precio</option>
+                  </select>
+                  <input type="number" id="costoMonto" min="0" step="0.01"
+                    placeholder="0.00" value="{{ old('costo_monto', 0) }}"
+                    oninput="actualizarCosto()" style="display:none">
+                  <select id="costoUnidad" onchange="actualizarCosto()" style="display:none">
+                    <option value="pesos" {{ old('costo_unidad') === 'UMA' ? '' : 'selected' }}>Pesos</option>
+                    <option value="UMA" {{ old('costo_unidad') === 'UMA' ? 'selected' : '' }}>UMA</option>
+                  </select>
+                  <span class="costo-moneda" id="costoEquiv"></span>
+                </div>
+                {{-- Lo que se guarda: texto legible + monto YA en pesos + unidad original --}}
+                <input type="hidden" name="portal_costo" id="costoTexto" value="{{ old('portal_costo', 'Gratuito') }}">
+                <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ old('costo_tipo', 'gratuito') }}">
+                <input type="hidden" name="costo_monto" id="costoMontoHidden" value="{{ old('costo_monto', 0) }}">
+                <input type="hidden" name="costo_unidad" id="costoUnidadHidden" value="{{ old('costo_unidad', 'pesos') }}">
+              </x-field-help>
+              <div class="field span-2 fj-bloque">
+                <label class="fj-pregunta">¿El costo del trámite tiene fundamento jurídico? *</label>
+                <div class="fj-radios">
+                  <label><input type="radio" name="costo_fj_tiene" value="1" required onchange="toggleFjRadio(this)" {{ old('costo_fj_tiene') === '1' ? 'checked' : '' }}> Sí</label>
+                  <label><input type="radio" name="costo_fj_tiene" value="0" required onchange="toggleFjRadio(this)" {{ old('costo_fj_tiene') === '0' ? 'checked' : '' }}> No</label>
+                </div>
+                <div class="fj-campos fj-linea" style="display:{{ old('costo_fj_tiene') === '1' ? '' : 'none' }}">
+                  <div>
+                    @php $hLey = config('helpTexts')['Ley o reglamento'] ?? null; @endphp
+                    <label>Ley o reglamento @if($hLey)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Ley o reglamento">?</button>@endif</label>
+                    @if($hLey)<div class="field-help-box">{{ $hLey }}</div>@endif
+                    <input name="costo_fj_norma" placeholder="Ej. Ley de Hacienda Municipal" value="{{ old('costo_fj_norma') }}">
+                  </div>
+                  <div>
+                    @php $hCap = config('helpTexts')['Capítulo'] ?? null; @endphp
+                    <label>Capítulo @if($hCap)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Capítulo">?</button>@endif</label>
+                    @if($hCap)<div class="field-help-box">{{ $hCap }}</div>@endif
+                    <input name="costo_fj_capitulo" placeholder="Ej. Cap. II" value="{{ old('costo_fj_capitulo') }}">
+                  </div>
+                  <div>
+                    @php $hArt = config('helpTexts')['Artículo'] ?? null; @endphp
+                    <label>Artículo @if($hArt)<button type="button" class="field-help-btn" onclick="toggleHelp(this)" aria-label="Ayuda para Artículo">?</button>@endif</label>
+                    @if($hArt)<div class="field-help-box">{{ $hArt }}</div>@endif
+                    <input name="costo_fj_articulo" placeholder="Ej. Art. 45" value="{{ old('costo_fj_articulo') }}">
+                  </div>
+                </div>
+              </div>
+              {{-- Pago de derechos: conceptos de cobro ligados al trámite,
+                   independientes del costo público. Un trámite puede ser
+                   gratuito y aun así tener derechos por pagar. --}}
+              <x-field-help label="Pago de derechos" class="span-2">
+                <div id="derechosLista" class="derechos-lista">
+                  {{-- filas generadas por JS --}}
+                </div>
+                <div class="derechos-pie">
+                  <button type="button" class="btn btn-outline btn-sm" onclick="agregarDerecho()">+ Agregar derecho</button>
+                  <span class="derechos-total">Total derechos: <strong id="derechosTotal">$0.00 MXN</strong></span>
+                </div>
+                <input type="hidden" name="derechos_json" id="derechosJson" value="{{ old('derechos_json', '[]') }}">
+              </x-field-help>
+              {{-- Bug #B11: Monto de derechos. Se oculta cuando "es variable"
+                   está marcado, porque mostrar $0.00 confunde al enlace.
+                   En su lugar aparece el aviso #montoDerechosVariableAviso. --}}
+              <div id="montoDerechosFijoWrap" class="span-2" style="display:{{ old('monto_derechos_variable') ? 'none' : '' }}">
+                <x-field-help label="Monto de derechos (pesos)" class="span-2">
+                  <input type="number" id="montoDerechosCalc" name="monto_derechos_display" readonly
+                    value="{{ old('monto_derechos', 0) }}"
+                    style="background:var(--surface-low);cursor:not-allowed">
+                  <small class="campo-nota">Resultado del total de "Pago de derechos" (convertido a pesos).</small>
+                </x-field-help>
+              </div>
+              {{-- Aviso cuando "es variable": explica al enlace por qué no se calcula. --}}
+              <div id="montoDerechosVariableAviso" class="assist-box span-2" style="display:{{ old('monto_derechos_variable') ? '' : 'none' }}">
+                <strong>Costo variable.</strong> El monto de derechos no se incluye en el cálculo del CBD porque depende del caso (ej. el predial varía según el valor catastral). El costo total del trámite seguirá considerando el tiempo del ciudadano (CBI) y las copias.
+              </div>
+              {{-- Ítem E: pago de derechos variable (ej. predial). Checkbox fuera
+                   de <div class="field"> para que no herede el estilo uppercase
+                   de los labels de los campos. --}}
+              <label class="checkbox-opcion span-2">
+                <input type="checkbox" name="monto_derechos_variable" value="1" id="montoVariableChk"
+                  onchange="toggleMontoReferencia()" {{ old('monto_derechos_variable') ? 'checked' : '' }}>
+                <span>El pago de derechos es variable (depende del caso, ej. predial)</span>
+              </label>
+              <div id="montoReferenciaWrap" style="display:none">
+                <x-field-help label="Base de cálculo del monto (referencia)" class="span-2">
+                  <input name="monto_derechos_referencia" placeholder="Ej. tarifa mínima de la tabla municipal" value="{{ old('monto_derechos_referencia') }}">
+                  <small class="campo-nota">El monto capturado se usa como estimación; esta nota explica de dónde sale.</small>
+                </x-field-help>
+              </div>
+              <x-input-validado tipo="numero_entero" name="copias_cantidad" label="Número de copias requeridas" min="0" placeholder="0" :value="old('copias_cantidad', 0)" />
+              <x-input-validado tipo="numero_decimal" name="copias_precio" label="Precio por copia (pesos)" min="0" step="0.01" placeholder="1.50" :value="old('copias_precio', 1.50)" />
+            </div>
+          </div>
+
+          {{-- Sub-tarjeta 5: Grupos de atención prioritaria (Art. 19 LNETB) --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Grupos de atención prioritaria</h4>
+              <p>Art. 19 LNETB. La agenda los lee para priorizar simplificaciones y digitalizaciones.</p>
+            </div>
+            <div class="wizard-fields">
+              @include('partials.catalogos-tramite', [
+                'gruposSel' => old('grupos_atencion', []),
+              ])
+            </div>
+          </div>
+
+          <div class="assist-box">
             <strong>Fórmula ATDT:</strong> CBD = Derechos + Copias + Requisitos con costo · CBI = Tiempo requisitos + Tiempo resolución · CBU = CBD + CBI · CBT = CBU × Volumen anual.
           </div>
 
-          {{-- Pasos para realizar el trámite: lista numerada (1, 2, 3) con
-               subpasos (1.1, 1.2). Cada paso indica quién lo realiza y en
-               qué consiste. Se hereda a la agenda en solo lectura. --}}
-          <div class="wizard-panel-head mt-4"><span class="wizard-panel-icon"></span><div><h3>Pasos para realizar el trámite</h3><p>Enumere el proceso paso a paso: quién lo realiza y en qué consiste.</p></div></div>
-          <div id="pasosLista" class="pasos-lista">
-            {{-- filas generadas por JS --}}
+          {{-- Sub-tarjeta 6: Pasos para realizar el trámite --}}
+          <div class="wizard-section">
+            <div class="wizard-section-head">
+              <h4>Pasos para realizar el trámite</h4>
+              <p>Enumere el proceso paso a paso (1, 2, 3) con subpasos (1.1, 1.2). Cada paso indica quién lo realiza y en qué consiste. Se hereda a la agenda en solo lectura.</p>
+            </div>
+            <div id="pasosLista" class="pasos-lista">
+              {{-- filas generadas por JS --}}
+            </div>
+            <div class="section-actions section-actions-start mt-3">
+              <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(false)">+ Agregar paso</button>
+              <button type="button" class="btn btn-outline btn-sm" id="btnAgregarSubpaso" onclick="agregarPaso(true)">+ Agregar subpaso</button>
+            </div>
+            <input type="hidden" name="pasos_json" id="pasosJson" value="{{ old('pasos_json', '[]') }}">
           </div>
-          <div class="section-actions section-actions-start mt-3">
-            <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(false)">+ Agregar paso</button>
-            <button type="button" class="btn btn-outline btn-sm" onclick="agregarPaso(true)">+ Agregar subpaso</button>
-          </div>
-          <input type="hidden" name="pasos_json" id="pasosJson" value="{{ old('pasos_json', '[]') }}">
         </div>
 
         {{-- PASO 5: Requisitos --}}
         <div class="wizard-content" data-panel="5">
           <div class="wizard-panel-head"><span class="wizard-panel-icon"></span><div><h3>Requisitos</h3><p>Registre cada documento necesario de forma clara.</p></div></div>
+
+          {{-- Ítem A #21: ¿Guarda relación? Radio Sí/No con detalle condicional.
+               Antes era un select con 4 opciones (Naturaleza, Secuencia,
+               Dependencia funcional, Ninguna) que confundía al enlace porque
+               las distinciones eran sutiles. Ahora es una pregunta binaria
+               y el subtipo se describe en el campo de detalle. --}}
+          <div class="wizard-fields" style="margin-bottom:1.2rem">
+            <x-field-help label="¿Guarda relación con otros trámites?" class="span-2">
+              @php
+                // Migración suave: si el dato viejo era cualquier cosa distinta
+                // a "Ninguna", lo tratamos como "Sí" para no perder el indicador.
+                $rel = old('tipo_relacion', 'Ninguna');
+                $relSi = ($rel !== 'Ninguna' && $rel !== '');
+              @endphp
+              <div class="radio-group" style="display:flex; gap:24px; padding:8px 0;">
+                <label class="radio-item">
+                  <input type="radio" name="tipo_relacion" value="Ninguna"
+                    {{ !$relSi ? 'checked' : '' }}
+                    onchange="toggleRelacionados()">
+                  <span>No</span>
+                </label>
+                <label class="radio-item">
+                  <input type="radio" name="tipo_relacion" value="Sí"
+                    {{ $relSi ? 'checked' : '' }}
+                    onchange="toggleRelacionados()">
+                  <span>Sí</span>
+                </label>
+              </div>
+            </x-field-help>
+            <div id="relacionadosDetalleWrap" style="display:{{ $relSi ? '' : 'none' }}">
+              <x-field-help label="Trámites relacionados" class="span-2">
+                <textarea name="relacionados_detalle" rows="3" placeholder="Ej. Licencia de uso de suelo (la requiere antes), Visto bueno de Protección Civil (lo habilita)">{{ old('relacionados_detalle') }}</textarea>
+              </x-field-help>
+            </div>
+          </div>
+
           <div id="reqContainer">
             <article class="requirement-card">
               <strong>Requisito 1</strong>
@@ -319,6 +476,27 @@
                 <x-field-help label="Observaciones para publicación" class="span-2">
                   <textarea name="requisitos[0][observaciones]" rows="2" placeholder="Vigencia, formato, dependencia emisora..."></textarea>
                 </x-field-help>
+                {{-- Ítem E: costo del requisito (sin costo / monto fijo / variable) --}}
+                <x-field-help label="¿Este requisito tiene costo?">
+                  <select name="requisitos[0][costo_modo]" onchange="toggleCostoReq(this)">
+                    <option value="sin">Sin costo</option>
+                    <option value="fijo">Sí, monto fijo</option>
+                    <option value="variable">Sí, costo variable (no cuantificable)</option>
+                  </select>
+                </x-field-help>
+                <div class="req-costo-monto" style="display:none">
+                  <x-field-help label="Monto del requisito">
+                    <input name="requisitos[0][costo_monto]" type="number" min="0" step="0.01" value="0" placeholder="Ej. 250.00">
+                  </x-field-help>
+                </div>
+                <div class="req-costo-monto" style="display:none">
+                  <x-field-help label="Unidad del costo">
+                    <select name="requisitos[0][costo_unidad]">
+                      <option value="PESOS" {{ old('requisitos.0.costo_unidad', 'PESOS') === 'PESOS' ? 'selected' : '' }}>Pesos</option>
+                      <option value="UMA"   {{ old('requisitos.0.costo_unidad') === 'UMA' ? 'selected' : '' }}>UMA</option>
+                    </select>
+                  </x-field-help>
+                </div>
                 <div class="field span-2 fj-bloque">
                   <label class="fj-pregunta">¿Este requisito tiene fundamento jurídico? *</label>
                   <div class="fj-radios">
@@ -347,13 +525,11 @@
             {{-- Citar desde el catálogo de regulaciones (si hay regulaciones convertidas) --}}
             <x-citar-regulacion :selected="old('regulacion_id')" label="Citar regulación del catálogo (opcional)" />
 
-            <div class="field span-2">
-              <label>Nombre de la norma (si no está en el catálogo)</label>
+            <x-field-help label="Nombre de la norma (si no está en el catálogo)" class="span-2">
               <input name="fundamento_normativa" placeholder="Ej. Reglamento de Comercio del Municipio de La Paz" value="{{ old('fundamento_normativa') }}">
               <small class="help-small">Si ya citó del catálogo, puede dejar este campo vacío.</small>
-            </div>
-            <div class="field">
-              <label>Tipo de norma</label>
+            </x-field-help>
+            <x-field-help label="Tipo de norma">
               <select name="fundamento_tipo">
                 <option value="">Seleccione...</option>
                 <option {{ old('fundamento_tipo')==='Reglamento'?'selected':'' }}>Reglamento</option>
@@ -362,15 +538,13 @@
                 <option {{ old('fundamento_tipo')==='Acuerdo'?'selected':'' }}>Acuerdo</option>
                 <option {{ old('fundamento_tipo')==='Ley'?'selected':'' }}>Ley</option>
               </select>
-            </div>
-            <div class="field">
-              <label>Artículo y fracción</label>
+            </x-field-help>
+            <x-field-help label="Artículo y fracción">
               <input name="fundamento_articulo" placeholder="Ej. Artículo 45, Fracción II" value="{{ old('fundamento_articulo') }}">
-            </div>
-            <div class="field span-2">
-              <label>Resumen ciudadano del fundamento</label>
+            </x-field-help>
+            <x-field-help label="Resumen ciudadano del fundamento" class="span-2">
               <textarea name="fundamento_resumen" rows="3" placeholder="Explique de forma simple por qué existe este trámite...">{{ old('fundamento_resumen') }}</textarea>
-            </div>
+            </x-field-help>
           </div>
         </div>
 
@@ -379,7 +553,7 @@
           <div class="wizard-panel-head"><span class="wizard-panel-icon"></span><div><h3>Ficha para portal ciudadano</h3><p>Información visible para la ciudadanía.</p></div></div>
           <div class="wizard-fields">
             <x-field-help label="Nombre del documento resultado">
-              <input name="portal_nombre" placeholder="Nombre ciudadano del trámite" value="{{ old('portal_nombre') }}">
+              <input name="portal_nombre_ciudadano" placeholder="Nombre ciudadano del trámite" value="{{ old('portal_nombre_ciudadano') }}">
             </x-field-help>
             <x-field-help label="Resultado que se obtiene">
               <input name="portal_resultado" placeholder="Ej. Licencia de funcionamiento, constancia, permiso" value="{{ old('portal_resultado') }}">
@@ -468,26 +642,55 @@
     </div>
   </form>
 
+  @include('partials.calculadora-digitalizacion')
+
 </div>
-{{-- Fase F.4: Modal de horarios de atención --}}
+{{-- Bug #B14: Modal de horarios de atención, flujo de 3 pasos --}}
   <div id="modalHorarios">
     <div class="horario-modal-inner">
       <h3 style="margin:0 0 4px">Horarios de atención</h3>
-      <p style="margin:0 0 16px;font-size:13px;color:#6b7280">Configure los días y horarios en que se atiende el trámite.</p>
+      <p style="margin:0 0 18px;font-size:13px;color:#6b7280">Configure en tres pasos los días y horarios en que se atiende el trámite.</p>
 
-      <div class="horario-accesos">
-        <span style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;align-self:center">Accesos rápidos:</span>
-        <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('lv')">Lun – Vie</button>
-        <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('ls')">Lun – Sáb</button>
-        <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('todos')">Todos los días</button>
-        <button type="button" class="btn btn-outline btn-sm" onclick="horarioLimpiar()">Limpiar</button>
+      {{-- PASO 1: horario base --}}
+      <div class="horario-paso">
+        <div class="horario-paso-num">1</div>
+        <div class="horario-paso-cuerpo">
+          <h4 class="horario-paso-titulo">Elija el horario base</h4>
+          <p class="horario-paso-ayuda">Este horario se aplica a todos los días que marque abajo. Después puede ajustar un día concreto si tiene horario diferente.</p>
+          <div class="horario-base-inputs">
+            <label>Apertura <input type="time" id="horarioBaseInicio" value="09:00" onchange="setHorarioBase('inicio', this.value)"></label>
+            <label>Cierre <input type="time" id="horarioBaseFin" value="15:00" onchange="setHorarioBase('fin', this.value)"></label>
+          </div>
+        </div>
       </div>
 
-      <div id="horariosGrid">
-        <!-- generado por JS -->
+      {{-- PASO 2: días aplicables --}}
+      <div class="horario-paso">
+        <div class="horario-paso-num">2</div>
+        <div class="horario-paso-cuerpo">
+          <h4 class="horario-paso-titulo">Marque los días aplicables</h4>
+          <div id="horarioChips" class="horario-chips"><!-- chips generados por JS --></div>
+          <div class="horario-accesos">
+            <span class="horario-accesos-label">Accesos rápidos:</span>
+            <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('lv')">Lun – Vie</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('ls')">Lun – Sáb</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="horarioPreset('todos')">Todos</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="horarioLimpiar()">Limpiar</button>
+          </div>
+        </div>
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      {{-- PASO 3: vista previa editable --}}
+      <div class="horario-paso">
+        <div class="horario-paso-num">3</div>
+        <div class="horario-paso-cuerpo">
+          <h4 class="horario-paso-titulo">Vista previa</h4>
+          <p class="horario-paso-ayuda">Revise los días marcados. Puede editar el horario de un día concreto si difiere del base (por ejemplo, sábado reducido).</p>
+          <div id="horarioPreview" class="horario-preview"><!-- generado por JS --></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
         <button type="button" class="btn btn-outline" onclick="cerrarHorarios()">Cancelar</button>
         <button type="button" class="btn btn-success" onclick="guardarHorarios()">Aplicar</button>
       </div>
@@ -498,582 +701,12 @@
 
 
 @push('scripts')
+{{-- Datos de PHP que el JS necesita. Se inyectan aquí para mantener --}}
+{{-- tramites-create.js como JS puro, sin interpolaciones Blade.      --}}
 <script>
-// #8 Costo público: muestra el monto y el selector UMA/Pesos solo cuando es
-// "Con precio". El monto que se guarda (costo_monto) siempre va en PESOS.
-function actualizarCosto() {
-  var tipo    = document.getElementById('costoTipo');
-  var monto   = document.getElementById('costoMonto');
-  var unidad  = document.getElementById('costoUnidad');
-  var equiv   = document.getElementById('costoEquiv');
-  if (!tipo || !monto || !unidad) return;
-
-  var esGratuito = tipo.value === 'gratuito';
-
-  // Mostrar u ocultar el monto y la unidad según el tipo.
-  monto.style.display  = esGratuito ? 'none' : '';
-  unidad.style.display = esGratuito ? 'none' : '';
-
-  if (esGratuito) {
-    monto.value = 0;
-    if (equiv) equiv.textContent = '';
-  }
-
-  var valorCapturado = parseFloat(monto.value) || 0;
-  var esUma = unidad.value === 'UMA';
-  // El monto en pesos: si es UMA, convertir con el valor vigente.
-  var valorPesos = esUma ? (valorCapturado * (typeof VALOR_UMA !== 'undefined' ? VALOR_UMA : 0)) : valorCapturado;
-
-  // Mostrar la equivalencia cuando es UMA.
-  if (equiv) {
-    equiv.textContent = esGratuito ? '' : (esUma ? ('≈ $' + valorPesos.toFixed(2) + ' MXN') : 'MXN');
-  }
-
-  var texto = esGratuito ? 'Gratuito' : ('$' + valorPesos.toFixed(2) + ' MXN');
-
-  document.getElementById('costoTexto').value       = texto;
-  document.getElementById('costoTipoHidden').value  = tipo.value;
-  document.getElementById('costoMontoHidden').value = valorPesos;
-  document.getElementById('costoUnidadHidden').value = esGratuito ? 'pesos' : unidad.value;
-  if (typeof actualizarResumenPortal === 'function') actualizarResumenPortal();
-}
-document.addEventListener('DOMContentLoaded', actualizarCosto);
-
-// Pago de derechos: lista dinámica de conceptos (concepto + monto).
-var _derechos = [];
-
-// Valor de la UMA vigente (en pesos), inyectado desde PHP para convertir
-// los derechos en UMA a pesos al mostrar el total. La fórmula real vive en
-// PHP; esto es solo para la vista previa del total.
-var VALOR_UMA = {{ \App\Models\TramiteDerecho::valorUmaVigente() ?: 0 }};
-
-// Convierte el monto de un derecho a pesos según su unidad.
-function derechoEnPesos(d) {
-  var m = parseFloat(d.monto) || 0;
-  return (d.unidad === 'UMA') ? m * VALOR_UMA : m;
-}
-
-function renderDerechos() {
-  var cont = document.getElementById('derechosLista');
-  if (!cont) return;
-  cont.innerHTML = '';
-
-  if (_derechos.length === 0) {
-    cont.innerHTML = '<p class="derechos-vacio">Sin conceptos de derechos. Si el trámite no cobra derechos, déjalo vacío.</p>';
-  }
-
-  _derechos.forEach(function (d, i) {
-    var wrap = document.createElement('div');
-    wrap.className = 'derecho-wrap';
-    var esUma = d.unidad === 'UMA';
-    var equiv = esUma ? (' ≈ $' + derechoEnPesos(d).toFixed(2)) : '';
-    var tieneFj = !!(d.fj_norma || d.fj_capitulo || d.fj_articulo);
-    wrap.innerHTML =
-      '<div class="derecho-fila">' +
-        '<input type="text" placeholder="Concepto (ej. Derecho de inspección)" value="' + (d.concepto || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'concepto\', this.value)">' +
-        '<input type="number" min="0" step="0.01" placeholder="0.00" value="' + (d.monto || 0) + '" oninput="setDerecho(' + i + ', \'monto\', this.value)">' +
-        '<select onchange="setDerecho(' + i + ', \'unidad\', this.value)">' +
-          '<option value="pesos"' + (esUma ? '' : ' selected') + '>Pesos</option>' +
-          '<option value="UMA"' + (esUma ? ' selected' : '') + '>UMA</option>' +
-        '</select>' +
-        '<label><input type="checkbox"' + (d.es_variable ? ' checked' : '') + ' onchange="setDerecho(' + i + ', \'es_variable\', this.checked)"> Variable</label>' +
-        '<span class="derecho-equiv">' + equiv + '</span>' +
-        '<button type="button" class="btn btn-outline btn-sm" onclick="quitarDerecho(' + i + ')">Quitar</button>' +
-      '</div>' +
-      '<div class="fj-bloque" style="margin-top:6px">' +
-        '<label class="fj-pregunta">¿Este derecho tiene fundamento jurídico? *</label>' +
-        '<div class="fj-radios">' +
-          '<label><input type="radio" name="der_fj_' + i + '" value="1"' + (tieneFj ? ' checked' : '') + ' onchange="setDerechoFj(' + i + ', true); toggleFjRadio(this)"> Sí</label>' +
-          '<label><input type="radio" name="der_fj_' + i + '" value="0"' + (tieneFj ? '' : ' checked') + ' onchange="setDerechoFj(' + i + ', false); toggleFjRadio(this)"> No</label>' +
-        '</div>' +
-        '<div class="fj-campos fj-linea" style="display:' + (tieneFj ? '' : 'none') + '">' +
-          '<div><label>Ley o reglamento</label><input value="' + (d.fj_norma || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_norma\', this.value)" placeholder="Ej. Ley de Hacienda"></div>' +
-          '<div><label>Capítulo</label><input value="' + (d.fj_capitulo || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_capitulo\', this.value)" placeholder="Ej. Cap. II"></div>' +
-          '<div><label>Artículo</label><input value="' + (d.fj_articulo || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'fj_articulo\', this.value)" placeholder="Ej. Art. 45"></div>' +
-        '</div>' +
-      '</div>';
-    cont.appendChild(wrap);
-  });
-
-  // Recalcular total (en pesos, convirtiendo UMA) y sincronizar el hidden.
-  var total = _derechos.reduce(function (s, d) { return s + derechoEnPesos(d); }, 0);
-  document.getElementById('derechosTotal').textContent = '$' + total.toFixed(2) + ' MXN';
-  document.getElementById('derechosJson').value = JSON.stringify(_derechos);
-  sincronizarMontoDerechos(total);
-}
-
-// Refleja el total de derechos en el campo (solo lectura) del paso de
-// costos burocráticos, para que el usuario vea de dónde sale.
-function sincronizarMontoDerechos(total) {
-  var campo = document.getElementById('montoDerechosCalc');
-  if (campo) campo.value = total.toFixed(2);
-  actualizarResumenPortal();
-}
-
-// Copia el costo público y los derechos (capturados en Operación) al
-// resumen de solo lectura de la Ficha Portal (paso 6).
-function actualizarResumenPortal() {
-  // Resumen del costo público.
-  var resCosto = document.getElementById('costoPublicoResumen');
-  var tipo = document.getElementById('costoTipoHidden');
-  var monto = document.getElementById('costoMontoHidden');
-  if (resCosto && tipo) {
-    if (tipo.value === 'con_costo') {
-      var v = parseFloat(monto ? monto.value : 0) || 0;
-      resCosto.value = 'Con costo: $' + v.toFixed(2) + ' MXN';
-    } else {
-      resCosto.value = 'Gratuito';
-    }
-  }
-  // Resumen de los derechos.
-  var resDer = document.getElementById('derechosResumen');
-  if (resDer) {
-    if (!_derechos || _derechos.length === 0) {
-      resDer.innerHTML = '<p class="derechos-vacio">Sin conceptos de derechos.</p>';
-    } else {
-      var html = '';
-      var total = 0;
-      _derechos.forEach(function (d) {
-        var m = derechoEnPesos(d);
-        total += m;
-        var etiqueta = (d.concepto || 'Sin concepto').replace(/</g, '&lt;');
-        if (d.unidad === 'UMA') etiqueta += ' <small>(' + (parseFloat(d.monto) || 0) + ' UMA)</small>';
-        if (d.es_variable) etiqueta += ' <small>(variable)</small>';
-        html += '<div style="display:flex;justify-content:space-between;padding:2px 0">' +
-                '<span>' + etiqueta + '</span>' +
-                '<strong>$' + m.toFixed(2) + '</strong></div>';
-      });
-      html += '<div style="display:flex;justify-content:space-between;border-top:1px solid var(--surface-high);margin-top:4px;padding-top:4px">' +
-              '<span>Total</span><strong>$' + total.toFixed(2) + ' MXN</strong></div>';
-      resDer.innerHTML = html;
-    }
-  }
-}
-
-// Muestra el campo de dirección y/o URL según la modalidad elegida.
-function toggleModalidadCampos() {
-  var sel = document.getElementById('portalModalidad');
-  var dir = document.getElementById('modalidadDireccion');
-  var url = document.getElementById('modalidadUrl');
-  if (!sel) return;
-  var v = sel.value;
-  if (dir) dir.style.display = (v === 'Presencial' || v === 'Mixta') ? '' : 'none';
-  if (url) url.style.display = (v === 'En línea'   || v === 'Mixta') ? '' : 'none';
-}
-document.addEventListener('DOMContentLoaded', toggleModalidadCampos);
-
-function agregarDerecho() {
-  _derechos.push({ concepto: '', monto: 0, unidad: 'pesos', es_variable: false });
-  renderDerechos();
-}
-
-function quitarDerecho(i) {
-  _derechos.splice(i, 1);
-  renderDerechos();
-}
-
-function setDerecho(i, campo, valor) {
-  if (_derechos[i]) {
-    if (campo === 'monto') {
-      _derechos[i][campo] = parseFloat(valor) || 0;
-    } else {
-      _derechos[i][campo] = valor;
-    }
-    // Cambiar la unidad re-renderiza para refrescar la equivalencia en pesos.
-    if (campo === 'unidad') {
-      renderDerechos();
-      return;
-    }
-    // Para monto/concepto/variable: recalcular total sin re-render (no perder foco).
-    var total = _derechos.reduce(function (s, d) { return s + derechoEnPesos(d); }, 0);
-    document.getElementById('derechosTotal').textContent = '$' + total.toFixed(2) + ' MXN';
-    document.getElementById('derechosJson').value = JSON.stringify(_derechos);
-    sincronizarMontoDerechos(total);
-  }
-}
-
-// Cuando el derecho elige "No tiene fundamento", limpia los 3 campos.
-function setDerechoFj(i, tiene) {
-  if (_derechos[i] && !tiene) {
-    _derechos[i].fj_norma = '';
-    _derechos[i].fj_capitulo = '';
-    _derechos[i].fj_articulo = '';
-    document.getElementById('derechosJson').value = JSON.stringify(_derechos);
-  }
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-  try {
-    var inicial = JSON.parse(document.getElementById('derechosJson').value || '[]');
-    if (Array.isArray(inicial)) _derechos = inicial;
-  } catch (e) { _derechos = []; }
-  renderDerechos();
-});
+  window.PUNTA = {
+    valorUma: {{ \App\Models\TramiteDerecho::valorUmaVigente() ?: 0 }}
+  };
 </script>
-
-<script>
-(function () {
-  var cur = 1, total = 7;
-
-  /**
-   * Previsualiza la homoclave en vivo a partir de la dependencia (fija
-   * del perfil) y la unidad administrativa seleccionada. Llama al
-   * endpoint que arma el formato LPZ-(siglas dep)-(siglas unidad)-(N).
-   */
-  (function previsualizarHomoclave() {
-    var depInput   = document.querySelector('input[name="dependencia_id"]');
-    var unidadEl   = document.querySelector('[name="unidad_id"]');
-    var homoclave  = document.getElementById('homoclave_input');
-    if (!depInput || !unidadEl || !homoclave) return;
-
-    function actualizar() {
-      var depId = depInput.value;
-      var uniId = unidadEl.value;
-      if (!depId || !uniId) {
-        homoclave.value = '';
-        return;
-      }
-      fetch('/api/homoclave/previsualizar?dependencia_id=' + depId + '&unidad_id=' + uniId, {
-        headers: { 'Accept': 'application/json' }
-      })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (data) {
-          if (data && data.homoclave) {
-            homoclave.value = data.homoclave;
-          }
-        })
-        .catch(function () { /* silencioso: si falla, el backend la genera al guardar */ });
-    }
-
-    // Si la unidad es un select, recalcula al cambiar.
-    if (unidadEl.tagName === 'SELECT') {
-      unidadEl.addEventListener('change', actualizar);
-    }
-    // Dispara una vez al cargar (cubre el caso de unidad auto-seleccionada).
-    actualizar();
-  })();
-
-  var required = {
-    1: [
-      { name: 'nombre_oficial',         label: 'Nombre oficial' },
-      { name: 'unidad_id',              label: 'Unidad administrativa' },
-    ],
-    2: [
-      { name: 'objetivo',               label: 'Objetivo del trámite' },
-      { name: 'volumen_anual',          label: 'Volumen anual estimado' },
-    ],
-    3: [
-      { name: 'monto_derechos',          label: 'Monto de derechos' },
-      { name: 'plazo_resolucion_cantidad',label: 'Plazo de resolución' },
-    ],
-    4: [],
-    5: [],
-    6: [],
-  };
-
-  function clearErrors(panel) {
-    panel.querySelectorAll('.field-error').forEach(function(e){ e.remove(); });
-    panel.querySelectorAll('.field-error-input').forEach(function(el){
-      el.classList.remove('field-error-input');
-      el.style.borderColor = '';
-    });
-  }
-
-  function showError(field, msg) {
-    field.classList.add('field-error-input');
-    field.style.borderColor = '#dc2626';
-    var err = document.createElement('p');
-    err.className = 'field-error';
-    err.textContent = msg;
-    err.style.cssText = 'color:#dc2626;font-size:12px;margin:4px 0 0;';
-    field.parentElement.appendChild(err);
-  }
-
-  function validateStep(step) {
-    var panel = document.querySelector('[data-panel="'+step+'"]');
-    if (!panel) return true;
-    clearErrors(panel);
-    var rules = required[step];
-    if (!rules) return true;
-    var ok = true;
-    var first = null;
-    rules.forEach(function(r) {
-      var field = panel.querySelector('[name="'+r.name+'"]');
-      if (!field) return;
-      if (!field.value || !field.value.trim()) {
-        showError(field, r.label + ' es obligatorio.');
-        if (!first) first = field;
-        ok = false;
-      }
-    });
-    if (first) first.focus();
-    return ok;
-  }
-
-  // Registra qué pasos ya fueron completados
-  var completed = {};
-
-  function go(step) {
-    document.querySelectorAll('[data-panel]').forEach(function(p){
-      p.classList.toggle('active', parseInt(p.dataset.panel) === step);
-    });
-    document.querySelectorAll('[data-step]').forEach(function(s){
-      var n = parseInt(s.dataset.step);
-      var esCompleto = (completed[n] === true) && (n !== step);
-      s.classList.toggle('active',    n === step);
-      s.classList.toggle('done',      esCompleto);
-      s.classList.toggle('completed', esCompleto);
-    });
-    document.getElementById('stepLabel').textContent = step;
-
-    var btnAtras    = document.getElementById('btnAtras');
-    var btnSig      = document.getElementById('btnSig');
-    var btnGuardar  = document.getElementById('btnGuardar');
-    var btnBorrador = document.getElementById('btnBorrador');
-
-    // Mostrar/ocultar botones
-    if (step > 1)      { btnAtras.classList.remove('hidden'); }
-    else               { btnAtras.classList.add('hidden'); }
-    if (step < total)  { btnSig.classList.remove('hidden'); btnGuardar.classList.add('hidden'); btnBorrador.classList.add('hidden'); }
-    else               { btnSig.classList.add('hidden');    btnGuardar.classList.remove('hidden'); btnBorrador.classList.remove('hidden'); }
-
-    cur = step;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  window.wizardNav = function(d) {
-    // Al avanzar: validar campos requeridos del paso actual
-    if (d > 0) {
-      if (!validateStep(cur)) return;
-      completed[cur] = true;
-    }
-    var n = cur + d;
-    if (n >= 1 && n <= total) go(n);
-  };
-
-  // Limpiar error al escribir
-  document.querySelectorAll('input, select, textarea').forEach(function(f) {
-    f.addEventListener('input',  function(){ this.style.borderColor=''; var e=this.parentElement.querySelector('.field-error'); if(e) e.remove(); });
-    f.addEventListener('change', function(){ this.style.borderColor=''; var e=this.parentElement.querySelector('.field-error'); if(e) e.remove(); });
-  });
-
-  // Dependencia → Unidades
-  var depSel = document.getElementById('depSelect');
-  var uniSel = document.getElementById('unidadSelect');
-  if (depSel && uniSel) {
-    var allOpts = Array.from(uniSel.querySelectorAll('option[data-dep]'));
-    depSel.addEventListener('change', function() {
-      var depId = this.value;
-      uniSel.innerHTML = '<option value="">Seleccione unidad...</option>';
-      allOpts.forEach(function(opt) {
-        if (opt.dataset.dep === depId) uniSel.appendChild(opt.cloneNode(true));
-      });
-    });
-  }
-
-  // Requisitos dinámicos
-  window.agregarRequisito = function() {
-    var container = document.getElementById('reqContainer');
-    var i = container.querySelectorAll('article.requirement-card').length;
-    var a = document.createElement('article');
-    a.className = 'requirement-card';
-    a.innerHTML = '<strong class="req-titulo">Requisito '+(i+1)+'</strong>'
-      +'<div class="wizard-fields">'
-      +'<div class="field span-2"><label>Nombre del requisito</label>'
-      +'<input name="requisitos['+i+'][nombre]" placeholder="Nombre del requisito"></div>'
-      +'<div class="field"><label>¿Se presenta en original?</label>'
-      +'<select name="requisitos['+i+'][original]"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select></div>'
-      +'<div class="field"><label>¿Se presenta en copia?</label>'
-      +'<select name="requisitos['+i+'][copia]"><option value="">—</option><option value="1">Sí</option><option value="0">No</option></select></div>'
-      +'<div class="field"><label>Tiempo de obtención</label>'
-      +'<div class="split-fields split-fields-labeled">'
-      +'<div><label class="split-label">Días háb.</label><input name="requisitos['+i+'][dias]" type="number" min="0" max="365" value="0"></div>'
-      +'<div><label class="split-label">Horas</label><input name="requisitos['+i+'][horas]" type="number" min="0" max="7" value="0"></div>'
-      +'<div><label class="split-label">Minutos</label><input name="requisitos['+i+'][minutos]" type="number" min="0" max="59" value="0"></div>'
-      +'</div></div>'
-      +'<div class="field span-2"><label>Observaciones</label>'
-      +'<textarea name="requisitos['+i+'][observaciones]" rows="2"></textarea></div>'
-      +'<div class="field span-2 fj-bloque">'
-      +'<label class="fj-pregunta">¿Este requisito tiene fundamento jurídico? *</label>'
-      +'<div class="fj-radios">'
-      +'<label><input type="radio" name="requisitos['+i+'][fj_tiene]" value="1" required onchange="toggleFjRadio(this)"> Sí</label>'
-      +'<label><input type="radio" name="requisitos['+i+'][fj_tiene]" value="0" required onchange="toggleFjRadio(this)"> No</label>'
-      +'</div>'
-      +'<div class="fj-campos fj-linea" style="display:none">'
-      +'<div><label>Ley o reglamento</label><input name="requisitos['+i+'][fj_norma]" placeholder="Ej. Reglamento de Comercio"></div>'
-      +'<div><label>Capítulo</label><input name="requisitos['+i+'][fj_capitulo]" placeholder="Ej. Cap. III"></div>'
-      +'<div><label>Artículo</label><input name="requisitos['+i+'][fj_articulo]" placeholder="Ej. Art. 12"></div>'
-      +'</div></div>'
-      +'</div>'
-      +'<div class="section-actions mt-2">'
-      +'<button type="button" class="btn btn-outline btn-sm danger" onclick="eliminarRequisito(this)">Eliminar requisito</button>'
-      +'</div>';
-    container.appendChild(a);
-  };
-
-  // Muestra u oculta los campos de fundamento según el radio Sí/No.
-  window.toggleFjRadio = function(radio) {
-    var bloque = radio.closest('.fj-bloque');
-    if (!bloque) return;
-    var campos = bloque.querySelector('.fj-campos');
-    if (campos) campos.style.display = (radio.value === '1') ? '' : 'none';
-  };
-
-  window.eliminarRequisito = function(btn) {
-    btn.closest('article').remove();
-    renumerarRequisitos();
-  };
-
-  function renumerarRequisitos() {
-    var cards = document.querySelectorAll('#reqContainer article.requirement-card');
-    cards.forEach(function(card, idx) {
-      // Actualizar título visible
-      var titulo = card.querySelector('.req-titulo, strong');
-      if (titulo) titulo.textContent = 'Requisito ' + (idx + 1);
-
-      // Actualizar name attributes para mantener índices secuenciales
-      card.querySelectorAll('input, select, textarea').forEach(function(input) {
-        if (input.name) {
-          input.name = input.name.replace(/requisitos\[\d+\]/, 'requisitos[' + idx + ']');
-        }
-      });
-    });
-  }
-  go(1);
-})();
-
-
-  // ─── Fase F.4: Horarios de atención ────────────────────────────
-  var DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-  var HORA_DEFAULT_INICIO = '09:00', HORA_DEFAULT_FIN = '15:00';
-  var horariosData = (function () {
-    var raw = document.getElementById('horariosJson').value;
-    try { return raw ? JSON.parse(raw) : {}; } catch(e) { return {}; }
-  })();
-
-  function renderHorariosGrid() {
-    var grid = document.getElementById('horariosGrid');
-    grid.innerHTML = '';
-    DIAS.forEach(function (dia, i) {
-      var row = document.createElement('div');
-      row.className = 'horario-row';
-      var activo = horariosData[dia] ? horariosData[dia].activo : false;
-      var ini = horariosData[dia] ? horariosData[dia].inicio : HORA_DEFAULT_INICIO;
-      var fin = horariosData[dia] ? horariosData[dia].fin    : HORA_DEFAULT_FIN;
-      row.innerHTML =
-        '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;width:110px">'
-        + '<input type="checkbox" onchange="toggleDia(\''+dia+'\')" ' + (activo ? 'checked' : '') + '>'
-        + '<span style="font-size:13px;font-weight:' + (i < 5 ? '700' : '400') + '">' + dia + '</span>'
-        + '</label>'
-        + '<div style="display:flex;flex-direction:column;gap:2px">'
-        + '<label class="u-meta-label">Apertura</label>'
-        + '<input type="time" id="ini_'+i+'" value="'+ini+'" ' + (activo ? '' : 'disabled') + ' class="u-text-sm" onchange="updateHora(\''+dia+'\',\'inicio\',this.value)">'
-        + '</div>'
-        + '<div style="display:flex;flex-direction:column;gap:2px">'
-        + '<label class="u-meta-label">Cierre</label>'
-        + '<input type="time" id="fin_'+i+'" value="'+fin+'" ' + (activo ? '' : 'disabled') + ' class="u-text-sm" onchange="updateHora(\''+dia+'\',\'fin\',this.value)">'
-        + '</div>';
-      grid.appendChild(row);
-    });
-  }
-
-  function toggleDia(dia) {
-    var activo = !horariosData[dia]?.activo;
-    if (!horariosData[dia]) horariosData[dia] = { inicio: HORA_DEFAULT_INICIO, fin: HORA_DEFAULT_FIN };
-    horariosData[dia].activo = activo;
-    renderHorariosGrid();
-  }
-
-  function updateHora(dia, campo, valor) {
-    if (!horariosData[dia]) horariosData[dia] = { activo: true, inicio: HORA_DEFAULT_INICIO, fin: HORA_DEFAULT_FIN };
-    horariosData[dia][campo] = valor;
-  }
-
-  function horarioPreset(tipo) {
-    var dias = tipo === 'lv' ? DIAS.slice(0,5) : tipo === 'ls' ? DIAS.slice(0,6) : DIAS;
-    DIAS.forEach(function (d) {
-      horariosData[d] = { activo: dias.includes(d), inicio: HORA_DEFAULT_INICIO, fin: HORA_DEFAULT_FIN };
-    });
-    renderHorariosGrid();
-  }
-
-  function horarioLimpiar() {
-    horariosData = {};
-    renderHorariosGrid();
-  }
-
-  function guardarHorarios() {
-    var activos = DIAS.filter(function (d) { return horariosData[d]?.activo; });
-    document.getElementById('horariosJson').value = JSON.stringify(horariosData);
-    // Generar resumen legible
-    var resumen = '';
-    if (activos.length === 7) {
-      resumen = 'Lun–Dom ' + horariosData[activos[0]].inicio + '–' + horariosData[activos[0]].fin + ' hrs';
-    } else if (activos.length === 5 && JSON.stringify(activos) === JSON.stringify(DIAS.slice(0,5))) {
-      resumen = 'Lun–Vie ' + horariosData['Lunes'].inicio + '–' + horariosData['Lunes'].fin + ' hrs';
-    } else if (activos.length > 0) {
-      resumen = activos.map(function (d) {
-        return d.substring(0,3) + ' ' + horariosData[d].inicio + '–' + horariosData[d].fin;
-      }).join(', ');
-    }
-    document.getElementById('horarioResumen').value = resumen;
-    cerrarHorarios();
-  }
-
-  function abrirHorarios() { renderHorariosGrid(); document.getElementById('modalHorarios').classList.add('open'); }
-  function cerrarHorarios() { document.getElementById('modalHorarios').classList.remove('open'); }
-
-  // ─── Pasos para realizar el trámite ──────────────────────────────────
-  // Cada paso: { es_subpaso: bool, area: '', accion: '' }. La numeración
-  // 1, 2, 3 / 1.1, 1.2 se calcula al pintar según la posición.
-  var _pasos = [];
-  try { _pasos = JSON.parse(document.getElementById('pasosJson').value || '[]'); } catch (e) { _pasos = []; }
-
-  function numeroDePaso(indice) {
-    // Calcula "1", "2", "1.1"... recorriendo desde el inicio.
-    var principal = 0, sub = 0;
-    for (var k = 0; k <= indice; k++) {
-      if (_pasos[k].es_subpaso) { sub++; }
-      else { principal++; sub = 0; }
-    }
-    var p = _pasos[indice];
-    return p.es_subpaso ? (principal + '.' + sub) : ('' + principal);
-  }
-
-  function renderPasos() {
-    var cont = document.getElementById('pasosLista');
-    if (!cont) return;
-    cont.innerHTML = '';
-    if (_pasos.length === 0) {
-      cont.innerHTML = '<p class="derechos-vacio">Sin pasos. Use "Agregar paso" para enumerar el proceso.</p>';
-    }
-    _pasos.forEach(function (p, i) {
-      var art = document.createElement('article');
-      art.className = 'paso-card' + (p.es_subpaso ? ' paso-sub' : '');
-      art.innerHTML =
-        '<div class="paso-num">' + numeroDePaso(i) + '</div>' +
-        '<div class="paso-campos">' +
-          '<input type="text" placeholder="¿Quién lo realiza? (área o responsable)" value="' + (p.area || '').replace(/"/g, '&quot;') + '" oninput="setPaso(' + i + ', \'area\', this.value)">' +
-          '<textarea rows="2" placeholder="¿En qué consiste este paso?" oninput="setPaso(' + i + ', \'accion\', this.value)">' + (p.accion || '') + '</textarea>' +
-        '</div>' +
-        '<button type="button" class="btn btn-outline btn-sm" onclick="quitarPaso(' + i + ')">Quitar</button>';
-      cont.appendChild(art);
-    });
-    document.getElementById('pasosJson').value = JSON.stringify(_pasos);
-  }
-
-  function agregarPaso(esSubpaso) {
-    _pasos.push({ es_subpaso: !!esSubpaso, area: '', accion: '' });
-    renderPasos();
-  }
-  function setPaso(i, campo, valor) {
-    if (_pasos[i]) { _pasos[i][campo] = valor; document.getElementById('pasosJson').value = JSON.stringify(_pasos); }
-  }
-  function quitarPaso(i) {
-    _pasos.splice(i, 1);
-    renderPasos();
-  }
-  document.addEventListener('DOMContentLoaded', renderPasos);
-
-</script>
+<script src="{{ asset('js/tramites-create.js') }}?v={{ filemtime(public_path('js/tramites-create.js')) }}"></script>
 @endpush

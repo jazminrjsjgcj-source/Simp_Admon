@@ -222,11 +222,66 @@ class User extends Authenticatable
 
     /**
      * ¿Este usuario puede eliminar un trámite?
-     * Misma lógica que editar.
+     *
+     * - admin: siempre, sin importar el estatus.
+     * - enlace: solo trámites de su dependencia, creados por él, y ÚNICAMENTE
+     *   mientras están en borrador. Una vez enviado a revisión (o más adelante
+     *   en el flujo) ya no puede borrarlo: ese registro pertenece al proceso.
+     * - otros roles: nunca.
      */
     public function puedeEliminarTramite(Tramite $tramite): bool
     {
-        return $this->puedeEditarTramite($tramite);
+        if ($this->isRol(self::ROL_ADMIN)) {
+            return true;
+        }
+
+        if ($this->isRol(self::ROL_ENLACE)) {
+            return $tramite->dependencia_id === $this->dependencia_id
+                && $tramite->created_by === $this->id
+                && $tramite->estatus === Tramite::ESTATUS_BORRADOR;
+        }
+
+        return false;
+    }
+
+    /**
+     * ¿Puede eliminar esta acción de agenda? Misma regla que en trámites:
+     * el admin siempre; el enlace solo si es de su dependencia, la creó él
+     * y sigue en borrador. Una vez enviada a revisión ya no se puede borrar.
+     */
+    public function puedeEliminarAgenda(AccionAgenda $agenda): bool
+    {
+        if ($this->isRol(self::ROL_ADMIN)) {
+            return true;
+        }
+
+        if ($this->isRol(self::ROL_ENLACE)) {
+            return $agenda->dependencia_id === $this->dependencia_id
+                && $agenda->created_by === $this->id
+                && $agenda->estatus === AccionAgenda::ESTATUS_BORRADOR;
+        }
+
+        return false;
+    }
+
+    /**
+     * ¿Puede eliminar esta propuesta regulatoria? Misma regla que en trámites:
+     * el admin siempre; el enlace solo si es de su dependencia, la creó él y
+     * sigue en borrador. Una vez en consulta/dictamen ya no se puede borrar.
+     */
+    public function puedeEliminarPropuesta(PropuestaRegulatoria $propuesta): bool
+    {
+        if ($this->isRol(self::ROL_ADMIN)) {
+            return true;
+        }
+
+        if ($this->isRol(self::ROL_ENLACE)) {
+            return $propuesta->dependencia_id === $this->dependencia_id
+                && $propuesta->created_by === $this->id
+                && $propuesta->estatus === PropuestaRegulatoria::ESTATUS_BORRADOR;
+        }
+
+        return false;
     }
 
     /**
@@ -263,36 +318,48 @@ class User extends Authenticatable
     }
 
     /**
-     * ¿Este usuario puede ver una propuesta regulatoria?
+     * ¿Este usuario "ve todo" un módulo, sin importar la dependencia?
      *
-     * Las propuestas son el único recurso con lectura restringida por
-     * dependencia. Trámites, agenda SyD y regulaciones son catálogo
-     * abierto (cualquiera los consulta).
+     * Son transversales el admin y quien APRUEBA el módulo (la revisora). El
+     * permiso de solo observar (p. ej. el jurídico) NO da visión total: ese rol
+     * trabaja sobre su propia área, como dice su descripción de rol.
      *
-     * Regla (C2 — evita que una dependencia ajena vea la propuesta
-     * copiando el ID en el URL):
-     *   - admin ve todo.
-     *   - Un rol transversal (revisora, jurídico) ve todo: si tiene el
-     *     permiso de observar o aprobar el módulo, su trabajo abarca
-     *     todas las dependencias.
-     *   - El enlace solo ve propuestas de su propia dependencia.
+     * @param  string  $modulo  'tramites', 'agenda', 'agenda_regulatoria'.
+     */
+    public function veTodoElModulo(string $modulo): bool
+    {
+        return $this->isRol(self::ROL_ADMIN)
+            || $this->tienePermiso("{$modulo}.aprobar");
+    }
+
+    /**
+     * ¿Este usuario puede ver un registro de un módulo?
      *
-     * @param  mixed   $registro  La propuesta a consultar (debe tener dependencia_id).
-     * @param  string  $modulo    Nombre del módulo, normalmente 'agenda_regulatoria'.
-     * @return bool  true si puede ver el registro; false en caso contrario.
+     * Regla (C2 — evita que una dependencia ajena vea el registro copiando el
+     * ID en el URL):
+     *   - admin y revisora (quien aprueba) ven todo.
+     *   - el resto (jurídico, enlace, sujeto) solo ve lo de su propia dependencia.
+     *
+     * @param  mixed   $registro  Registro a consultar (debe tener dependencia_id).
+     * @param  string  $modulo    Nombre del módulo, p. ej. 'agenda_regulatoria'.
      */
     public function puedeVerRegistro($registro, string $modulo): bool
     {
-        if ($this->isRol(self::ROL_ADMIN)) {
-            return true;
-        }
+        return $this->veTodoElModulo($modulo)
+            || $this->esDeSuDependencia($registro);
+    }
 
-        // Rol transversal: quien observa o aprueba el módulo lo ve completo.
-        if ($this->tienePermiso("{$modulo}.observar") || $this->tienePermiso("{$modulo}.aprobar")) {
-            return true;
-        }
-
-        // El resto solo ve lo de su propia dependencia.
-        return $this->esDeSuDependencia($registro);
+    /**
+     * ¿Este usuario puede gestionar (editar, borrar, cambiar estatus) un
+     * registro de un módulo? Mismo criterio que ver: admin y revisora sobre
+     * todo; el resto solo sobre lo de su propia dependencia.
+     *
+     * @param  mixed   $registro  Registro a gestionar (debe tener dependencia_id).
+     * @param  string  $modulo    Nombre del módulo, p. ej. 'agenda'.
+     */
+    public function puedeGestionar($registro, string $modulo): bool
+    {
+        return $this->veTodoElModulo($modulo)
+            || $this->esDeSuDependencia($registro);
     }
 }

@@ -193,6 +193,17 @@
   </div>
 </div>
 
+<div class="confirm-modal-backdrop" id="confirmModal">
+  <div class="confirm-modal">
+    <h3 id="confirmModalTitle">¿Desea continuar?</h3>
+    <p id="confirmModalText"></p>
+    <div class="confirm-modal-actions">
+      <button type="button" class="btn btn-outline" onclick="document.getElementById('confirmModal').classList.remove('open')">No</button>
+      <button type="button" class="btn" id="confirmModalOk">Sí, continuar</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toastContainer"></div>
 <div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div></div>
 
@@ -208,6 +219,28 @@ function confirmDelete(action, title, text) {
   if (text)  document.getElementById('deleteModalText').textContent  = text;
   document.getElementById('deleteModal').classList.add('open');
 }
+
+// Paquete UX: modal genérico de confirmación que reemplaza confirm() nativo.
+// Uso en un botón de submit:  onclick="return confirmarAccion(this, '¿Mensaje?')"
+// Devuelve siempre false (cancela el submit inmediato); si el usuario acepta en
+// el modal, dispara el submit real del formulario del botón.
+function confirmarAccion(boton, mensaje, titulo) {
+  var modal = document.getElementById('confirmModal');
+  document.getElementById('confirmModalTitle').textContent = titulo || '¿Desea continuar?';
+  document.getElementById('confirmModalText').textContent  = mensaje || '';
+  var ok = document.getElementById('confirmModalOk');
+  // Reemplazar el botón OK para limpiar listeners previos.
+  var okNuevo = ok.cloneNode(true);
+  ok.parentNode.replaceChild(okNuevo, ok);
+  okNuevo.addEventListener('click', function () {
+    modal.classList.remove('open');
+    var form = boton.closest('form');
+    if (form) form.submit();
+  });
+  modal.classList.add('open');
+  return false;
+}
+
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     document.querySelectorAll('.confirm-modal-backdrop.open').forEach(function(m) { m.classList.remove('open'); });

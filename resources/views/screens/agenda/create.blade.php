@@ -27,12 +27,37 @@
   .wz-result span { font-size:12px; color:var(--muted); }
   .wz-buscando { font-size:13px; color:var(--muted); padding:8px 0; }
   .wz-checks { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:12px; margin-bottom:18px; }
+  /* Paquete 3: catálogo de acciones con explicación individual */
+  .acciones-catalogo { border:1px solid var(--surface-high); border-radius:var(--radius); padding:14px; }
+  .acciones-titulo { display:block; color:var(--text); font-size:14px; margin-bottom:10px; }
+  .acciones-titulo small { color:var(--muted); font-weight:normal; }
+  .accion-item { border-bottom:1px solid var(--surface-high); padding:8px 0; }
+  .accion-item:last-child { border-bottom:none; }
+  .accion-check { display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:13px; color:var(--text); }
+  .accion-check input { margin-top:3px; }
+  .accion-exp { margin-top:8px; padding-left:24px; }
+  .accion-exp textarea {
+    width:100%;
+    padding:8px 12px;
+    border:1px solid var(--border);
+    border-radius:var(--radius-sm);
+    font-family:inherit;
+    font-size:14px;
+    color:var(--text);
+    background:var(--surface);
+    resize:vertical;
+    min-height:60px;
+  }
+  .accion-exp textarea:focus {
+    outline:none;
+    border-color:var(--primary);
+  }
   .wz-check { display:flex; gap:10px; padding:14px 16px; border:1px solid var(--surface-high); border-radius:var(--radius); cursor:pointer; }
   .wz-check input { margin-top:3px; }
   .wz-check strong { display:block; color:var(--text); font-size:14px; }
   .wz-check small { font-size:12px; color:var(--muted); }
   .wz-tipo { border:1px solid var(--surface-high); border-radius:var(--radius); margin-bottom:14px; overflow:hidden; }
-  .wz-tipo-head { background:var(--primary-fixed); padding:12px 16px; color:var(--primary); font-weight:600; }
+  .wz-tipo-head { background:var(--surface-low); padding:12px 16px; color:var(--text); font-weight:600; border-bottom:1px solid var(--surface-high); }
   .wz-tipo-body { padding:16px; }
   /* Sub-bloque con título (BLOQUE dentro de un paso) */
   .wz-bloque { border:1px solid var(--surface-high); border-radius:var(--radius); margin-bottom:16px; }
@@ -257,14 +282,34 @@
                 <option value="meses">Meses</option>
               </select>
               </x-field-help>
-            {{-- Pregunta diagnóstico: grupos prioritarios --}}
-            <x-field-help label="¿Está dirigido a grupos de atención prioritaria?" class="span-2">
-              <div class="wz-sino">
-                <label><input type="radio" name="tramite_grupo_prioritario" value="1" onclick="toggleDetalle('detPrioritario',true)"> Sí</label>
-                <label><input type="radio" name="tramite_grupo_prioritario" value="0" checked onclick="toggleDetalle('detPrioritario',false)"> No</label>
-              </div>
-              <div class="wz-detalle" id="detPrioritario">
-                <input name="tramite_grupo_prioritario_detalle" type="text" placeholder="Especifique el grupo">
+            {{-- Grupos de atención prioritaria: catálogo oficial de 11 categorías
+                 (LNETB Art. 19 fracc. III). Cuando el enlace vincula un trámite
+                 existente, se precargan automáticamente desde ese trámite por JS.
+                 Cuando crea un trámite nuevo desde aquí, los marca y se guardan
+                 en el trámite creado. --}}
+            @php
+              $catGruposAgenda = [
+                'No Aplica',
+                'Niñas, niños y adolescentes',
+                'Mujeres',
+                'Personas mayores',
+                'Personas con discapacidad',
+                'Personas pertenecientes a pueblos y comunidades indígenas o afrodescendientes',
+                'Personas pertenecientes a la comunidad LGBTTTI',
+                'Personas migrantes o refugiadas',
+                'Personas víctimas de violaciones a derechos humanos',
+                'Personas en situación de calle',
+                'Personas periodistas y defensoras de DDHH',
+              ];
+            @endphp
+            <x-field-help label="Grupos de atención prioritaria" class="span-2">
+              <div class="check-grid-compact" id="agendaGruposGrid">
+                @foreach($catGruposAgenda as $opcion)
+                  <label class="check-chip">
+                    <input type="checkbox" name="tramite_grupos_atencion[]" value="{{ $opcion }}">
+                    <span>{{ $opcion }}</span>
+                  </label>
+                @endforeach
               </div>
             </x-field-help>
             {{-- Pregunta diagnóstico: relacionados --}}
@@ -398,22 +443,64 @@
         </div>
       </div>
 
-      {{-- Checkboxes de tipo de mejora --}}
-      <div class="wz-checks">
-        <label class="wz-check"><input type="checkbox" name="mejora_reducir_requisitos" value="1"><span><strong>Reducir requisitos</strong><small>Eliminar documentos no necesarios.</small></span></label>
-        <label class="wz-check"><input type="checkbox" name="mejora_reducir_tiempos" value="1"><span><strong>Reducir tiempos</strong><small>Acortar atención o resolución.</small></span></label>
-        <label class="wz-check"><input type="checkbox" name="mejora_pago_linea" value="1"><span><strong>Pago en línea</strong><small>Integrar pago de derechos.</small></span></label>
-        <label class="wz-check"><input type="checkbox" name="mejora_expediente_digital" value="1"><span><strong>Expediente digital</strong><small>Subir documentos y consultar estatus.</small></span></label>
+      {{-- Paquete 3: Descripción general de la acción (SIEMPRE visible, obligatoria).
+           Antes vivía dentro del bloque de Simplificación y se ocultaba al elegir
+           "solo digitalización", rompiendo el guardado. Ahora es independiente. --}}
+      <div class="wz-bloque">
+        <div class="wz-bloque-head"><strong>Descripción de la acción</strong><small>Resumen general de lo que se va a mejorar. Obligatorio.</small></div>
+        <div class="wz-bloque-body">
+          <div class="wizard-fields">
+            <x-field-help label="Descripción general de la acción" class="span-2">
+              <textarea name="descripcion" rows="3" placeholder="Ej. Reducir requisitos y digitalizar el trámite de licencia de funcionamiento..."></textarea>
+            </x-field-help>
+          </div>
+        </div>
       </div>
+
+      {{-- #22: Aquí vivía un bloque de 4 checkboxes (Reducir requisitos,
+           Reducir tiempos, Pago en línea, Expediente digital) que no tenían
+           sustento en la metodología ATDT — no aparecen ni en la LNETB ni
+           en los Lineamientos del Modelo Nacional. Los catálogos OFICIALES
+           son los 10 de Simplificación (Art. 23 LNETB) y los 4 de
+           Digitalización (Art. 24 LNETB), que se eligen en los bloques de
+           abajo. NO restaurar este bloque. --}}
 
       {{-- BLOQUE V: Simplificación --}}
       <div class="wz-tipo" id="bloqueSimplificacion">
         <div class="wz-tipo-head">Simplificación</div>
         <div class="wz-tipo-body">
-          <div class="wizard-fields">
-            <x-field-help label="Objetivo de la simplificación" class="span-2">
-                <textarea name="descripcion" rows="3" placeholder="Ej. Reducir requisitos y visitas presenciales..."></textarea>
-              </x-field-help>
+          {{-- Paquete 3: catálogo oficial de 10 acciones (rubro 14). Cada acción
+               marcada abre su propio campo de explicación. Se guarda como objeto
+               { "acción": "explicación" } en acciones_simplificacion (JSON). --}}
+          <div class="acciones-catalogo">
+            <strong class="acciones-titulo">Acciones de simplificación <small>(marque las que apliquen)</small></strong>
+            @foreach([
+              'Ampliación de la vigencia de resoluciones',
+              'Reducción de los plazos de resolución o respuesta',
+              'Reducción de requisitos',
+              'Eliminación de requisitos',
+              'Eliminación de Trámites o Servicios',
+              'Supresión de obligaciones regulatorias que representen costos burocráticos para las personas',
+              'Fusión de trámites y/o modalidades',
+              'Acciones afirmativas en materia de accesibilidad universal',
+              'Conversión de Trámites en Avisos o manifestaciones',
+              'Otro',
+            ] as $idx => $accion)
+              <div class="accion-item">
+                <label class="accion-check">
+                  <input type="checkbox" name="simp_check[]" value="{{ $accion }}"
+                    data-target="simpExp{{ $idx }}" onchange="toggleAccionExp(this)">
+                  <span>{{ $accion }}</span>
+                </label>
+                <div class="accion-exp" id="simpExp{{ $idx }}" style="display:none">
+                  <textarea name="acciones_simplificacion[{{ $accion }}]" rows="2" disabled
+                    placeholder="Explique cómo se aplicará esta acción"></textarea>
+                </div>
+              </div>
+            @endforeach
+          </div>
+
+          <div class="wizard-fields" style="margin-top:14px">
             <x-field-help label="Meta esperada">
                 <input name="meta" type="text" placeholder="Ej. Reducir 40% el tiempo">
               </x-field-help>
@@ -442,20 +529,60 @@
         <div class="wz-tipo-body">
           <div class="wizard-fields">
             <x-field-help label="Nivel actual de digitalización">
-                <select name="tramite_nivel_digitalizacion">
-                <option value="1">1 - Sin digitalización</option>
-                <option value="2">2 - Información en línea</option>
-                <option value="3">3 - Formulario en línea</option>
-                <option value="4">4 - Pago en línea</option>
-                <option value="5">5 - Expediente digital completo</option>
+                <select name="nivel_actual">
+                <option value="0">Nivel 0 — Sin digitalización</option>
+                <option value="1">Nivel 1 — Eficiencia administrativa básica</option>
+                <option value="2">Nivel 2 — Productividad y reducción de costos</option>
+                <option value="3">Nivel 3 — Acceso electrónico transaccional</option>
+                <option value="4">Nivel 4 — Experiencia ciudadana unificada</option>
+                <option value="5">Nivel 5 — Innovación, transparencia y participación</option>
               </select>
               </x-field-help>
-            <x-field-help label="Meta esperada">
-                <input name="meta_digital" type="text" placeholder="Ej. Formulario y pago en línea">
+            <x-field-help label="Nivel meta de digitalización">
+                <select name="nivel_meta">
+                <option value="0">Nivel 0 — Sin digitalización</option>
+                <option value="1">Nivel 1 — Eficiencia administrativa básica</option>
+                <option value="2">Nivel 2 — Productividad y reducción de costos</option>
+                <option value="3">Nivel 3 — Acceso electrónico transaccional</option>
+                <option value="4">Nivel 4 — Experiencia ciudadana unificada</option>
+                <option value="5">Nivel 5 — Innovación, transparencia y participación</option>
+              </select>
               </x-field-help>
             <x-field-help label="Objetivo de la digitalización" class="span-2">
                 <textarea name="descripcion_digital" rows="3" placeholder="Explique portal, pagos, firma o expediente digital..."></textarea>
               </x-field-help>
+          </div>
+
+          {{-- Paquete 3: catálogo oficial DIG de 8 acciones (distinto al SIMP).
+               Cada acción marcada abre su explicación. Se guarda como objeto
+               { "acción": "explicación" } en acciones_digitalizacion (JSON). --}}
+          <div class="acciones-catalogo" style="margin-top:14px">
+            <strong class="acciones-titulo">Acciones de digitalización <small>(marque las que apliquen)</small></strong>
+            @foreach([
+              'Reducción de los plazos de resolución o respuesta',
+              'Reducción de requisitos',
+              'Eliminación de requisitos',
+              'Acciones afirmativas en materia de accesibilidad universal',
+              'Eliminación de copias e impresiones',
+              'Mejorar experiencia de usuario',
+              'Reducción de pasos en su proceso digital',
+              'Otro',
+            ] as $idx => $accion)
+              <div class="accion-item">
+                <label class="accion-check">
+                  <input type="checkbox" name="dig_check[]" value="{{ $accion }}"
+                    data-target="digExp{{ $idx }}" onchange="toggleAccionExp(this)">
+                  <span>{{ $accion }}</span>
+                </label>
+                <div class="accion-exp" id="digExp{{ $idx }}" style="display:none">
+                  <textarea name="acciones_digitalizacion[{{ $accion }}]" rows="2" disabled
+                    placeholder="Explique cómo se aplicará esta acción"></textarea>
+                </div>
+              </div>
+            @endforeach
+          </div>
+
+          <div class="wizard-fields" style="margin-top:14px">
             {{-- Pregunta diagnóstico: interoperabilidad --}}
             <x-field-help label="¿Requiere interoperabilidad con otra institución?" class="span-2">
               <div class="wz-sino">
@@ -559,7 +686,7 @@
         <div class="wz-bloque-head"><strong>Anexos</strong><small>Documentos de soporte (opcional).</small></div>
         <div class="wz-bloque-body">
           <x-field-help label="Carga de anexos" class="span-2">
-                <input type="file" name="anexos[]" multiple accept=".pdf,.docx,.xlsx,.jpg,.png">
+                <x-carga-archivos name="anexos" :multiple="true" accept=".pdf,.docx,.xlsx,.jpg,.png" :maxMb="10" />
               </x-field-help>
         </div>
       </div>
@@ -578,409 +705,16 @@
 </div>{{-- /page-default --}}
 
 @push('scripts')
+{{-- Datos de PHP que el JS necesita. Se inyectan aquí para mantener --}}
+{{-- agenda-create.js como JS puro, sin interpolaciones Blade.        --}}
 <script>
-(function () {
-  var paso = 1;
-  var caminoNuevo = false;
-  var ULTIMO = 6;
-
-  // ¿El paso forma parte del recorrido actual? El paso 2 (Trámite) solo si es camino nuevo.
-  function pasoAplica(n) {
-    if (n === 2) return caminoNuevo;
-    return n >= 1 && n <= ULTIMO;
-  }
-
-  // Oculta del stepper el paso Trámite cuando no aplica.
-  function ajustarStepperVisible() {
-    document.querySelectorAll('[data-opcional="tramite"]').forEach(function (s) {
-      s.style.display = caminoNuevo ? '' : 'none';
-    });
-  }
-
-  function pintarStepper(n) {
-    document.querySelectorAll('[data-step]').forEach(function (s) {
-      var d = parseInt(s.dataset.step);
-      var completo = d < n && pasoAplica(d);
-      s.classList.toggle('active', d === n);
-      s.classList.toggle('done', completo);
-      s.classList.toggle('completed', completo);
-    });
-  }
-  function mostrar(n) {
-    document.querySelectorAll('[data-panel]').forEach(function (p) {
-      p.classList.toggle('activo', parseInt(p.dataset.panel) === n);
-    });
-    pintarStepper(n);
-    paso = n;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-  window.wzNav = function (dir) {
-    if (dir > 0 && !validar(paso)) return;
-    var n = paso + dir;
-    // Saltar pasos que no aplican (ej. Trámite cuando es camino existente).
-    while (n >= 1 && n <= ULTIMO && !pasoAplica(n)) { n += dir; }
-    if (n >= 1 && n <= ULTIMO) mostrar(n);
+  window.PUNTA = {
+    apiTramitesBuscar:          "{{ route('api.tramites.buscar') }}",
+    apiTramiteDetalle:          "{{ url('api/tramites') }}",
+    apiHomoclavePrevisualizar:  "{{ url('api/homoclave/previsualizar') }}",
+    subsectoresPorSector:       @json($subsectoresPorSector ?? [])
   };
-
-  // Muestra error inline en el paso activo en lugar de alert()
-  function mostrarErrorPaso(msg) {
-    var panel = document.querySelector('.wizard-panel.active, .wizard-step-panel.active, [data-paso="' + paso + '"]');
-    var existente = document.getElementById('wzErrorMsg');
-    if (existente) existente.remove();
-    var div = document.createElement('div');
-    div.id = 'wzErrorMsg';
-    div.style.cssText = 'background:#fef2f2;border:1px solid #fca5a5;border-left:4px solid #ef4444;border-radius:8px;padding:10px 14px;margin-bottom:12px;color:#991b1b;font-size:13px;font-weight:600';
-    div.textContent = msg;
-    if (panel) panel.prepend(div);
-    else document.querySelector('.wizard-body, form').prepend(div);
-    setTimeout(function(){ if(div.parentNode) div.remove(); }, 5000);
-  }
-
-  // Limpia el error al avanzar exitosamente
-  function limpiarErrorPaso() {
-    var existente = document.getElementById('wzErrorMsg');
-    if (existente) existente.remove();
-  }
-
-  // Toggle campo áreas participantes
-  function toggleAreasDetalle(val) {
-    var wrap = document.getElementById('areasDetalleWrap');
-    if (wrap) wrap.style.display = (parseInt(val) > 1) ? '' : 'none';
-  }
-
-  function validar(n) {
-    limpiarErrorPaso();
-    if (n === 1) {
-      if (!document.getElementById('modoTramite').value) {
-        mostrarErrorPaso('Elija si el trámite ya existe o si se registrará desde cero.');
-        return false;
-      }
-    }
-    if (n === 2 && caminoNuevo) {
-      var nom = document.querySelector('[name="tramite_nombre_oficial"]');
-      var dep = document.querySelector('[name="tramite_dependencia_id"]');
-      if (!nom.value.trim()) { mostrarErrorPaso('El nombre del trámite es obligatorio.'); nom.focus(); return false; }
-      if (!dep.value) { mostrarErrorPaso('La dependencia del trámite es obligatoria.'); dep.focus(); return false; }
-    }
-    if (n === 4) {
-      var desc = document.querySelector('[name="descripcion"]');
-      if (!desc.value || desc.value.trim().length < 10) {
-        mostrarErrorPaso('El objetivo de la simplificación es obligatorio (mínimo 10 caracteres).');
-        desc.focus(); return false;
-      }
-    }
-    return true;
-  }
-
-  // ---- Camino (paso 1) ----
-  window.elegirCamino = function (cual) {
-    caminoNuevo = (cual === 'nuevo');
-    document.getElementById('modoTramite').value = cual;
-    document.getElementById('opcExistente').classList.toggle('sel', !caminoNuevo);
-    document.getElementById('opcNuevo').classList.toggle('sel', caminoNuevo);
-    document.getElementById('bloqueBuscar').style.display = caminoNuevo ? 'none' : '';
-    document.getElementById('precargaSub').textContent = caminoNuevo
-      ? 'Capture la identificación e información del trámite nuevo.'
-      : 'Estos datos se precargan del trámite seleccionado.';
-    if (caminoNuevo) limpiarTramite();
-    ajustarStepperVisible();
-  };
-
-  // ---- Alcance ----
-  window.elegirAlcance = function (el) {
-    document.querySelectorAll('[data-alcance]').forEach(function (o) { o.classList.remove('sel'); });
-    el.classList.add('sel');
-    document.getElementById('alcanceCampo').value = el.dataset.alcance;
-  };
-
-  // ---- Detalle condicional Sí/No ----
-  window.toggleDetalle = function (id, mostrarlo) {
-    var el = document.getElementById(id);
-    if (el) el.classList.toggle('visible', mostrarlo);
-  };
-
-  // ---- Búsqueda de trámite (camino A) ----
-  var timer = null;
-  var buscador = document.getElementById('buscadorTramite');
-  if (buscador) {
-    buscador.addEventListener('input', function () {
-      clearTimeout(timer);
-      var q = this.value.trim();
-      var cont = document.getElementById('resultadosTramite');
-      if (q.length < 2) { cont.innerHTML = ''; return; }
-      cont.innerHTML = '<div class="wz-buscando">Buscando...</div>';
-      timer = setTimeout(function () { buscar(q); }, 300);
-    });
-  }
-  function buscar(q) {
-    fetch('{{ route('api.tramites.buscar') }}?q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var cont = document.getElementById('resultadosTramite');
-        if (!data.resultados || !data.resultados.length) {
-          cont.innerHTML = '<div class="wz-buscando">Sin resultados.</div>';
-          return;
-        }
-        cont.innerHTML = '';
-        data.resultados.forEach(function (t) {
-          var div = document.createElement('div');
-          div.className = 'wz-result';
-          div.innerHTML = '<strong>' + t.nombre + '</strong><span>' + (t.homoclave || 'Sin folio') + ' · ' + t.dependencia + '</span>';
-          div.onclick = function () { elegirTramite(t); };
-          cont.appendChild(div);
-        });
-      })
-      .catch(function () {
-        document.getElementById('resultadosTramite').innerHTML = '<div class="wz-buscando">Error al buscar.</div>';
-      });
-  }
-  window.elegirTramite = function (t) {
-    document.getElementById('tramiteIdSel').value = t.id;
-    document.getElementById('tramiteElegidoNombre').textContent = t.nombre + ' (' + (t.homoclave || 'sin folio') + ')';
-    document.getElementById('tramiteElegido').style.display = '';
-    document.getElementById('resultadosTramite').innerHTML = '';
-    document.getElementById('buscadorTramite').value = '';
-    // Traer el detalle completo y precargar en solo-lectura.
-    precargarTramite(t.id);
-  };
-
-  function precargarTramite(id) {
-    var url = '{{ url('api/tramites') }}/' + id + '/detalle';
-    fetch(url, { headers: { 'Accept': 'application/json' } })
-      .then(function (r) {
-        if (!r.ok) { throw new Error('El servidor respondió ' + r.status + ' al pedir ' + url); }
-        return r.json();
-      })
-      .then(function (d) {
-        // Mapa: name del campo en el wizard -> valor del trámite.
-        var mapa = {
-          'tramite_nombre_oficial': d.nombre_oficial,
-          'tramite_objetivo': d.objetivo,
-          'tramite_servidor_publico': d.servidor_publico,
-          'tramite_volumen_anual': d.volumen_anual,
-          'tramite_plazo_resolucion_cantidad': d.plazo_resolucion_cantidad,
-          'tramite_plazo_resolucion_unidad': d.plazo_resolucion_unidad,
-          'tramite_nivel_digitalizacion': d.nivel_digitalizacion,
-          'tramite_visitas_requeridas': d.visitas_requeridas,
-          'tramite_fundamento': d.normativa_nombre,
-          'tramite_dirigido_a': d.dirigido_a,
-          'tramite_num_areas': d.num_areas,
-          'tramite_areas_participantes': d.areas_participantes,
-          'tramite_tiempo_traslado_horas': d.tiempo_traslado_horas,
-          'tramite_tiempo_traslado_min': d.tiempo_traslado_min,
-          'tramite_tiempo_espera_horas': d.tiempo_espera_horas,
-          'tramite_tiempo_espera_min': d.tiempo_espera_min,
-          'tramite_tiempo_atencion_horas': d.tiempo_atencion_horas,
-          'tramite_tiempo_atencion_min': d.tiempo_atencion_min,
-          'tramite_copias_cantidad': d.copias_cantidad,
-          'tramite_copias_precio': d.copias_precio,
-          'tramite_monto_derechos': d.monto_derechos,
-        };
-        Object.keys(mapa).forEach(function (name) {
-          var el = document.querySelector('[name="' + name + '"]');
-          if (el && mapa[name] != null) {
-            el.value = mapa[name];
-            el.setAttribute('readonly', 'readonly');
-            el.classList.add('u-input-readonly');
-            if (el.tagName === 'SELECT') el.setAttribute('disabled', 'disabled');
-          }
-        });
-
-        // Si el trámite tiene áreas participantes, mostrar su detalle (el
-        // oninput no se dispara al asignar el valor por JS, así que lo forzamos).
-        if (d.num_areas != null && parseInt(d.num_areas) > 0 && typeof toggleAreasDetalle === 'function') {
-          toggleAreasDetalle(d.num_areas);
-        }
-
-        // Requisitos heredados del trámite (solo lectura).
-        var cont = document.getElementById('tramiteRequisitos');
-        var lista = document.getElementById('tramiteRequisitosLista');
-        if (cont && lista) {
-          lista.innerHTML = '';
-          if (Array.isArray(d.requisitos) && d.requisitos.length > 0) {
-            d.requisitos.forEach(function (req) {
-              var li = document.createElement('li');
-              var nombre = document.createElement('strong');
-              nombre.textContent = req.nombre || 'Requisito';
-              li.appendChild(nombre);
-              if (req.tipo_presentacion) {
-                var tag = document.createElement('span');
-                tag.className = 'requisito-detalle';
-                tag.textContent = req.tipo_presentacion.charAt(0).toUpperCase() + req.tipo_presentacion.slice(1);
-                li.appendChild(tag);
-              }
-              lista.appendChild(li);
-            });
-            cont.style.display = '';
-          } else {
-            cont.style.display = 'none';
-          }
-        }
-
-        // Costo burocrático heredado del trámite (solo lectura).
-        var costoWrap = document.getElementById('costoHeredado');
-        if (costoWrap && d.costo) {
-          var calc = document.getElementById('costoHeredadoCalculado');
-          var sinCalc = document.getElementById('costoHeredadoSinCalcular');
-          if (d.costo.calculado) {
-            var fmt = function (n) {
-              var v = parseFloat(n || 0);
-              return '$' + v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            };
-            document.getElementById('chCbd').textContent = fmt(d.costo.cbd_directo);
-            document.getElementById('chCbi').textContent = fmt(d.costo.cbi_indirecto);
-            document.getElementById('chCbu').textContent = fmt(d.costo.cbu_unitario);
-            document.getElementById('chCbt').textContent = fmt(d.costo.cbt_total);
-            var cat = (d.costo.categoria || '').charAt(0).toUpperCase() + (d.costo.categoria || '').slice(1);
-            document.getElementById('chCat').textContent = cat || '—';
-            if (calc) calc.style.display = '';
-            if (sinCalc) sinCalc.style.display = 'none';
-          } else {
-            if (calc) calc.style.display = 'none';
-            if (sinCalc) sinCalc.style.display = '';
-          }
-          costoWrap.style.display = '';
-        }
-      })
-      .catch(function (err) {
-        console.error('Error al precargar trámite:', err);
-        mostrarErrorPaso('No se pudo precargar el trámite: ' + err.message);
-      });
-  }
-
-  // Marca un select mostrando el texto recibido (cuando no tenemos el id).
-  window.limpiarTramite = function () {
-    document.getElementById('tramiteIdSel').value = '';
-    var el = document.getElementById('tramiteElegido');
-    if (el) el.style.display = 'none';
-    var req = document.getElementById('tramiteRequisitos');
-    if (req) req.style.display = 'none';
-    var costo = document.getElementById('costoHeredado');
-    if (costo) costo.style.display = 'none';
-    // Revertir solo-lectura de los campos del trámite.
-    document.querySelectorAll('[name^="tramite_"]').forEach(function (campo) {
-      campo.removeAttribute('readonly');
-      campo.removeAttribute('disabled');
-      campo.classList.remove('u-input-readonly');
-    });
-  };
-
-  // ---- Requisitos dinámicos (paso 5) ----
-  var reqIdx = 0;
-  window.addReq = function () {
-    var i = reqIdx++;
-    var art = document.createElement('article');
-    art.className = 'requirement-card';
-    art.style.marginBottom = '8px';
-    art.innerHTML =
-      '<div class="wizard-fields">' +
-        '<div class="field span-2"><label>Nombre del requisito</label><input name="requisitos[' + i + '][nombre]" placeholder="Ej. Identificación oficial"></div>' +
-        '<div class="field"><label>¿Original?</label><select name="requisitos[' + i + '][original]"><option value="1">Sí</option><option value="0" selected>No</option></select></div>' +
-        '<div class="field"><label>¿Copia?</label><select name="requisitos[' + i + '][copia]"><option value="1">Sí</option><option value="0" selected>No</option></select></div>' +
-        '<div class="field span-2"><label>Tiempo de recolección del requisito</label>' +
-          '<div style="display:flex; gap:6px">' +
-            '<div style="flex:1"><label class="split-label">Días háb.</label><input name="requisitos[' + i + '][dias]" type="number" min="0" max="365" value="0"></div>' +
-            '<div style="flex:1"><label class="split-label">Horas</label><input name="requisitos[' + i + '][horas]" type="number" min="0" max="7" value="0"></div>' +
-            '<div style="flex:1"><label class="split-label">Minutos</label><input name="requisitos[' + i + '][minutos]" type="number" min="0" max="59" value="0"></div>' +
-          '</div>' +
-        '</div>' +
-      '</div>';
-    document.getElementById('reqLista').appendChild(art);
-  };
-
-  // ---- Guardar ----
-  window.guardar = function (modo) {
-    document.getElementById('accionCampo').value = modo;
-    var alc = document.getElementById('alcanceCampo').value;
-    if (!document.querySelector('[name="tipo"]')) {
-      var h = document.createElement('input');
-      h.type = 'hidden'; h.name = 'tipo';
-      h.value = (alc === 'digitalizacion') ? 'digitalizacion' : 'simplificacion';
-      document.getElementById('wzForm').appendChild(h);
-    }
-    document.getElementById('wzForm').submit();
-  };
-
-  // ---- Pago de derechos: lista dinámica (alimenta el costo burocrático) ----
-  var _derechos = [];
-  function renderDerechos() {
-    var cont = document.getElementById('derechosLista');
-    if (!cont) return;
-    cont.innerHTML = '';
-    if (_derechos.length === 0) {
-      cont.innerHTML = '<p class="u-muted" style="font-size:13px">Sin conceptos de derechos. Si el trámite no cobra derechos, déjalo vacío.</p>';
-    }
-    _derechos.forEach(function (d, i) {
-      var fila = document.createElement('div');
-      fila.className = 'derecho-fila';
-      fila.style.cssText = 'display:flex; gap:8px; margin-bottom:6px;';
-      fila.innerHTML =
-        '<input type="text" placeholder="Concepto (ej. Derecho de inspección)" value="' + (d.concepto || '').replace(/"/g, '&quot;') + '" oninput="setDerecho(' + i + ', \'concepto\', this.value)" style="flex:2">' +
-        '<input type="number" min="0" step="0.01" placeholder="0.00" value="' + (d.monto || 0) + '" oninput="setDerecho(' + i + ', \'monto\', this.value)" style="flex:1">' +
-        '<button type="button" class="btn btn-outline btn-sm" onclick="quitarDerecho(' + i + ')">Quitar</button>';
-      cont.appendChild(fila);
-    });
-    sincronizarDerechos();
-  }
-  function sincronizarDerechos() {
-    var total = _derechos.reduce(function (s, d) { return s + (parseFloat(d.monto) || 0); }, 0);
-    document.getElementById('derechosTotal').textContent = '$' + total.toFixed(2) + ' MXN';
-    document.getElementById('derechosJson').value = JSON.stringify(_derechos);
-  }
-  window.agregarDerecho = function () { _derechos.push({ concepto: '', monto: 0 }); renderDerechos(); };
-  window.quitarDerecho = function (i) { _derechos.splice(i, 1); renderDerechos(); };
-  window.setDerecho = function (i, campo, valor) {
-    if (_derechos[i]) {
-      _derechos[i][campo] = campo === 'monto' ? (parseFloat(valor) || 0) : valor;
-      sincronizarDerechos();
-    }
-  };
-  renderDerechos();
-
-  // ---- Subsector dependiente del sector ----
-  var SUBSECTORES = @json($subsectoresPorSector ?? []);
-  window.cargarSubsectores = function () {
-    var sectorId = document.getElementById('selSector').value;
-    var sel = document.getElementById('selSubsector');
-    sel.innerHTML = '';
-    var lista = SUBSECTORES[sectorId] || [];
-    if (!sectorId || lista.length === 0) {
-      sel.innerHTML = '<option value="">' + (sectorId ? 'Sin subsectores para este sector' : 'Primero elija un sector') + '</option>';
-      sel.disabled = true;
-      return;
-    }
-    sel.disabled = false;
-    sel.innerHTML = '<option value="">Seleccione</option>';
-    lista.forEach(function (s) {
-      var op = document.createElement('option');
-      op.value = s.id; op.textContent = s.nombre;
-      sel.appendChild(op);
-    });
-  };
-
-  // ---- Previsualización de homoclave (se genera de dependencia + unidad) ----
-  (function previsualizarHomoclave() {
-    var depInput  = document.querySelector('[name="tramite_dependencia_id"]');
-    var unidadEl  = document.querySelector('[name="tramite_unidad_id"]');
-    var homoclave = document.getElementById('homoclaveAgenda');
-    if (!depInput || !unidadEl || !homoclave) return;
-    function actualizar() {
-      var depId = depInput.value, uniId = unidadEl.value;
-      if (!depId || !uniId) { homoclave.value = ''; return; }
-      fetch('{{ url('api/homoclave/previsualizar') }}?dependencia_id=' + depId + '&unidad_id=' + uniId, {
-        headers: { 'Accept': 'application/json' }
-      })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (data) { if (data && data.homoclave) homoclave.value = data.homoclave; })
-        .catch(function () { /* si falla, el backend la genera al guardar */ });
-    }
-    unidadEl.addEventListener('change', actualizar);
-    actualizar();
-  })();
-
-  ajustarStepperVisible();
-  mostrar(1);
-})();
 </script>
+<script src="{{ asset('js/agenda-create.js') }}?v={{ filemtime(public_path('js/agenda-create.js')) }}"></script>
 @endpush
 @endsection

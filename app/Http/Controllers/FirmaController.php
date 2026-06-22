@@ -33,7 +33,8 @@ class FirmaController extends Controller
 
         $tramitesFirmables = Tramite::with('dependencia', 'firmas')
             ->whereIn('estatus', [Tramite::ESTATUS_EN_FIRMA])
-            ->when($user->isRol(User::ROL_ENLACE), fn ($q) => $q->where('created_by', $user->id))
+            ->when(!$user->veTodoElModulo('tramites'),
+                fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
             ->orderBy('estatus')
             ->latest()
             ->get();
@@ -66,6 +67,16 @@ class FirmaController extends Controller
 
         if (!$this->usuarioPuedeFirmar($user, $request->tipo_firma)) {
             return back()->with('error', 'No tiene permiso para registrar este tipo de firma.');
+        }
+
+        // Las aceptaciones de sujeto y enlace son locales: solo las firma quien
+        // pertenece a la dependencia del registro. Las aprobaciones de revisora
+        // y jurídico son transversales, así que no se restringen por dependencia.
+        $firmasLocales = [Firma::TIPO_ACEPTACION_SUJETO, Firma::TIPO_ACEPTACION_ENLACE];
+        if (in_array($request->tipo_firma, $firmasLocales, true)
+            && !$user->isRol(User::ROL_ADMIN)
+            && !$user->esDeSuDependencia($modelo)) {
+            return back()->with('error', 'Solo puede firmar registros de su propia dependencia.');
         }
 
         // Para trámites: solo se puede firmar en etapa de firma
@@ -150,6 +161,10 @@ class FirmaController extends Controller
         $request->validate([
             'motivo' => 'required|string|min:10|max:1000',
         ]);
+
+        if (!$this->usuarioPuedeFirmar($request->user(), $firma->tipo)) {
+            return back()->with('error', 'No tiene permiso para revocar este tipo de firma.');
+        }
 
         $this->firmaService->revocar($firma, $request->user(), $request->motivo);
 

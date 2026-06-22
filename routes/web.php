@@ -44,7 +44,15 @@ Route::middleware(['auth'])->group(function () {
     // Agenda SyD
     Route::resource('agenda', AgendaController::class);
     Route::post('agenda/{agenda}/estatus', [AgendaController::class, 'actualizarEstatus'])->name('agenda.actualizar.estatus');
-    Route::post('agenda/{agenda}/hito/{hito}', [AgendaController::class, 'marcarHito'])->name('agenda.hito.marcar');
+    Route::post('agenda/{agenda}/hito/{hito}/evidencia', [AgendaController::class, 'subirEvidenciaHito'])->name('agenda.hito.evidencia');
+    Route::get('agenda/{agenda}/hito/{hito}/evidencia',  [AgendaController::class, 'descargarEvidenciaHito'])->name('agenda.hito.evidencia.descargar');
+    Route::post('agenda/{agenda}/hito/{hito}/aprobar',   [AgendaController::class, 'aprobarHito'])->name('agenda.hito.aprobar');
+    Route::post('agenda/{agenda}/hito/{hito}/rechazar',  [AgendaController::class, 'rechazarHito'])->name('agenda.hito.rechazar');
+
+    // Exportación Excel de la Agenda SyD (instrumento oficial ATDT).
+    // Disponibles solo para revisora y admin. La vista oculta los botones a otros roles.
+    Route::get('agenda-exportar/simplificacion', [AgendaController::class, 'exportarSimp'])->name('agenda.exportar.simp');
+    Route::get('agenda-exportar/digitalizacion', [AgendaController::class, 'exportarDig'])->name('agenda.exportar.dig');
 
     // Agenda Regulatoria
     Route::get('agenda-regulatoria', [AgendaRegulatoriaController::class, 'index'])->name('agenda-regulatoria.index');
@@ -54,6 +62,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('agenda-regulatoria/propuestas/{propuesta}/edit', [AgendaRegulatoriaController::class, 'edit'])->name('propuestas.edit');
     Route::put('agenda-regulatoria/propuestas/{propuesta}',      [AgendaRegulatoriaController::class, 'update'])->name('propuestas.update');
     Route::delete('agenda-regulatoria/propuestas/{propuesta}',   [AgendaRegulatoriaController::class, 'destroy'])->name('propuestas.destroy');
+    // #7: citas de impacto (trámites que la propuesta modifica)
+    Route::post('agenda-regulatoria/propuestas/{propuesta}/impacto',                       [AgendaRegulatoriaController::class, 'agregarImpacto'])->name('propuestas.impacto.agregar');
+    Route::delete('agenda-regulatoria/propuestas/{propuesta}/impacto/{impacto}',           [AgendaRegulatoriaController::class, 'quitarImpacto'])->name('propuestas.impacto.quitar');
 
     // Regulaciones (catálogo jurídico)
     Route::get('regulaciones',                          [RegulacionController::class, 'index'])->name('regulaciones.index');
@@ -109,6 +120,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Historial (bitácora) de un registro específico
     Route::get('historial/{tipo}/{id}', [HistorialController::class, 'index'])->name('historial.registro');
+    Route::get('historial/{tipo}/{id}/json', [HistorialController::class, 'json'])->name('historial.json');
 
     // ─── Dashboard filtros inline — Fase H.2 ────────────────────
     Route::get('api/dashboard/filtrar', [DashboardController::class, 'filtrar'])->name('dashboard.filtrar');

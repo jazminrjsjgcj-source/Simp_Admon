@@ -15,9 +15,6 @@
     </div>
   </div>
 
-  @if(session('success'))
-    <div class="toast toast-success">{{ session('success') }}</div>
-  @endif
 
   <div class="assist-box">
     Estos tipos aparecen en los selects de <strong>Propuestas regulatorias</strong> y <strong>Regulaciones</strong>.

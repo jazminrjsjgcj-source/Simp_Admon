@@ -13,7 +13,17 @@ use Illuminate\Database\Eloquent\Model;
 class TipoTramite extends Model
 {
     protected $table   = 'tipos_tramite';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * Reconstruido desde la migración create_tipos_catalogs.
+     */
+    protected $fillable = [
+        'nombre',
+        'descripcion',
+        'activo',
+        'orden',
+    ];
 
     protected $casts = ['activo' => 'boolean'];
 

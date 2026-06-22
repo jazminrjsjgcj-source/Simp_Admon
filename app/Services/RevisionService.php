@@ -8,9 +8,6 @@ use App\Models\PropuestaRegulatoria;
 use App\Models\Tramite;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Str;
 
 /**
@@ -25,6 +22,10 @@ class RevisionService
     public const TIPO_TRAMITE              = 'tramite';
     public const TIPO_AGENDA               = 'agenda';
     public const TIPO_PROPUESTA_REGULATORIA = 'propuesta_regulatoria';
+
+    public function __construct(
+        private BitacoraService $bitacora,
+    ) {}
 
     /**
      * Registra una observación sobre una sección específica del registro,
@@ -49,24 +50,17 @@ class RevisionService
         ]);
 
         // Registrar la observación en la bitácora del REGISTRO PADRE (trámite/agenda/etc.)
-        // El AuditObserver solo escucha modelos Eloquent directos. Como Observacion
-        // es un modelo polimórfico secundario, hay que insertar manualmente en bitácora
-        // apuntando al padre, para que aparezca en su timeline.
-        try {
-            DB::table('bitacora')->insert([
-                'auditable_type' => get_class($registro),
-                'auditable_id'   => $registro->id,
-                'usuario_id'     => $revisor->id,
-                'modulo'         => 'revision',
-                'tipo'           => 'observacion',
-                'accion'         => 'Observación en "' . $seccion . '": ' . Str::limit($texto, 80),
-                'detalle'        => $campo ? 'Campo: ' . $campo : null,
-                'ip_address'     => Request::ip(),
-                'created_at'     => now(),
-            ]);
-        } catch (\Exception $e) {
-            Log::error('RevisionService bitácora error: ' . $e->getMessage());
-        }
+        // para que aparezca en su timeline. Observacion es un modelo polimórfico
+        // secundario que el AuditObserver no escucha, de ahí el registro manual
+        // centralizado en BitacoraService.
+        $this->bitacora->registrar(
+            $registro,
+            'revision',
+            'observacion',
+            'Observación en "' . $seccion . '": ' . Str::limit($texto, 80),
+            $campo ? 'Campo: ' . $campo : null,
+            $revisor->id
+        );
 
         return $observacion;
     }

@@ -65,7 +65,7 @@
           <td>{{ $t->homoclave ?? 'Sin folio' }}</td>
           <td><strong>{{ $t->nombre_oficial }}</strong><br><small>{{ $t->updated_at->format('d/m/Y') }}</small></td>
           <td>{{ $t->dependencia->nombre ?? '—' }}</td>
-          <td><span class="badge {{ match($t->estatus) { 'completado','en_firma'=>'success-b', 'en_correccion'=>'warning-b', default=>'' } }}">@estatus($t->estatus)</span></td>
+          <td><x-badge-estatus :estatus="$t->estatus" /></td>
           <td>{{ $t->cbu_unitario ? '$'.number_format($t->cbu_unitario,2) : '—' }}</td>
           <td>
             @switch($t->impacto)

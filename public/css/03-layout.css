@@ -62,7 +62,7 @@
   justify-items: stretch;
   border: 1px solid rgba(255,255,255,.42);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   padding: 30px 28px;
   box-shadow: 0 30px 80px rgba(52,0,30,.28);
 }
@@ -188,7 +188,7 @@
 .login-error {
   min-height: 19px;
   margin: 0;
-  color: #b42318;
+  color: var(--chip-red);
   font-size: 13px;
   font-weight: 700;
 }
@@ -223,7 +223,7 @@
 .app { display: flex; min-height: 100vh; width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; }
 .sidebar { width: 248px; flex: 0 0 248px; position: fixed; inset: 0 auto 0 0; z-index: 30; background: var(--sidebar); color: white; display: flex; flex-direction: column; padding: 20px 10px; box-shadow: var(--shadow); }
 .brand { text-align: center; padding: 0 12px 20px; }
-.brand-logo { width: 78px; height: 78px; margin: 0 auto 12px; border-radius: var(--radius-pill); background: #fff; color: var(--primary-container); display: grid; place-items: center; font-size: 38px; font-weight: 800; box-shadow: 0 12px 30px rgba(0,0,0,.12); }
+.brand-logo { width: 78px; height: 78px; margin: 0 auto 12px; border-radius: var(--radius-pill); background: var(--surface); color: var(--primary-container); display: grid; place-items: center; font-size: 38px; font-weight: 800; box-shadow: 0 12px 30px rgba(0,0,0,.12); }
 .brand h1 { margin: 0; font-size: 22px; font-weight: 800; }
 .brand p { margin: 4px 0 0; color: rgba(255,255,255,.78); font-size: 12px; }
 .nav { display: flex; flex-direction: column; gap: 6px; padding: 0 8px; flex: 1; overflow-y: auto; }
@@ -237,11 +237,11 @@
 .profile span { display: block; color: rgba(255,255,255,.68); font-size: 10px; }
 
 .main { margin-left: 248px; width: calc(100% - 248px); max-width: calc(100% - 248px); min-width: 0; min-height: 100vh; overflow-x: hidden; }
-.topbar { min-height: 64px; position: sticky; top: 0; z-index: 20; background: #fff; border-bottom: 1px solid var(--surface-high); display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 0 clamp(18px, 2.4vw, 34px); box-shadow: 0 1px 4px rgba(34,34,34,.04); min-width: 0; max-width: 100%; }
+.topbar { min-height: 64px; position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--surface-high); display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 0 clamp(18px, 2.4vw, 34px); box-shadow: 0 1px 4px rgba(34,34,34,.04); min-width: 0; max-width: 100%; }
 .topbar-spacer { flex: 1 1 auto; min-width: 0; }
 .period { display: inline-flex; align-items: center; gap: 9px; background: white; border: 1px solid #e1d5dc; color: #374151; border-radius: var(--radius); min-height: 34px; padding: 5px 8px 5px 10px; font-size: 11px; font-weight: 800; box-shadow: 0 1px 2px rgba(34,34,34,.04); max-width: 100%; min-width: 0; }
 .period b { background: var(--primary-container); color: white; border-radius: var(--radius-sm); padding: 5px 9px; line-height: 12px; }
-.role-pill { width: clamp(168px, 16vw, 230px); min-width: 0; border: 1px solid rgba(117,0,56,.18); color: var(--primary); background: #fff; border-radius: var(--radius-pill); padding: 9px 12px; font-size: 11px; font-weight: 800; text-align: center; }
+.role-pill { width: clamp(168px, 16vw, 230px); min-width: 0; border: 1px solid rgba(117,0,56,.18); color: var(--primary); background: var(--surface); border-radius: var(--radius-pill); padding: 9px 12px; font-size: 11px; font-weight: 800; text-align: center; }
 .top-actions { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .icon-btn { width: 34px; height: 34px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--primary); position: relative; }
 .icon-btn:hover { background: var(--surface-low); }
@@ -253,6 +253,6 @@
 .screen-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; min-width: 0; max-width: 100%; }
 .screen-head > div { min-width: 0; max-width: 100%; }
 .screen-head h2 { margin: 0 0 4px; max-width: 100%; color: var(--text); font-size: 26px; line-height: 34px; font-weight: 800; overflow-wrap: anywhere; }
-.screen-head p { margin: 0; max-width: 100%; color: #475467; font-size: 14px; line-height: 22px; font-weight: 500; overflow-wrap: anywhere; }
+.screen-head p { margin: 0; max-width: 100%; color: var(--chip-gray); font-size: 14px; line-height: 22px; font-weight: 500; overflow-wrap: anywhere; }
 .head-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: flex-end; min-width: 0; max-width: 100%; }
 .head-actions > .btn { flex: 0 1 auto; }

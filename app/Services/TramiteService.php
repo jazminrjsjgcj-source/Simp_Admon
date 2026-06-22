@@ -51,11 +51,12 @@ class TramiteService
             $fundamentoManual = [
                 'normativa_nombre' => $datos['fundamento_normativa'] ?? $datos['normativa_nombre'] ?? null,
                 'tipo_normativa'   => $datos['fundamento_tipo'] ?? $datos['tipo_normativa'] ?? null,
+                'articulo_fraccion'=> $datos['fundamento_articulo'] ?? $datos['articulo_fraccion'] ?? null,
                 'resumen'          => $datos['fundamento_resumen'] ?? $datos['resumen'] ?? null,
             ];
             unset($datos['citas'], $datos['regulacion_id'], $datos['articulo_fraccion'],
                   $datos['fundamento_normativa'], $datos['fundamento_tipo'],
-                  $datos['fundamento_resumen']);
+                  $datos['fundamento_articulo'], $datos['fundamento_resumen']);
 
             // El total de derechos alimenta monto_derechos (entra al costo).
             // Convierte los derechos en UMA a pesos antes de sumar.
@@ -79,6 +80,69 @@ class TramiteService
 
             // Generar homoclave si hay dependencia y unidad administrativa.
             if (empty($tramite->homoclave) && $tramite->dependencia_id && $tramite->unidad_id) {
+                $tramite->update(['homoclave' => $tramite->generarHomoclave()]);
+            }
+
+            // Recalcular el costo burocrático con los requisitos ya guardados.
+            $this->costoService->recalcularYGuardar($tramite->fresh('requisitos'));
+
+            return $tramite;
+        });
+    }
+
+    /**
+     * Actualiza un trámite existente. Es el espejo de crear(): recibe los datos
+     * ya extraídos del request y hace TODO el trabajo de guardado dentro de una
+     * sola transacción, reutilizando los mismos helpers de sincronización. Antes
+     * esta lógica vivía a mano en TramiteController::update(), sin transacción y
+     * con una copia divergente de la sincronización (origen del bug C1). Al
+     * unificarla aquí, alta y edición guardan exactamente igual.
+     */
+    public function actualizar(
+        Tramite $tramite,
+        array $datos,
+        array $derechos = [],
+        array $requisitos = [],
+        array $fichaPortal = [],
+        array $procesos = [],
+    ): Tramite {
+        return DB::transaction(function () use ($tramite, $datos, $derechos, $requisitos, $fichaPortal, $procesos) {
+
+            // Separar el fundamento jurídico igual que en crear(): no son
+            // columnas de `tramites`, van a la tabla fundamento_juridico.
+            $citas = $datos['citas'] ?? [];
+            $fundamentoManual = [
+                'normativa_nombre' => $datos['fundamento_normativa'] ?? $datos['normativa_nombre'] ?? null,
+                'tipo_normativa'   => $datos['fundamento_tipo'] ?? $datos['tipo_normativa'] ?? null,
+                'articulo_fraccion'=> $datos['fundamento_articulo'] ?? $datos['articulo_fraccion'] ?? null,
+                'resumen'          => $datos['fundamento_resumen'] ?? $datos['resumen'] ?? null,
+            ];
+            unset($datos['citas'], $datos['regulacion_id'], $datos['articulo_fraccion'],
+                  $datos['fundamento_normativa'], $datos['fundamento_tipo'],
+                  $datos['fundamento_articulo'], $datos['fundamento_resumen']);
+
+            // El total de derechos es la fuente única de monto_derechos.
+            $datos['monto_derechos'] = \App\Models\TramiteDerecho::totalEnPesos($derechos);
+
+            // Si el enlace edita un trámite que está en periodo de observación,
+            // al guardar pasa a corrección para indicar que ya empezó a atender.
+            if ($tramite->estatus === Tramite::ESTATUS_EN_OBSERVACION) {
+                $datos['estatus'] = Tramite::ESTATUS_EN_CORRECCION;
+            }
+
+            // Recalcular el costo a partir del estado actual + los datos nuevos.
+            $datos = array_merge($datos, Tramite::calcularCostoDesde(array_merge($tramite->toArray(), $datos)));
+
+            $tramite->update($datos);
+
+            $this->sincronizarDerechos($tramite, $derechos);
+            $this->sincronizarRequisitos($tramite, $requisitos);
+            $this->sincronizarFichaPortal($tramite, $fichaPortal);
+            $this->sincronizarProcesos($tramite, $procesos);
+            $this->sincronizarFundamento($tramite, $citas, $fundamentoManual);
+
+            // Regenerar homoclave si está vacía y ya hay dependencia y unidad.
+            if (empty($tramite->fresh()->homoclave) && $tramite->dependencia_id && $tramite->unidad_id) {
                 $tramite->update(['homoclave' => $tramite->generarHomoclave()]);
             }
 
@@ -131,9 +195,10 @@ class TramiteService
     {
         $citas  = $datos['citas'] ?? [];
         $manual = [
-            'normativa_nombre' => $datos['fundamento_normativa'] ?? null,
-            'tipo_normativa'   => $datos['fundamento_tipo']      ?? null,
-            'resumen'          => $datos['fundamento_resumen']   ?? null,
+            'normativa_nombre'  => $datos['fundamento_normativa'] ?? null,
+            'tipo_normativa'    => $datos['fundamento_tipo']      ?? null,
+            'articulo_fraccion' => $datos['fundamento_articulo']  ?? null,
+            'resumen'           => $datos['fundamento_resumen']   ?? null,
         ];
         $this->sincronizarFundamento($tramite, $citas, $manual);
     }
@@ -160,10 +225,11 @@ class TramiteService
         // Norma capturada a mano (si se llenó).
         $normativa = trim($manual['normativa_nombre'] ?? '');
         $resumen   = trim($manual['resumen'] ?? '');
-        if ($normativa !== '' || $resumen !== '') {
+        $articulo  = trim($manual['articulo_fraccion'] ?? '');
+        if ($normativa !== '' || $resumen !== '' || $articulo !== '') {
             $registros[] = [
                 'regulacion_id'     => null,
-                'articulo_fraccion' => null,
+                'articulo_fraccion' => $articulo ?: null,
                 'normativa_nombre'  => $normativa ?: null,
                 'tipo_normativa'    => trim($manual['tipo_normativa'] ?? '') ?: null,
                 'resumen'           => $resumen ?: null,
@@ -181,7 +247,15 @@ class TramiteService
         }
     }
 
-    private function sincronizarRequisitos(Tramite $tramite, array $enviados): void
+    /**
+     * Sincroniza los requisitos del trámite (crea, actualiza y elimina) e
+     * incluye las regulaciones citadas en cada requisito. Público para que el
+     * update() del controlador lo reutilice sin duplicar, igual que ya se hace
+     * con sincronizarProcesos y sincronizarFundamentoPublico. Antes existía una
+     * copia en el controlador que NO guardaba las citas, así que al editar se
+     * perdían (bug C1); al unificar aquí, alta y edición guardan lo mismo.
+     */
+    public function sincronizarRequisitos(Tramite $tramite, array $enviados): void
     {
         $existentes   = $tramite->requisitos->pluck('id')->toArray();
         $actualizados = [];
@@ -191,6 +265,14 @@ class TramiteService
                 continue;
             }
 
+            // Ítem E: captura del costo del requisito. El formulario manda un
+            // modo: 'sin' (sin costo), 'fijo' (monto conocido) o 'variable'
+            // (costo de mercado no cuantificable, ej. plano arquitectónico).
+            $modoCosto    = $req['costo_modo'] ?? 'sin';
+            $tieneCosto   = in_array($modoCosto, ['fijo', 'variable'], true);
+            $costoVariable = ($modoCosto === 'variable');
+            $montoFijo    = ($modoCosto === 'fijo') ? floatval($req['costo_monto'] ?? 0) : 0;
+
             $datos = [
                 'orden'             => $i + 1,
                 'nombre'            => $req['nombre'],
@@ -199,6 +281,9 @@ class TramiteService
                 'dias_estimados'    => $req['dias']    ?? 0,
                 'horas_estimadas'   => $req['horas']   ?? 0,
                 'minutos_estimados' => $req['minutos'] ?? 0,
+                'tiene_costo'       => $tieneCosto,
+                'costo_variable'    => $costoVariable,
+                'costo_requisito'   => $montoFijo,
                 'observaciones'     => $req['observaciones'] ?? null,
                 'fj_norma'          => $req['fj_norma']    ?? null,
                 'fj_capitulo'       => $req['fj_capitulo'] ?? null,
@@ -231,6 +316,15 @@ class TramiteService
      */
     private function sincronizarRegulacionesRequisito(int $requisitoId, array $citas): void
     {
+        // Defensa: si el formulario no envía citas para este requisito, NO se
+        // tocan las existentes (evita borrarlas al editar mientras la UI de
+        // citas por requisito no está cableada). Cuando esa UI exista y mande
+        // un arreglo explícito, conviene cambiar esto por una bandera de
+        // "el formulario gestiona citas".
+        if (empty($citas)) {
+            return;
+        }
+
         \App\Models\RequisitoRegulacion::where('requisito_id', $requisitoId)->delete();
         foreach ($citas as $cita) {
             $regId = $cita['regulacion_id'] ?? null;

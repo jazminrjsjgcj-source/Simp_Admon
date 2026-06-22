@@ -18,7 +18,36 @@ use Illuminate\Database\Eloquent\Model;
 class Firma extends Model
 {
     protected $table   = 'firmas';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * Incluye los campos preparados para FIEL futura (certificado_*,
+     * metadata_firmante, firmante_rfc) que hoy se llenan en blanco o con el
+     * hash. Reconstruido desde las migraciones de firmas.
+     */
+    protected $fillable = [
+        'firmable_type',
+        'firmable_id',
+        'tipo',
+        'firmante_id',
+        'fecha',
+        'hash_acuse',
+        'firmante_nombre',
+        'firmante_cargo',
+        'firmante_email',
+        'firmante_rfc',
+        'ip_origen',
+        'user_agent',
+        'cadena_original',
+        'observaciones',
+        'certificado_emisor',
+        'certificado_serie',
+        'metadata_firmante',
+        'estatus',
+        'revocada_en',
+        'revocada_por',
+        'motivo_revocacion',
+    ];
 
     /**
      * Tipos de firma soportados.

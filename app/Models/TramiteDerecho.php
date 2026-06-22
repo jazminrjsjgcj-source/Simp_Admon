@@ -13,8 +13,24 @@ use App\Models\UnidadValorReferencia;
  */
 class TramiteDerecho extends Model
 {
-    protected $guarded = ['id'];
     protected $table   = 'tramite_derechos';
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps). 'unidad' y
+     * 'es_variable' las agrega la migración add_unidad_es_variable (bug #B4);
+     * las fj_* vienen de add_fundamento. Reconstruido desde las migraciones
+     * de tramite_derechos.
+     */
+    protected $fillable = [
+        'tramite_id',
+        'concepto',
+        'monto',
+        'unidad',
+        'es_variable',
+        'fj_norma',
+        'fj_capitulo',
+        'fj_articulo',
+    ];
 
     protected $casts = [
         'monto'       => 'decimal:2',

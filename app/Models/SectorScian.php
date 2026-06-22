@@ -17,7 +17,15 @@ use Illuminate\Database\Eloquent\Model;
 class SectorScian extends Model
 {
     protected $table    = 'sectores_scian';
-    protected $guarded  = ['id'];
+
+    /**
+     * Columnas asignables en masa. Esta tabla no usa timestamps
+     * ($timestamps = false). Reconstruido desde create_tramites_tables.
+     */
+    protected $fillable = [
+        'codigo',
+        'nombre',
+    ];
     public    $timestamps = false;
 
     public function subsectores()

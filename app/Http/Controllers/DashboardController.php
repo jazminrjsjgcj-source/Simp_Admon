@@ -68,10 +68,10 @@ class DashboardController extends Controller
 
         $kpis = match($rol) {
             'enlace' => [
-                ['value' => Tramite::where('created_by', $user->id)->count(),                               'label' => 'Mis trámites'],
-                ['value' => PropuestaRegulatoria::where('created_by', $user->id)->count(),                  'label' => 'Propuestas regulatorias'],
-                ['value' => AccionAgenda::where('created_by', $user->id)->count(),                          'label' => 'Acciones de agenda'],
-                ['value' => Tramite::where('created_by', $user->id)->where('estatus','en_correccion')->count(), 'label' => 'Observaciones pendientes'],
+                ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->count(),                               'label' => 'Trámites de mi dependencia'],
+                ['value' => PropuestaRegulatoria::where('dependencia_id', $user->dependencia_id)->count(),                  'label' => 'Propuestas regulatorias'],
+                ['value' => AccionAgenda::where('dependencia_id', $user->dependencia_id)->count(),                          'label' => 'Acciones de agenda'],
+                ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->where('estatus','en_correccion')->count(), 'label' => 'Observaciones pendientes'],
             ],
             'admin' => [
                 ['value' => DB::table('users')->count(),    'label' => 'Usuarios'],
@@ -118,13 +118,16 @@ class DashboardController extends Controller
         $pendientesAir      = collect();
 
         if (in_array($rol, User::ROLES_TODOS)) {
-            $filtrarPorUsuario = ($rol === User::ROL_ENLACE);
+            // admin y revisora ven todo; el resto (enlace, jurídico, sujeto) solo su dependencia.
+            $veTodoPend  = $user->isAnyRol([User::ROL_ADMIN, User::ROL_REVISORA]);
+            $filtrarDep  = !$veTodoPend && $user->dependencia_id;
+            $depUsuario  = $user->dependencia_id;
 
-            $pendientesTramites = Tramite::when($filtrarPorUsuario, fn ($q) => $q->where('created_by', $user->id))
+            $pendientesTramites = Tramite::when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
                 ->whereIn('estatus', ['en_correccion','en_observacion','borrador'])->latest()->take(5)->get();
-            $pendientesAgenda = AccionAgenda::when($filtrarPorUsuario, fn ($q) => $q->where('created_by', $user->id))
+            $pendientesAgenda = AccionAgenda::when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
                 ->whereIn('estatus', ['en_correccion','en_observacion','borrador'])->latest()->take(5)->get();
-            $pendientesPropu = PropuestaRegulatoria::when($filtrarPorUsuario, fn ($q) => $q->where('created_by', $user->id))
+            $pendientesPropu = PropuestaRegulatoria::when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
                 ->whereIn('estatus', ['en_correccion','en_observacion','borrador'])->latest()->take(5)->get();
         }
 
@@ -188,7 +191,73 @@ class DashboardController extends Controller
             }
         }
 
-        return view('screens.dashboard', compact('rol','kpis','kpiRoutes','kpiTipos','pendientesTramites','pendientesAgenda','pendientesPropu','pendientesAir','panorama','sistemaTotales','pendientesFirma'));
+        // Actividad general del sistema: timeline público de transparencia.
+        // Todos ven TODO (sin filtro de dependencia). Es distinto de la campana
+        // de notificaciones (que es personal y filtrada). Aquí se muestra lo que
+        // está pasando en general: qué se creó, aprobó, observó, firmó, etc.
+        $actividadGeneral = $this->cargarActividadGeneral();
+
+        return view('screens.dashboard', compact('rol','kpis','kpiRoutes','kpiTipos','pendientesTramites','pendientesAgenda','pendientesPropu','pendientesAir','panorama','sistemaTotales','pendientesFirma','actividadGeneral'));
+    }
+
+    /**
+     * Actividad general del sistema para el apartado de transparencia del
+     * dashboard. Lee la bitácora y devuelve los últimos eventos significativos,
+     * visibles para TODOS los roles sin filtro de dependencia.
+     *
+     * Se excluyen los eventos 'updated' porque son ruido (cada guardado de
+     * formulario dispara uno). Se muestran creaciones, aprobaciones,
+     * observaciones, firmas y demás hitos del flujo.
+     */
+    private function cargarActividadGeneral(): \Illuminate\Support\Collection
+    {
+        $etiquetasModulo = [
+            'tramites'           => 'Trámite',
+            'agenda'             => 'Agenda SyD',
+            'agenda_regulatoria' => 'Propuesta',
+            'regulaciones'       => 'Regulación',
+            'air'                => 'AIR',
+            'usuarios'           => 'Usuarios',
+            'periodos'           => 'Periodo',
+        ];
+
+        $rutaPorModulo = [
+            'tramites'           => 'tramites.show',
+            'agenda'             => 'agenda.show',
+            'agenda_regulatoria' => 'propuestas.show',
+            'regulaciones'       => 'regulaciones.show',
+        ];
+
+        return DB::table('bitacora')
+            ->leftJoin('users', 'bitacora.usuario_id', '=', 'users.id')
+            ->leftJoin('dependencias', 'bitacora.dependencia_id', '=', 'dependencias.id')
+            ->whereNotIn('bitacora.tipo', ['updated'])
+            ->select(
+                'bitacora.id',
+                'bitacora.auditable_id',
+                'bitacora.modulo',
+                'bitacora.tipo',
+                'bitacora.accion',
+                'bitacora.created_at',
+                'users.name as autor',
+                'dependencias.nombre as dependencia'
+            )
+            ->orderByDesc('bitacora.created_at')
+            ->limit(15)
+            ->get()
+            ->map(function ($e) use ($etiquetasModulo, $rutaPorModulo) {
+                $fecha = $e->created_at ? \Carbon\Carbon::parse($e->created_at) : null;
+                $ruta  = $rutaPorModulo[$e->modulo] ?? null;
+
+                return (object) [
+                    'modulo_etiqueta' => $etiquetasModulo[$e->modulo] ?? ucfirst($e->modulo),
+                    'accion'          => $e->accion,
+                    'autor'           => $e->autor ?? 'Sistema',
+                    'dependencia'     => $e->dependencia,
+                    'fecha_relativa'  => $fecha ? $fecha->diffForHumans() : '—',
+                    'url'             => ($ruta && $e->auditable_id) ? route($ruta, $e->auditable_id) : null,
+                ];
+            });
     }
     /**
      * Fase H.2 — Filtros Dashboard inline.
@@ -204,13 +273,13 @@ class DashboardController extends Controller
         $rol    = $user->rolEfectivo();
 
         // Quién ve qué:
-        //  - enlace            → solo los registros que él creó (created_by).
         //  - revisora / admin  → TODO (autoridad evaluadora / administrador).
-        //  - juridico / sujeto → solo los de su dependencia.
-        $soloPropio    = $user->isRol(User::ROL_ENLACE);
+        //  - enlace / juridico / sujeto → solo los de su dependencia.
+        // Criterio unificado por dependencia: coincide con puedeVerRegistro()
+        // del show, evitando mostrar registros que el show bloquearía con 403.
         $veTodo        = $user->isAnyRol([User::ROL_REVISORA, User::ROL_ADMIN]);
         $depId         = $user->dependencia_id;
-        $filtrarPorDep = (!$soloPropio && !$veTodo && $depId);
+        $filtrarPorDep = (!$veTodo && $depId);
 
         $filaTramite = fn ($t) => [
             'folio'   => $t->homoclave ?? 'Sin folio',
@@ -242,9 +311,8 @@ class DashboardController extends Controller
         ];
 
         // Aplica alcance por rol (común a todas las queries).
-        $alcance = function ($query) use ($soloPropio, $filtrarPorDep, $depId, $user) {
-            return $query->when($soloPropio, fn ($q) => $q->where('created_by', $user->id))
-                         ->when($filtrarPorDep, fn ($q) => $q->where('dependencia_id', $depId));
+        $alcance = function ($query) use ($filtrarPorDep, $depId) {
+            return $query->when($filtrarPorDep, fn ($q) => $q->where('dependencia_id', $depId));
         };
 
         // --- Filtro especial: "Mis observaciones" (rol jurídico) ---

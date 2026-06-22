@@ -15,9 +15,6 @@
     </div>
   </div>
 
-  @if(session('success'))
-    <div class="toast toast-success">{{ session('success') }}</div>
-  @endif
 
   <div class="card">
     <div class="table-wrap">
@@ -48,7 +45,7 @@
                   <form method="POST" action="{{ route('admin.catalogos.sujetos-obligados.toggle', $sujeto) }}" class="u-inline">
                     @csrf
                     <button type="submit" class="btn table-action-btn btn-sm btn-outline"
-                      onclick="return confirm('¿{{ $sujeto->activo ? 'Desactivar' : 'Activar' }} este sujeto obligado?')">
+                      onclick="return confirmarAccion(this, '¿{{ $sujeto->activo ? 'Desactivar' : 'Activar' }} este sujeto obligado?')">
                       {{ $sujeto->activo ? 'Desactivar' : 'Activar' }}
                     </button>
                   </form>

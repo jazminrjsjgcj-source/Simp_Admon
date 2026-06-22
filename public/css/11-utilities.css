@@ -12,7 +12,7 @@
   min-height: 34px;
   border: 1px solid rgba(117, 0, 56, .18);
   border-radius: var(--radius-pill);
-  background: #fff;
+  background: var(--surface);
   color: var(--primary);
   padding: 0 12px;
   display: inline-flex;
@@ -79,7 +79,7 @@
 .u-icon-success {
   margin: 0 auto 14px;
   background: #dcfce7;
-  color: #16a34a;
+  color: var(--success);
 }
 
 .u-mt-lg {
@@ -152,7 +152,7 @@
   max-width: 380px;
 }
 
-.toast.toast-success { border-left: 4px solid #16a34a; }
+.toast.toast-success { border-left: 4px solid var(--success); }
 .toast.toast-error { border-left: 4px solid #dc2626; }
 .toast.toast-warning { border-left: 4px solid #ca8a04; }
 .toast.toast-info { border-left: 4px solid #2563eb; }
@@ -222,7 +222,7 @@
   margin: 0 0 4px;
   font-size: 11px;
   font-weight: 800;
-  color: #667085;
+  color: var(--muted);
   text-transform: uppercase;
   letter-spacing: .04em;
 }
@@ -284,7 +284,7 @@
 
 /* Small de ayuda */
 .help-small {
-  color: #667085;
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -341,14 +341,14 @@
   padding: 10px 12px;
   border: 1px solid var(--surface-high);
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   font-size: 13px;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .seccion-checkbox-item:hover {
-  background: #fbfcfe;
+  background: var(--surface-dim);
   border-color: var(--primary-container);
 }
 
@@ -357,7 +357,7 @@
 }
 
 .seccion-checkbox-item.selected {
-  background: #fff7fb;
+  background: var(--surface-tint);
   border-color: var(--primary-container);
   color: var(--primary-container);
   font-weight: 700;
@@ -387,7 +387,7 @@
 .observacion-card {
   border: 1px solid var(--surface-high);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   padding: 14px 16px;
 }
 
@@ -589,7 +589,7 @@
   border: 2px solid var(--surface);
   box-shadow: 0 0 0 1px var(--surface-high);
 }
-.timeline-evento.es-creacion::before { background: #16a34a; }
+.timeline-evento.es-creacion::before { background: var(--success); }
 .timeline-evento.es-eliminacion::before { background: #dc2626; }
 .timeline-fecha {
   font-size: 11px;
@@ -609,6 +609,35 @@
   color: var(--primary);
   font-weight: 600;
 }
+.timeline-colapse {
+  margin-top: 6px;
+}
+.timeline-colapse-toggle {
+  font-size: 12px;
+  color: var(--primary);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+}
+/* Oculta el triángulo nativo del <summary> en todos los navegadores. */
+.timeline-colapse-toggle::-webkit-details-marker { display: none; }
+.timeline-colapse-toggle::marker { content: ''; }
+/* Flecha propia que rota al abrir. */
+.timeline-colapse-toggle::before {
+  content: '▸';
+  font-size: 10px;
+  transition: transform .15s ease;
+}
+.timeline-colapse[open] > .timeline-colapse-toggle::before {
+  transform: rotate(90deg);
+}
+.timeline-colapse-toggle:hover {
+  text-decoration: underline;
+}
 .timeline-cambios {
   margin-top: 6px;
   font-family: monospace;
@@ -626,6 +655,15 @@
   font-size: 13px;
   color: #6b7280;
   padding: 8px 0;
+}
+.timeline-mas {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  font-style: italic;
 }
 
 /* Texto para campos vacíos en tablas (reemplaza el guión suelto) */
@@ -789,7 +827,7 @@
 .hito-item:last-child { border-bottom: none; }
 
 .hito-check { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; border: 2px solid var(--surface-high); background: var(--surface); color: var(--muted); }
-.hito-completado .hito-check { background: #16a34a; border-color: #16a34a; color: #fff; }
+.hito-completado .hito-check { background: var(--success); border-color: var(--success); color: var(--surface); }
 .hito-siguiente  .hito-check { border-color: var(--primary-container); color: var(--primary-container); }
 
 .hito-cuerpo { flex: 1; min-width: 0; }
@@ -799,8 +837,8 @@
 .hito-completado .hito-nombre { color: var(--text); }
 
 .hito-ayuda-icono { position: relative; flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--primary); background: transparent; color: var(--primary); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; cursor: help; transition: background .15s, color .15s; }
-.hito-ayuda-icono:hover, .hito-ayuda-icono:focus { background: var(--primary); color: #fff; outline: none; }
-.hito-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 240px; background: var(--primary); color: #fff; font-size: 12px; font-weight: 500; line-height: 1.4; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); box-shadow: 0 4px 14px rgba(117,0,56,.35); opacity: 0; visibility: hidden; transition: opacity .15s, visibility .15s; z-index: 50; pointer-events: none; }
+.hito-ayuda-icono:hover, .hito-ayuda-icono:focus { background: var(--primary); color: var(--surface); outline: none; }
+.hito-tooltip { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 240px; background: var(--primary); color: var(--surface); font-size: 12px; font-weight: 500; line-height: 1.4; text-align: left; padding: 8px 12px; border-radius: var(--radius-sm); box-shadow: 0 4px 14px rgba(117,0,56,.35); opacity: 0; visibility: hidden; transition: opacity .15s, visibility .15s; z-index: 50; pointer-events: none; }
 .hito-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--primary); }
 .hito-ayuda-icono:hover .hito-tooltip, .hito-ayuda-icono:focus .hito-tooltip { opacity: 1; visibility: visible; }
 
@@ -828,8 +866,8 @@
 /* ─── Pasos para realizar el trámite ───────────────────────────────────── */
 .pasos-lista { display: flex; flex-direction: column; gap: 8px; }
 .paso-card { display: flex; gap: 10px; align-items: flex-start; padding: 10px; background: var(--surface-low); border: 1px solid var(--surface-high); border-radius: var(--radius-sm); }
-.paso-card.paso-sub { margin-left: 32px; background: #fff; }
-.paso-num { flex: 0 0 auto; min-width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: var(--primary); color: #fff; border-radius: var(--radius-sm); font-weight: 800; font-size: 13px; padding: 0 8px; }
+.paso-card.paso-sub { margin-left: 32px; background: var(--surface); }
+.paso-num { flex: 0 0 auto; min-width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; background: var(--primary); color: var(--surface); border-radius: var(--radius-sm); font-weight: 800; font-size: 13px; padding: 0 8px; }
 .paso-campos { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .paso-card .btn { flex: 0 0 auto; }
 
@@ -837,7 +875,7 @@
 .pasos-heredados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .pasos-heredados li { display: flex; gap: 10px; align-items: flex-start; }
 .pasos-heredados li.paso-heredado-sub { margin-left: 28px; }
-.paso-heredado-num { flex: 0 0 auto; min-width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: var(--primary); color: #fff; border-radius: var(--radius-sm); font-weight: 800; font-size: 12px; padding: 0 7px; }
+.paso-heredado-num { flex: 0 0 auto; min-width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: var(--primary); color: var(--surface); border-radius: var(--radius-sm); font-weight: 800; font-size: 12px; padding: 0 7px; }
 .pasos-heredados li p { margin: 2px 0 0; font-size: 13px; color: var(--text); }
 
 /* ─── Fundamento jurídico opcional (requisito / costo / derecho) ────────── */

@@ -7,7 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class Role extends Model
 {
     protected $table   = 'roles';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     */
+    protected $fillable = [
+        'codigo',
+        'nombre',
+        'descripcion',
+        'sistema',
+    ];
 
     protected $casts = [
         'sistema' => 'boolean',

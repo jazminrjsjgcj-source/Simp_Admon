@@ -94,7 +94,7 @@
                       </form>
                       {{-- Eliminar (solo borra si no tiene nada ligado; el controlador valida) --}}
                       <form method="POST" action="{{ route('admin.catalogos.unidades.eliminar', $uni) }}" class="u-inline"
-                        onsubmit="return confirm('¿Eliminar la unidad {{ $uni->nombre }}? Solo se eliminará si no tiene trámites ni usuarios ligados.')">
+                        onsubmit="return confirmarAccion(this, '¿Eliminar la unidad {{ $uni->nombre }}? Solo se eliminará si no tiene trámites ni usuarios ligados.')">
                         @csrf
                         @method('DELETE')
                         <input type="hidden" name="volver_a_dependencia" value="{{ $dependencia->id }}">

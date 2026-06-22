@@ -91,12 +91,13 @@ return [
         ],
         'enlace' => [
             'nombre'      => 'Enlace de dependencia',
-            'descripcion' => 'Captura trámites y acciones de agenda de su dependencia.',
+            'descripcion' => 'Captura trámites y acciones de agenda de su dependencia. Consulta regulaciones para citarlas como fundamento.',
             'sistema'     => true,
             'permisos'    => [
                 'tramites.ver', 'tramites.crear', 'tramites.editar', 'tramites.eliminar',
                 'agenda.ver', 'agenda.crear', 'agenda.editar', 'agenda.eliminar',
                 'agenda_regulatoria.ver', 'agenda_regulatoria.crear', 'agenda_regulatoria.editar', 'agenda_regulatoria.eliminar',
+                'regulaciones.ver',  // Bug #B23: el enlace necesita ver regulaciones para citarlas en trámites/propuestas
                 'calendario.ver',
                 'scian.ver',
                 'firmas.firmar',

@@ -13,7 +13,19 @@ use Illuminate\Database\Eloquent\Model;
 class ExencionAir extends Model
 {
     protected $table   = 'exenciones_air';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     */
+    protected $fillable = [
+        'propuesta_id',
+        'supuesto',
+        'fracciones',
+        'justificacion',
+        'costos_estimados',
+        'estatus',
+        'created_by',
+    ];
 
     protected $casts = [
         'fracciones' => 'array',

@@ -17,7 +17,34 @@ use Illuminate\Database\Eloquent\Model;
 class TramiteCostoBurocratico extends Model
 {
     protected $table   = 'tramite_costos_burocraticos';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps). Snapshot de costos
+     * calculados de un trámite. Reconstruido desde su migración.
+     */
+    protected $fillable = [
+        'tramite_id',
+        'monto_derechos',
+        'numero_copias',
+        'precio_copia',
+        'monto_copias',
+        'monto_requisitos',
+        'cbd_unitario',
+        'cbi_requisitos',
+        'cbi_resolucion',
+        'cbi_unitario',
+        'cbu_unitario',
+        'volumen_anual',
+        'cbt_total_anual',
+        'umbral_id',
+        'umbral_monto_pesos',
+        'umbral_monto_uma',
+        'umbral_monto_salario_minimo',
+        'porcentaje_umbral',
+        'impacto',
+        'resultado_air',
+        'calculado_en',
+    ];
 
     public const IMPACTO_NO_DETERMINADO = 'no_determinado';
     public const IMPACTO_BAJO           = 'bajo';

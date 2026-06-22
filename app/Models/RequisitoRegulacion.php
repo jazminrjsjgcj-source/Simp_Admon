@@ -10,8 +10,16 @@ use Illuminate\Database\Eloquent\Model;
  */
 class RequisitoRegulacion extends Model
 {
-    protected $guarded = ['id'];
     protected $table   = 'requisito_regulacion';
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     */
+    protected $fillable = [
+        'requisito_id',
+        'regulacion_id',
+        'articulo_fraccion',
+    ];
 
     public function requisito()
     {

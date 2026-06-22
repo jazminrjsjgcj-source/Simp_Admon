@@ -7,7 +7,21 @@ use Illuminate\Database\Eloquent\Model;
 class Periodo extends Model
 {
     protected $table  = 'periodos';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * created_by SÍ va aquí: AdminController lo asigna en Periodo::create().
+     * Reconstruido desde las migraciones de periodos.
+     */
+    protected $fillable = [
+        'nombre',
+        'fecha_inicio',
+        'fecha_fin',
+        'estatus',
+        'descripcion',
+        'created_by',
+        'tipo',
+    ];
 
     // Tipos de periodo
     const TIPO_SYD = 'agenda_syd';

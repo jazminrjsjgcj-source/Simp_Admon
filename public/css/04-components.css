@@ -18,7 +18,7 @@ a.btn,
   justify-content: center;
   gap: 8px;
   flex: 0 1 auto;
-  color: #fff;
+  color: var(--surface);
   background: var(--primary-container);
   box-shadow: 0 1px 2px rgba(0,0,0,.06);
   font-size: 13px;
@@ -36,21 +36,21 @@ a.btn,
 }
 .btn-primary,
 .btn.primary {
-  color: #fff;
+  color: var(--surface);
   background: var(--primary-container);
   border-color: var(--primary-container);
 }
 .btn-secondary,
 .btn.secondary {
   color: var(--primary-container);
-  background: #fff7fb;
+  background: var(--surface-tint);
   border-color: rgba(157, 11, 79, .22);
   box-shadow: none;
 }
 .btn-outline,
 .btn.outline {
   color: var(--primary-container);
-  background: #fff;
+  background: var(--surface);
   border-color: var(--primary-container);
   box-shadow: none;
 }
@@ -63,15 +63,15 @@ a.btn,
 }
 .btn-danger,
 .btn.danger {
-  color: #fff;
-  background: #b42318;
-  border-color: #b42318;
+  color: var(--surface);
+  background: var(--chip-red);
+  border-color: var(--chip-red);
 }
 .btn-success,
 .btn.success {
-  color: #fff;
-  background: #16a34a;
-  border-color: #16a34a;
+  color: var(--surface);
+  background: var(--success);
+  border-color: var(--success);
 }
 .btn-sm,
 .btn.small {
@@ -121,8 +121,8 @@ a.btn,
 .grid { display: grid; gap: 20px; min-width: 0; }
 .kpis { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .card { background: white; border: 1px solid var(--surface-high); border-radius: var(--radius-lg); box-shadow: var(--shadow); overflow: hidden; min-width: 0; }
-.stat { min-height: 64px; padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; border-radius: var(--radius); background: #fff; border-color: rgba(117,0,56,.18); color: var(--primary); }
-.stat.active { border-color: var(--primary); background: #fff7fb; box-shadow: 0 0 0 2px rgba(175, 4, 91, .08); }
+.stat { min-height: 64px; padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; border-radius: var(--radius); background: var(--surface); border-color: rgba(117,0,56,.18); color: var(--primary); }
+.stat.active { border-color: var(--primary); background: var(--surface-tint); box-shadow: 0 0 0 2px rgba(175, 4, 91, .08); }
 .stat-value { text-align: left; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .stat h3 { margin: 0; font-size: 18px; line-height: 20px; font-weight: 800; flex: 0 0 auto; background: var(--primary-container); color: white; border-radius: var(--radius-pill); padding: 5px 10px; min-width: 40px; text-align: center; }
 .stat p { margin: 0; color: var(--primary); font-size: 12px; line-height: 1.2; font-weight: 800; white-space: normal; overflow-wrap: anywhere; }
@@ -138,15 +138,17 @@ a.btn,
 .quick-card:hover span, .quick-card:focus-visible span { color: white !important; opacity: 1; }
 .quick-card strong { font-size: 15px; max-width: 100%; }
 .quick-card span:last-child { color: currentColor; opacity: .78; font-size: 12px; max-width: 100%; }
-.agenda-register { width: 100%; min-height: 108px; border: 1px solid rgba(157,11,79,.28); border-radius: var(--radius-lg); background: #fff7fb; color: var(--text); display: flex; align-items: center; justify-content: flex-start; gap: 14px; padding: 18px; text-align: left; font-weight: 800; box-shadow: var(--shadow); }
+.agenda-register { width: 100%; min-height: 108px; border: 1px solid rgba(157,11,79,.28); border-radius: var(--radius-lg); background: var(--surface-tint); color: var(--text); display: flex; align-items: center; justify-content: flex-start; gap: 14px; padding: 18px; text-align: left; font-weight: 800; box-shadow: var(--shadow); }
 .agenda-register > span:first-child { width: 48px; height: 48px; border-radius: var(--radius); background: var(--primary-fixed); color: var(--primary-container); display: grid; place-items: center; flex: 0 0 48px; }
 .agenda-register-copy { flex: 1; min-width: 0; display: grid; gap: 4px; }
 .agenda-register-copy strong { color: var(--text); font-size: 18px; line-height: 24px; }
 .agenda-register-copy small { color: var(--muted); font-size: 12px; line-height: 18px; font-weight: 500; white-space: normal; }
 
 .panel-head { padding: 22px 24px; border-bottom: 1px solid var(--surface-high); display: flex; justify-content: space-between; align-items: center; gap: 18px; min-width: 0; }
+.panel-head > div:first-child { flex: 1; min-width: 0; }
+.panel-head > .btn { flex-shrink: 0; white-space: nowrap; }
 .panel-head h3 { margin: 0 0 3px; font-size: 20px; line-height: 27px; font-weight: 800; }
-.panel-head p { margin: 0; color: #475467; font-size: 13px; }
+.panel-head p { margin: 0; color: var(--chip-gray); font-size: 13px; }
 .filters { display: grid; grid-template-columns: 1.3fr repeat(3, minmax(145px, 1fr)); gap: 12px; padding: 18px 24px; border-bottom: 1px solid var(--surface-high); background: rgba(249,249,251,.5); }
 .review-filter-tabs {
   display: inline-flex;
@@ -156,7 +158,7 @@ a.btn,
   max-width: 100%;
   border: 1px solid var(--surface-high);
   border-radius: var(--radius-pill);
-  background: #fff;
+  background: var(--surface);
   padding: 5px;
   margin-bottom: 16px;
   box-shadow: var(--shadow);
@@ -165,14 +167,14 @@ a.btn,
   min-height: 34px;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: #667085;
+  color: var(--muted);
   padding: 0 16px;
   font-size: 12px;
   font-weight: 800;
 }
 .review-filter-tabs button.active {
   background: var(--primary-container);
-  color: #fff;
+  color: var(--surface);
 }
 .field { display: grid; gap: 6px; min-width: 0; }
 .field label { font-size: 11px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
@@ -191,7 +193,7 @@ a.btn,
   overflow-y: auto;
   border: 1px solid var(--surface-high);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   padding: 8px;
   box-shadow: 0 18px 45px rgba(16, 24, 40, .14);
 }
@@ -200,14 +202,14 @@ a.btn,
   gap: 3px;
   width: 100%;
   border-radius: var(--radius-sm);
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   padding: 10px 12px;
   text-align: left;
 }
 .norm-search-results button:hover,
 .norm-search-results button:focus-visible {
-  background: #fff7fb;
+  background: var(--surface-tint);
 }
 .norm-search-results strong {
   font-size: 12px;
@@ -230,6 +232,11 @@ a.btn,
 .warning-b { background: var(--chip-amber-bg); color: var(--chip-amber); }
 .success-b { background: var(--chip-green-bg); color: var(--chip-green); }
 .danger-b { background: var(--chip-red-bg); color: var(--chip-red); }
+/* Bug #B15: clases que faltaban. Hasta ahora las vistas las usaban
+   pero al no existir en CSS los chips se veían sin color. */
+.info-b    { background: var(--chip-blue-bg);   color: var(--chip-blue); }
+.accent-b  { background: var(--chip-purple-bg); color: var(--chip-purple); }
+.neutral-b { background: var(--chip-gray-bg);   color: var(--chip-gray); }
 
 /* ===========================================
    Ayuda contextual — Botón "?" y recuadro colapsable
@@ -257,7 +264,7 @@ a.btn,
 .field-help-btn:hover,
 .field-help-btn.active {
   background: var(--accent, #7c3aed);
-  color: #fff;
+  color: var(--surface);
 }
 .field-help-box {
   display: none;
@@ -322,9 +329,151 @@ a.btn,
 .horario-row:last-child { border-bottom:none; }
 .horario-accesos { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 12px; }
 
+/* Bug #B14: modal de horarios en 3 pasos numerados. */
+.horario-paso { display:flex; gap:14px; padding:16px 0; border-bottom:1px solid var(--border); }
+.horario-paso:last-of-type { border-bottom:none; }
+.horario-paso-num {
+  flex:0 0 28px; width:28px; height:28px; border-radius:var(--radius-pill);
+  background:var(--primary); color:#fff; font-weight:700; font-size:14px;
+  display:grid; place-items:center;
+}
+.horario-paso-cuerpo { flex:1; min-width:0; }
+.horario-paso-titulo { margin:0 0 4px; font-size:15px; font-weight:700; color:var(--text); }
+.horario-paso-ayuda { margin:0 0 12px; font-size:12px; color:var(--muted); line-height:1.45; }
+.horario-base-inputs { display:flex; gap:16px; flex-wrap:wrap; }
+.horario-base-inputs label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; color:var(--text); }
+.horario-base-inputs input { padding:6px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); }
+.horario-accesos-label { font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; align-self:center; }
+
+/* Chips de días (paso 2). El día marcado se pinta guinda. */
+.horario-chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.horario-chip {
+  border:1px solid var(--border); background:var(--surface); color:var(--text);
+  border-radius:var(--radius-pill); padding:6px 14px; font-size:13px; font-weight:600;
+  cursor:pointer; transition:all .15s ease;
+}
+.horario-chip:hover { border-color:var(--primary); }
+.horario-chip.activo { background:var(--primary); color:#fff; border-color:var(--primary); }
+
+/* Vista previa editable (paso 3). */
+.horario-preview { display:flex; flex-direction:column; gap:6px; }
+.horario-preview-row {
+  display:flex; align-items:center; gap:10px;
+  padding:8px 12px; background:var(--surface-low); border-radius:var(--radius-sm);
+}
+.horario-preview-dia { flex:0 0 90px; font-size:13px; font-weight:600; color:var(--text); }
+.horario-preview-sep { color:var(--muted); }
+.horario-preview-row input { padding:4px 8px; border:1px solid var(--border); border-radius:var(--radius-sm); }
+.horario-preview-vacio { font-size:13px; color:var(--muted); padding:8px 0; margin:0; }
+
 /* ─── Fase H.2: Tabla filtro inline del dashboard ─────────────── */
+
+/* Bug #B19: layout del wrapper que envuelve las tarjetas inferiores del dashboard.
+   Sin esta regla las cards quedan pegadas porque el gap del .page-body padre
+   solo aplica entre hijos directos, y dashSecondaryContent es UN hijo único
+   con varias cards adentro. Replica el mismo gap (24px) del page-body. */
+#dashSecondaryContent { display: grid; gap: 24px; }
+
 #dashFilterPanel { animation: fadeIn .2s ease; }
 @keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
 .kpi-active { background: var(--primary) !important; color: white !important; }
 .kpi-active .stat-value h3, .kpi-active .stat-value p { color: white !important; }
 .kpi-active > span { background: rgba(255,255,255,.2) !important; color: white !important; border-color: transparent !important; }
+
+/* Bug #B8 residual: distinguir visualmente "hover" (mouse encima) de "active"
+   (filtro aplicado). Sin esto ambos estados se ven idénticos: ambos pintan
+   el KPI guinda con texto blanco. Agregamos un anillo guinda claro al active
+   y una elevación constante para que se diferencie del hover. */
+.kpi-active {
+  box-shadow: 0 0 0 3px rgba(175, 4, 91, .25), 0 6px 16px rgba(117, 0, 56, .2) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Bug #B16: al pasar el mouse sobre un KPI que YA está activo, NO debe verse
+   como el hover normal (que pinta guinda claro). En su lugar mantiene el
+   guinda fuerte del activo y refuerza el anillo + la elevación, para que se
+   note "este es el filtro aplicado y lo estás señalando". Gana sobre el
+   .kpi-link.stat:hover gracias a la mayor especificidad + !important. */
+.kpi-active:hover {
+  background: var(--primary) !important;
+  border-color: transparent !important;
+  box-shadow: 0 0 0 4px rgba(175, 4, 91, .40), 0 10px 22px rgba(117, 0, 56, .28) !important;
+  transform: translateY(-3px) !important;
+}
+.kpi-active:hover .stat-value h3,
+.kpi-active:hover .stat-value p,
+.kpi-active:hover p,
+.kpi-active:hover span,
+.kpi-active:hover strong {
+  color: white !important;
+}
+
+/* ─── Bug #B16: botón secundario suave (rosa claro) ────────────
+   Para acciones secundarias como "Ver todos/as" en cabeceras de
+   paneles, que NO deben competir visualmente con el botón primario
+   guinda. Usa la variable --surface-tint (rosa claro existente). */
+.btn-soft {
+  color: var(--primary-container);
+  background: var(--surface-tint);
+  border-color: var(--surface-tint);
+  box-shadow: none;
+}
+.btn-soft:hover {
+  background: #fce4ee;
+  border-color: #fce4ee;
+  color: var(--primary-container);
+}
+
+/* ─── Bug #B17: feed de actividad reciente del dashboard ──────
+   Lista vertical con agrupador de día y items compactos. */
+.feed-actividad { display: flex; flex-direction: column; padding: 4px 0; }
+.feed-grupo {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--chip-gray);
+  background: var(--surface-tint);
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--surface-high);
+}
+.feed-item {
+  display: flex;
+  gap: 14px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--surface-high);
+  align-items: flex-start;
+}
+.feed-item:last-child { border-bottom: none; }
+.feed-modulo {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--primary-container);
+  background: var(--surface-tint);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  align-self: flex-start;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.feed-contenido { flex: 1; min-width: 0; }
+.feed-accion {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+a.feed-accion:hover { color: var(--primary-container); text-decoration: underline; }
+.feed-meta {
+  font-size: 12px;
+  color: var(--chip-gray);
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

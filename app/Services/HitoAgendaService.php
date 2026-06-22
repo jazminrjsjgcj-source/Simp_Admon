@@ -40,68 +40,116 @@ class HitoAgendaService
         DB::transaction(function () use ($accion, $diagnostico, $listaEspecif) {
             $orden = 1;
 
-            // Hito 1: Diagnóstico, ya completado al registrar la acción.
+            // Hito 1: Diagnóstico, ya completado y aprobado al registrar la acción.
             $accion->hitos()->create([
-                'orden'            => $orden++,
-                'clave'            => $diagnostico['clave'],
-                'nombre'           => $diagnostico['nombre'],
-                'completado'       => true,
-                'fecha_completado' => now()->toDateString(),
-                'completado_por'   => $accion->created_by,
+                'orden'             => $orden++,
+                'clave'             => $diagnostico['clave'],
+                'nombre'            => $diagnostico['nombre'],
+                'completado'        => true,
+                'fecha_completado'  => now()->toDateString(),
+                'completado_por'    => $accion->created_by,
+                'estado_aprobacion' => 'aprobado',
+                'aprobado_por'      => $accion->created_by,
+                'fecha_aprobacion'  => now()->toDateString(),
             ]);
 
-            // Hitos siguientes: pendientes, en orden.
+            // Hitos siguientes: pendientes, sin evidencia todavía.
             foreach ($listaEspecif as $hito) {
                 $accion->hitos()->create([
-                    'orden'      => $orden++,
-                    'clave'      => $hito['clave'],
-                    'nombre'     => $hito['nombre'],
-                    'completado' => false,
+                    'orden'             => $orden++,
+                    'clave'             => $hito['clave'],
+                    'nombre'            => $hito['nombre'],
+                    'completado'        => false,
+                    'estado_aprobacion' => 'sin_evidencia',
                 ]);
             }
         });
     }
 
     /**
-     * Marca un hito como completado, pero solo si es el siguiente pendiente
-     * (avance lineal). Devuelve true si lo marcó, false si no correspondía.
+     * #9: el enlace sube la evidencia de un hito y lo deja pendiente de visto
+     * bueno. Flujo flexible: se puede subir evidencia de cualquier hito, sin
+     * orden. Devuelve true si lo registró.
+     *
+     * @param string $rutaArchivo  ruta del archivo ya guardado en storage
+     * @param string $nombreOriginal  nombre original del archivo (para mostrar)
      */
-    public function marcarHito(AccionAgenda $accion, int $hitoId, int $usuarioId): bool
+    public function subirEvidencia(HitoAgenda $hito, string $rutaArchivo, string $nombreOriginal, int $usuarioId): bool
     {
-        $siguiente = $this->siguientePendiente($accion);
-
-        // Solo se puede marcar el siguiente hito pendiente.
-        if (!$siguiente || $siguiente->id !== $hitoId) {
-            return false;
-        }
-
-        $siguiente->update([
-            'completado'       => true,
-            'fecha_completado' => now()->toDateString(),
-            'completado_por'   => $usuarioId,
+        $hito->update([
+            'evidencia_archivo' => $rutaArchivo,
+            'evidencia_nombre'  => $nombreOriginal,
+            'estado_aprobacion' => 'pendiente',
+            'completado'        => false,
+            'completado_por'    => $usuarioId,
+            'fecha_completado'  => now()->toDateString(),
+            // Si venía de un rechazo, se limpia el motivo al volver a subir.
+            'motivo_rechazo'    => null,
         ]);
 
         return true;
     }
 
-    /** Devuelve el primer hito pendiente (el único que se puede marcar). */
+    /**
+     * #5: la revisora aprueba un hito (debe tener evidencia pendiente). Puede
+     * aprobar en cualquier orden. Al aprobar, el hito queda completado.
+     */
+    public function aprobarHito(HitoAgenda $hito, int $revisoraId): bool
+    {
+        if ($hito->estado_aprobacion !== 'pendiente') {
+            return false;
+        }
+
+        $hito->update([
+            'estado_aprobacion' => 'aprobado',
+            'completado'        => true,
+            'aprobado_por'      => $revisoraId,
+            'fecha_aprobacion'  => now()->toDateString(),
+            'motivo_rechazo'    => null,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * #5: la revisora rechaza un hito con un motivo escrito. El hito vuelve al
+     * enlace para que corrija y suba nueva evidencia.
+     */
+    public function rechazarHito(HitoAgenda $hito, string $motivo, int $revisoraId): bool
+    {
+        if ($hito->estado_aprobacion !== 'pendiente') {
+            return false;
+        }
+
+        $hito->update([
+            'estado_aprobacion' => 'rechazado',
+            'completado'        => false,
+            'aprobado_por'      => $revisoraId,
+            'fecha_aprobacion'  => now()->toDateString(),
+            'motivo_rechazo'    => $motivo,
+        ]);
+
+        return true;
+    }
+
+    /** Devuelve el primer hito aún no aprobado (referencia para la UI). */
     public function siguientePendiente(AccionAgenda $accion): ?HitoAgenda
     {
         return $accion->hitos()
-            ->where('completado', false)
+            ->where('estado_aprobacion', '!=', 'aprobado')
             ->orderBy('orden')
             ->first();
     }
 
-    /** Porcentaje de avance: hitos completados / total, redondeado. */
+    /** Porcentaje de avance: hitos aprobados / total, redondeado. */
     public function calcularPorcentaje(AccionAgenda $accion): int
     {
         $total = $accion->hitos()->count();
         if ($total === 0) {
             return 0;
         }
-        $completados = $accion->hitos()->where('completado', true)->count();
-        return (int) round($completados / $total * 100);
+        $aprobados = $accion->hitos()->where('estado_aprobacion', 'aprobado')->count();
+        return (int) round($aprobados / $total * 100);
     }
 
     /* ----------------------------------------------------------------------

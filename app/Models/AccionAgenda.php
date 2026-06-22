@@ -23,13 +23,63 @@ class AccionAgenda extends Model
         self::ESTATUS_COMPLETADO,
     ];
 
-    protected $guarded = ['id'];
     protected $table   = 'acciones_agenda';
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps). Incluye folio y
+     * periodo_id (los asigna el modelo en booted()/GeneraFolio) y los JSON
+     * de acciones. Reconstruido desde las migraciones de acciones_agenda.
+     */
+    protected $fillable = [
+        'tramite_id',
+        'tipo',
+        'descripcion',
+        'meta',
+        'fecha_inicio',
+        'fecha_compromiso',
+        'responsable',
+        'dependencia_id',
+        'unidad_id',
+        'indicador',
+        'indicador_avance',
+        'estatus',
+        'created_by',
+        'folio',
+        'periodo_id',
+        'acciones_simplificacion',
+        'acciones_digitalizacion',
+        'nivel_actual',
+        'nivel_meta',
+    ];
+
+    // Paquete 3: catálogos oficiales guardados como JSON.
+    protected $casts = [
+        'acciones_simplificacion' => 'array',
+        'acciones_digitalizacion' => 'array',
+    ];
+
+    /**
+     * #12: al crear una acción se le asigna automáticamente el periodo SyD
+     * activo, salvo que ya venga uno explícito.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (AccionAgenda $accion) {
+            if (empty($accion->periodo_id)) {
+                $accion->periodo_id = Periodo::activo()->syd()->value('id');
+            }
+        });
+    }
+
+    /** #12: periodo (Agenda SyD) al que pertenece la acción. */
+    public function periodo() { return $this->belongsTo(Periodo::class); }
 
     /** Prefijo de tipo para el folio: LPZ-AGD-... */
     protected function folioTipo(): string { return 'AGD'; }
 
     public function dependencia() { return $this->belongsTo(Dependencia::class); }
+
+    public function unidad() { return $this->belongsTo(UnidadAdministrativa::class, 'unidad_id'); }
 
     public function tramite() { return $this->belongsTo(Tramite::class); }
 

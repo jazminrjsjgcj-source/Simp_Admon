@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 
 use App\Models\PropuestaRegulatoria;
+use App\Models\PropuestaTramiteImpacto;
 use App\Models\Dependencia;
 use App\Services\CalendarioEventoService;
 use Illuminate\Http\Request;
@@ -22,8 +23,11 @@ class AgendaRegulatoriaController extends Controller
         // las de su área; admin, revisora y jurídico (transversales) ven
         // todas. Se filtra aquí para que la lista coincida con lo que el
         // show() permite abrir.
+        // Solo admin y revisora (quien aprueba) ven propuestas de todas las
+        // dependencias. El resto —incluido el jurídico, que solo observa— ve
+        // únicamente las de su propia dependencia. Coincide con el show()
+        // (puedeVerRegistro), evitando listar propuestas que el show bloquearía.
         $puedeVerTodas = $user->isRol(User::ROL_ADMIN)
-            || $user->tienePermiso('agenda_regulatoria.observar')
             || $user->tienePermiso('agenda_regulatoria.aprobar');
 
         $propuestas = PropuestaRegulatoria::with('dependencia')
@@ -92,11 +96,17 @@ class AgendaRegulatoriaController extends Controller
 
     public function show(PropuestaRegulatoria $propuesta)
     {
+        // Control de acceso por dependencia. Pueden ver la propuesta:
+        //   - admin y revisora (transversales, vía puedeVerRegistro)
+        //   - quien es de la misma dependencia de la propuesta
+        // El jurídico observa SOLO lo de su dependencia, igual que enlace y
+        // sujeto: no tiene visión transversal.
         if (!request()->user()->puedeVerRegistro($propuesta, 'agenda_regulatoria')) {
             abort(403, 'No tiene permiso para ver esta propuesta regulatoria.');
         }
 
-        $propuesta->load('dependencia', 'creador', 'sector', 'subsector', 'air.dictaminadoPor', 'exencion.creadaPor', 'observaciones.realizadaPor');
+        $propuesta->load('dependencia', 'creador', 'sector', 'subsector', 'air.dictaminadoPor', 'exencion.creadaPor', 'observaciones.realizadaPor',
+            'impactos.tramite', 'impactos.requisito');
         $detalles = json_decode($propuesta->justificacion ?? '{}', true);
 
         // #18: datos del modal de observación si el usuario puede observar.
@@ -127,7 +137,8 @@ class AgendaRegulatoriaController extends Controller
                 ->with('error', 'Solo puede editar propuestas de su dependencia.');
         }
 
-        $propuesta->load('dependencia', 'creador', 'observaciones.realizadaPor');
+        $propuesta->load('dependencia', 'creador', 'observaciones.realizadaPor',
+            'impactos.tramite', 'impactos.requisito');
         $detalles     = json_decode($propuesta->justificacion ?? '{}', true);
         $dependencias = Dependencia::orderBy('nombre')->get();
 
@@ -171,10 +182,63 @@ class AgendaRegulatoriaController extends Controller
             ->with('success', 'Propuesta actualizada exitosamente.');
     }
 
-    public function destroy(PropuestaRegulatoria $propuesta)
+    /**
+     * #7 Flujo 1: el jurídico agrega una cita de impacto — qué trámite (y
+     * opcionalmente qué requisito) modifica esta propuesta, y en qué artículo.
+     */
+    public function agregarImpacto(Request $request, PropuestaRegulatoria $propuesta)
     {
         if (!request()->user()->isRol(User::ROL_ADMIN) && !request()->user()->esDeSuDependencia($propuesta)) {
-            abort(403, 'No tiene permiso para eliminar esta propuesta.');
+            return back()->with('error', 'No tiene permiso para editar esta propuesta.');
+        }
+
+        $request->validate([
+            'tramite_id'        => 'required|exists:tramites,id',
+            'requisito_id'      => 'nullable|exists:requisitos,id',
+            'articulo_fraccion' => 'nullable|string|max:200',
+            'descripcion'       => 'nullable|string|max:500',
+        ]);
+
+        // Evitar duplicados del mismo trámite + requisito en la misma propuesta.
+        $existe = $propuesta->impactos()
+            ->where('tramite_id',   $request->tramite_id)
+            ->where('requisito_id', $request->requisito_id ?: null)
+            ->exists();
+
+        if ($existe) {
+            return back()->with('error', 'Esa cita ya está registrada en esta propuesta.');
+        }
+
+        $propuesta->impactos()->create([
+            'tramite_id'        => $request->tramite_id,
+            'requisito_id'      => $request->requisito_id ?: null,
+            'articulo_fraccion' => $request->articulo_fraccion ?: null,
+            'descripcion'       => $request->descripcion ?: null,
+        ]);
+
+        return back()->with('success', 'Cita de impacto agregada.');
+    }
+
+    /**
+     * #7 Flujo 1: quitar una cita de impacto de la propuesta.
+     */
+    public function quitarImpacto(PropuestaRegulatoria $propuesta, PropuestaTramiteImpacto $impacto)
+    {
+        if (!request()->user()->isRol(User::ROL_ADMIN) && !request()->user()->esDeSuDependencia($propuesta)) {
+            return back()->with('error', 'No tiene permiso para editar esta propuesta.');
+        }
+        if ($impacto->propuesta_id !== $propuesta->id) {
+            return back()->with('error', 'La cita no pertenece a esta propuesta.');
+        }
+
+        $impacto->delete();
+        return back()->with('success', 'Cita eliminada.');
+    }
+
+    public function destroy(PropuestaRegulatoria $propuesta)
+    {
+        if (!request()->user()->puedeEliminarPropuesta($propuesta)) {
+            abort(403, 'Solo se pueden eliminar propuestas en borrador de su propia dependencia.');
         }
 
         $this->calendario->eliminar($propuesta);

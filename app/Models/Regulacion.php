@@ -10,7 +10,37 @@ class Regulacion extends Model
     use GeneraFolio;
 
     protected $table   = 'regulaciones';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id, timestamps ni deleted_at). Incluye
+     * los campos de conversión a Markdown y el índice JSON. folio lo asigna
+     * GeneraFolio. Reconstruido desde las migraciones de regulaciones.
+     */
+    protected $fillable = [
+        'nombre',
+        'tipo',
+        'dependencia_id',
+        'sector_id',
+        'fecha_publicacion',
+        'fecha_vigencia',
+        'estatus',
+        'archivo_pdf',
+        'resumen',
+        'created_by',
+        'folio',
+        'archivo_original',
+        'archivo_markdown',
+        'conversion_estatus',
+        'conversion_error',
+        'extension_original',
+        'materia',
+        'fundamento_juridico',
+        'objetivo',
+        'palabras_clave',
+        'deroga_otra',
+        'regulacion_derogada',
+        'indice',
+    ];
 
     /** Prefijo de tipo para el folio: LPZ-REG-... */
     protected function folioTipo(): string { return 'REG'; }

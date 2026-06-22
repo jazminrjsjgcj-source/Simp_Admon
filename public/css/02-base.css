@@ -39,7 +39,7 @@ a:hover { text-decoration: none; }
 .section-actions > .btn {
   flex: 0 1 auto;
 }
-.card-actions { border-top: 1px solid var(--surface-high); background: #fff; }
+.card-actions { border-top: 1px solid var(--surface-high); background: var(--surface); }
 .card-actions-start,
 .form-actions-start,
 .section-actions-start { justify-content: flex-start; }

@@ -15,9 +15,6 @@
     </div>
   </div>
 
-  @if(session('success'))
-    <div class="toast toast-success">{{ session('success') }}</div>
-  @endif
 
   <div class="card">
     <div class="table-wrap">
@@ -53,7 +50,7 @@
                   <form method="POST" action="{{ route('admin.catalogos.dependencias.toggle', $dep) }}" class="u-inline">
                     @csrf
                     <button type="submit" class="btn table-action-btn btn-sm btn-outline"
-                      onclick="return confirm('¿{{ ($dep->activo ?? true) ? 'Desactivar' : 'Activar' }} esta dependencia?')">
+                      onclick="return confirmarAccion(this, '¿{{ ($dep->activo ?? true) ? 'Desactivar' : 'Activar' }} esta dependencia?')">
                       {{ ($dep->activo ?? true) ? 'Desactivar' : 'Activar' }}
                     </button>
                   </form>

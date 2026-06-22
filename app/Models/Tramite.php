@@ -9,7 +9,88 @@ class Tramite extends Model
 {
     use SoftDeletes;
 
-    protected $guarded = ['id'];
+    /**
+     * Columnas asignables en masa (sin id, timestamps ni deleted_at).
+     * Reconstruido desde TODAS las migraciones de la tabla tramites, incluyendo
+     * las fj_* (add_fundamento) y sujeto_obligado_id/enlace_id (add_sujeto_enlace,
+     * bug #B5). Agrupado por propósito para legibilidad.
+     */
+    protected $fillable = [
+        // Identificación
+        'nombre_oficial',
+        'tipo_tramite_id',
+        'dependencia_id',
+        'unidad_id',
+        'unidad_responsable_id',
+        'sector_id',
+        'subsector_id',
+        'servidor_publico',
+        'tiene_homoclave',
+        'homoclave',
+        'sujeto_obligado_id',
+        'enlace_id',
+        'periodo_id',
+        'created_by',
+        'estatus',
+        // Descripción y alcance
+        'objetivo',
+        'poblacion_objetivo',
+        'dirigido_a',
+        'grupo_prioritario',
+        'grupo_prioritario_detalle',
+        'frecuencia',
+        'volumen_anual',
+        // Relación / redundancia / interoperabilidad
+        'tipo_relacion',
+        'tiene_relacionados',
+        'relacionados_detalle',
+        'tiene_redundantes',
+        'redundantes_detalle',
+        'requiere_interop',
+        'interop_detalle',
+        'simplificacion_ref',
+        // Plazo de resolución
+        'plazo_resolucion_cantidad',
+        'plazo_resolucion_unidad',
+        // Áreas y operación
+        'num_areas',
+        'areas_participantes',
+        'visitas_requeridas',
+        // Tiempos (traslado / espera / atención)
+        'tiempo_traslado_horas',
+        'tiempo_traslado_min',
+        'tiempo_espera_horas',
+        'tiempo_espera_min',
+        'tiempo_atencion_horas',
+        'tiempo_atencion_min',
+        // Derechos y copias
+        'monto_derechos',
+        'monto_derechos_variable',
+        'monto_derechos_referencia',
+        'copias_cantidad',
+        'copias_precio',
+        'monto_requisitos_con_costo',
+        'salario_hora_w',
+        // Digitalización
+        'nivel_digitalizacion',
+        // Costo burocrático (calculados por el servicio)
+        'cbd_directo',
+        'cbi_indirecto',
+        'cbi_requisitos',
+        'cbi_resolucion',
+        'cbu_unitario',
+        'cbt_total',
+        'impacto',
+        'resultado_air',
+        // Catálogos oficiales ATDT (JSON)
+        'acciones_simplificacion',
+        'grupos_atencion',
+        'etapa_operacion',
+        // Fundamento jurídico opcional del costo (add_fundamento)
+        'fj_norma',
+        'fj_capitulo',
+        'fj_articulo',
+    ];
     protected $table   = 'tramites';
 
     /**
@@ -66,7 +147,32 @@ class Tramite extends Model
         'cbi_indirecto'   => 'decimal:2',
         'cbu_unitario'    => 'decimal:2',
         'cbt_total'       => 'decimal:2',
+        // Ítem E
+        'monto_derechos_variable' => 'boolean',
+        // Ítem F: catálogos de selección múltiple guardados como JSON.
+        'acciones_simplificacion' => 'array',
+        'grupos_atencion'         => 'array',
     ];
+
+    /**
+     * #12: al crear un trámite se le asigna automáticamente el periodo SyD
+     * activo, salvo que ya venga uno explícito. Así cada trámite queda ligado
+     * a su periodo sin que el usuario tenga que elegirlo.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Tramite $tramite) {
+            if (empty($tramite->periodo_id)) {
+                $tramite->periodo_id = Periodo::activo()->syd()->value('id');
+            }
+        });
+    }
+
+    /** #12: periodo (Agenda SyD) al que pertenece el trámite. */
+    public function periodo()
+    {
+        return $this->belongsTo(Periodo::class);
+    }
 
     // ========== Relaciones ==========
 

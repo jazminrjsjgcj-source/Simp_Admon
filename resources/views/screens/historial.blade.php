@@ -64,7 +64,7 @@
           </tbody>
         </table>
       </div>
-      <div class="card-body-padded">{{ $movimientos->links() }}</div>
+      <div class="card-body-padded">{{ $movimientos->appends(request()->query())->links() }}</div>
     @endif
   </div>
 

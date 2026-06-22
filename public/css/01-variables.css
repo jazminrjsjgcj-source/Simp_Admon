@@ -6,6 +6,9 @@
   --surface: #fff;
   --surface-low: #f3f3f5;
   --surface-high: #e8e8ea;
+  --surface-dim: #fbfcfe;   /* fondo atenuado para paneles internos y filas alternas */
+  --surface-tint: #fff7fb;  /* fondo con tinte guinda suave para paneles primarios */
+  --border: #dfe3ea;        /* borde neutro estándar de tarjetas, inputs y separadores */
 
   /* Sistema de radios de borde — usar estos en vez de valores sueltos */
   --radius-sm: 8px;    /* elementos pequeños: chips cuadrados, tags */
@@ -14,6 +17,7 @@
   --radius-pill: 999px;/* pastillas: badges, avatares, botones redondeados */
   --text: #111827;
   --muted: #667085;
+  --muted-light: #98a2b3;   /* texto apagado de menor jerarquía (subtítulos, meta) */
   --primary: #750038;
   --primary-container: #9d0b4f;
   --accent: #750038;/* acento de ayudas y acuse — guinda principal (antes caía en violeta por no estar definida) */
@@ -21,6 +25,7 @@
   --secondary-container: #fc7da3;
   --on-secondary-container: #751039;
   --primary-fixed: #ffd9e1;
+  --success: #16a34a;       /* verde de progreso completado, hitos aprobados, estatus OK */
   --chip-green-bg: #eaf7ee;
   --chip-green: #1f7a3f;
   --chip-amber-bg: #fff4df;
@@ -29,5 +34,11 @@
   --chip-red: #b42318;
   --chip-gray-bg: #f2f4f7;
   --chip-gray: #475467;
+  /* Bug #B15: faltaban estos pares. Los usaban .info-b y .accent-b en las vistas
+     pero las clases CSS no existían, así que esos chips se veían sin color. */
+  --chip-blue-bg: #e8f1fb;
+  --chip-blue: #1d4ed8;
+  --chip-purple-bg: #f3e8ff;
+  --chip-purple: #6b21a8;
   --shadow: 0 4px 20px rgba(34, 34, 34, .08);
 }

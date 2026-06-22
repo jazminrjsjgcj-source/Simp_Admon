@@ -2,6 +2,14 @@
 @section('title', 'Detalle de Acción')
 
 @section('content')
+<style>
+  /* Paquete 3: listado de acciones con explicación en el detalle */
+  .acciones-show { list-style:none; padding:0; margin:0; }
+  .acciones-show li { padding:8px 0; border-bottom:1px solid var(--surface-high); }
+  .acciones-show li:last-child { border-bottom:none; }
+  .acciones-show strong { color:var(--text); font-size:14px; }
+  .acciones-show p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+</style>
 <div class="page-default">
 
   {{-- Botón volver --}}
@@ -15,12 +23,7 @@
   {{-- HEADER --}}
   <div class="card card-section">
     <div class="row-center mb-4">
-      <span class="badge {{ match($agenda->estatus) {
-        'completado' => 'success-b',
-        'en_observacion','en_correccion' => 'warning-b',
-        'en_firma' => 'info-b',
-        default => ''
-      } }}" style="text-transform:uppercase">@estatus($agenda->estatus)</span>
+      <x-badge-estatus :estatus="$agenda->estatus" mayuscula />
       <span class="text-primary-bold">AGD-{{ str_pad($agenda->id,3,'0',STR_PAD_LEFT) }}</span>
       <div class="actions-right">
         {{-- El enlace edita su propia acción en estados editables; el admin edita cualquiera --}}
@@ -41,7 +44,7 @@
           <form method="POST" action="{{ route('agenda.actualizar.estatus',$agenda) }}" class="d-inline">
             @csrf
             <input type="hidden" name="estatus" value="en_observacion">
-            <button type="submit" class="btn btn-sm" onclick="return confirm('¿Enviar a revisión?')">Enviar a revisión</button>
+            <button type="submit" class="btn btn-sm" onclick="return confirmarAccion(this, '¿Enviar a revisión?')">Enviar a revisión</button>
           </form>
         @endif
       </div>
@@ -65,7 +68,7 @@
       <div class="modal-grid">
         <div class="modal-data-item"><span>Folio</span><strong>AGD-{{ str_pad($agenda->id,3,'0',STR_PAD_LEFT) }}</strong></div>
         <div class="modal-data-item"><span>Trámite vinculado</span><strong>{{ $agenda->tramite->nombre_oficial ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Tipo de acción</span><strong>{{ ucfirst($agenda->tipo) }}</strong></div>
+        <div class="modal-data-item"><span>Alcance</span><strong>{{ ['simplificacion' => 'Solo simplificación', 'digitalizacion' => 'Solo digitalización', 'ambas' => 'Simplificación y digitalización'][$agenda->tipo] ?? ucfirst($agenda->tipo) }}</strong></div>
         <div class="modal-data-item"><span>Acción registrada</span><strong>{{ $agenda->descripcion }}</strong></div>
         <div class="modal-data-item"><span>Responsable</span><strong>{{ $agenda->responsable ?? '—' }}</strong></div>
         <div class="modal-data-item"><span>Estatus</span><strong>@estatus($agenda->estatus)</strong></div>
@@ -155,6 +158,56 @@
     </div>
   </div>
 
+  {{-- Paquete 3: Acciones y niveles, filtrados por el alcance guardado --}}
+  @php
+    $esSimp = in_array($agenda->tipo, ['simplificacion', 'ambas']);
+    $esDig  = in_array($agenda->tipo, ['digitalizacion', 'ambas']);
+    $accSimp = is_array($agenda->acciones_simplificacion) ? $agenda->acciones_simplificacion : [];
+    $accDig  = is_array($agenda->acciones_digitalizacion) ? $agenda->acciones_digitalizacion : [];
+  @endphp
+
+  @if($esSimp)
+  <div class="card">
+    <div class="panel-head">
+      <div><h3>Acciones de simplificación</h3><p>Catálogo oficial (rubro 14) con su explicación.</p></div>
+    </div>
+    <div class="card-body-padded">
+      @if(count($accSimp))
+        <ul class="acciones-show">
+          @foreach($accSimp as $accion => $explicacion)
+            <li><strong>{{ $accion }}</strong>@if($explicacion)<p>{{ $explicacion }}</p>@endif</li>
+          @endforeach
+        </ul>
+      @else
+        <p class="muted">No se registraron acciones de simplificación.</p>
+      @endif
+    </div>
+  </div>
+  @endif
+
+  @if($esDig)
+  <div class="card">
+    <div class="panel-head">
+      <div><h3>Digitalización</h3><p>Niveles y acciones del catálogo oficial.</p></div>
+    </div>
+    <div class="card-body-padded">
+      <div class="modal-grid">
+        <div class="modal-data-item"><span>Nivel actual</span><strong>{{ $agenda->nivel_actual !== null ? 'Nivel '.$agenda->nivel_actual : '—' }}</strong></div>
+        <div class="modal-data-item"><span>Nivel meta</span><strong>{{ $agenda->nivel_meta !== null ? 'Nivel '.$agenda->nivel_meta : '—' }}</strong></div>
+      </div>
+      @if(count($accDig))
+        <ul class="acciones-show" style="margin-top:12px">
+          @foreach($accDig as $accion => $explicacion)
+            <li><strong>{{ $accion }}</strong>@if($explicacion)<p>{{ $explicacion }}</p>@endif</li>
+          @endforeach
+        </ul>
+      @else
+        <p class="muted" style="margin-top:12px">No se registraron acciones de digitalización.</p>
+      @endif
+    </div>
+  </div>
+  @endif
+
   {{-- AVANCE --}}
   <div class="card">
     <div class="panel-head">
@@ -170,6 +223,7 @@
         'porcentaje'  => $porcentaje ?? 0,
         'siguienteId' => $siguienteId ?? null,
         'puedeMarcar' => $puedeMarcarHitos ?? false,
+        'puedeAprobar' => $puedeAprobarHitos ?? false,
         'ayudas'      => $ayudas ?? [],
       ])
     </div>

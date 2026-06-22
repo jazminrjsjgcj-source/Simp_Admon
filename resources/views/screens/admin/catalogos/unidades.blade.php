@@ -15,9 +15,6 @@
     </div>
   </div>
 
-  @if(session('success'))
-    <div class="toast toast-success">{{ session('success') }}</div>
-  @endif
 
   {{-- Filtro por dependencia --}}
   <div class="card" style="padding:12px 16px">
@@ -67,7 +64,7 @@
                   <form method="POST" action="{{ route('admin.catalogos.unidades.toggle', $uni) }}" class="u-inline">
                     @csrf
                     <button type="submit" class="btn table-action-btn btn-sm btn-outline"
-                      onclick="return confirm('¿{{ ($uni->activo ?? true) ? 'Desactivar' : 'Activar' }} esta unidad?')">
+                      onclick="return confirmarAccion(this, '¿{{ ($uni->activo ?? true) ? 'Desactivar' : 'Activar' }} esta unidad?')">
                       {{ ($uni->activo ?? true) ? 'Desactivar' : 'Activar' }}
                     </button>
                   </form>

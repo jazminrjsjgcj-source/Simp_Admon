@@ -13,12 +13,33 @@ use Illuminate\Database\Eloquent\Model;
  */
 class HitoAgenda extends Model
 {
-    protected $guarded = ['id'];
     protected $table   = 'hitos_agenda';
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps). Incluye los campos
+     * de evidencia y visto bueno (Grupo 3) que asigna HitoAgendaService.
+     * Reconstruido desde las migraciones de hitos_agenda.
+     */
+    protected $fillable = [
+        'accion_agenda_id',
+        'orden',
+        'clave',
+        'nombre',
+        'completado',
+        'fecha_completado',
+        'completado_por',
+        'evidencia_archivo',
+        'evidencia_nombre',
+        'estado_aprobacion',
+        'aprobado_por',
+        'fecha_aprobacion',
+        'motivo_rechazo',
+    ];
 
     protected $casts = [
         'completado'       => 'boolean',
         'fecha_completado' => 'date',
+        'fecha_aprobacion' => 'date',
     ];
 
     public function accionAgenda()
@@ -29,5 +50,11 @@ class HitoAgenda extends Model
     public function completadoPor()
     {
         return $this->belongsTo(User::class, 'completado_por');
+    }
+
+    /** Grupo 3: revisora que dio (o negó) el visto bueno. */
+    public function aprobadoPor()
+    {
+        return $this->belongsTo(User::class, 'aprobado_por');
     }
 }

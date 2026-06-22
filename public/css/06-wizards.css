@@ -2,7 +2,7 @@
    Wizards — Steppers, formularios por etapas, acordeones
    =========================================== */
 .steps-tool { display: grid; gap: 10px; }
-.step-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1.15fr); gap: 10px; align-items: center; border: 1px solid #dfe3ea; border-radius: var(--radius); background: #fff; padding: 10px; }
+.step-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1.15fr); gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 10px; }
 .step-row b { color: var(--primary-container); font-size: 12px; }
 .step-row input { min-height: 38px; }
 .step-add-button { min-width: 148px; }
@@ -28,7 +28,7 @@
 }
 .wizard-step { display: grid; grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 8px; position: relative; min-width: 0; color: #14213d; }
 .wizard-step:not(:last-child)::after { content: ""; position: absolute; top: 25px; left: calc(50% + 34px); width: calc(100% - 42px); height: 3px; background: #dfe3e8 !important; border-radius: var(--radius-pill); }
-.wizard-dot { width: 42px; height: 42px; border-radius: var(--radius-pill); display: grid; place-items: center; background: #e5e7eb; color: #667085; font-weight: 800; box-shadow: 0 0 0 5px rgba(157,11,79,.08); }
+.wizard-dot { width: 42px; height: 42px; border-radius: var(--radius-pill); display: grid; place-items: center; background: #e5e7eb; color: var(--muted); font-weight: 800; box-shadow: 0 0 0 5px rgba(157,11,79,.08); }
 #propuestaWizard .wizard-dot {
   width: 36px;
   height: 36px;
@@ -70,15 +70,15 @@
 /* Paso completado: verde */
 .wizard-step.done .wizard-dot,
 .wizard-step.completed .wizard-dot {
-  background: #16a34a;
+  background: var(--success);
   color: white;
 }
 .wizard-step.done:not(:last-child)::after,
-.wizard-step.completed:not(:last-child)::after { background: #16a34a; }
+.wizard-step.completed:not(:last-child)::after { background: var(--success); }
 .wizard-step.done strong,
 .wizard-step.completed strong { color: #14532d; }
 .wizard-step strong { max-width: 100%; font-size: 12px; line-height: 16px; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
-.wizard-step small { display: block; color: #667085; font-size: 10px; line-height: 13px; }
+.wizard-step small { display: block; color: var(--muted); font-size: 10px; line-height: 13px; }
 .wizard-panel { background: white; border: 1px solid var(--surface-high); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 26px 32px; min-width: 0; }
 #propuestaWizard .wizard-panel,
 #airWizard .wizard-panel {
@@ -89,50 +89,163 @@
 .wizard-panel-head > div { min-width: 0; }
 .wizard-panel-icon { width: 40px; height: 40px; border-radius: var(--radius-pill); display: grid; place-items: center; background: var(--primary-fixed); color: var(--primary-container); flex: 0 0 40px; }
 .wizard-panel h3 { margin: 0; font-size: 22px; line-height: 28px; font-weight: 800; }
-.wizard-panel p { margin: 0; color: #475467; font-size: 13px; }
+.wizard-panel p { margin: 0; color: var(--chip-gray); font-size: 13px; }
 .wizard-content { display: none; }
 .wizard-content.active { display: block; }
 .wizard-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; align-items: start; }
+
+/* Bug #B9: sub-tarjetas dentro de un panel del wizard para agrupar campos por tema.
+   Cada .wizard-section es una tarjeta con encabezado y un .wizard-fields propio dentro. */
+.wizard-section { border: 1px solid var(--surface-high); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; background: var(--surface-low); }
+.wizard-section:last-child { margin-bottom: 0; }
+.wizard-section-head { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px dashed var(--surface-high); }
+.wizard-section-head h4 { font-size: 14px; font-weight: 700; color: var(--text); margin: 0; display: flex; align-items: center; gap: 8px; }
+.wizard-section-head p { font-size: 12px; color: var(--muted); margin: 4px 0 0; }
+
 .split-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; min-width: 0; }
 .split-fields-labeled { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .split-label { display: block; font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
 .span-2 { grid-column: span 2; }
 .choice-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .choice-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.choice-card { min-height: 62px; border: 1px solid #dfe3ea; border-radius: var(--radius); background: #fff; display: grid; place-items: center; text-align: center; padding: 12px; color: #101828; font-weight: 800; }
+.choice-card { min-height: 62px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); display: grid; place-items: center; text-align: center; padding: 12px; color: #101828; font-weight: 800; }
 .choice-card.selected { border-color: var(--primary-container); background: rgba(157,11,79,.04); color: var(--primary-container); }
-.conditional-panel { display: none; border: 1px solid #dfe3ea; border-radius: var(--radius); padding: 18px; background: #fbfcfe; margin-top: 16px; }
+.conditional-panel { display: none; border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; background: var(--surface-dim); margin-top: 16px; }
 .conditional-panel.active { display: block; }
 .assist-box { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: var(--radius); padding: 14px 16px; font-size: 12px; line-height: 19px; white-space: normal; }
 .check-grid { display: flex; flex-wrap: wrap; gap: 14px; }
+
+/* #15 — Versión COMPACTA del check-grid para los Grupos de Atención Prioritaria.
+   Antes los checkboxes ocupaban toda la pantalla con la clase .check-grid normal,
+   rompiendo el ritmo del formulario. Esta versión los pinta como "chips" pequeños
+   en una grilla densa que respeta el ancho del wizard. */
+.check-grid-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  /* Bug #B11: todas las filas comparten el mismo alto que el contenido más
+     alto. Combinado con min-height en .check-chip, las tarjetas quedan
+     visualmente uniformes aunque algunas tengan texto corto y otras largo. */
+  grid-auto-rows: 1fr;
+  gap: 8px;
+}
+.check-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  /* Bug #B11: alto mínimo para tarjetas con texto corto, así no se ven
+     enanas comparadas a las que tienen texto de varias líneas. */
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.3;
+  transition: border-color .15s, background .15s;
+}
+.check-chip:hover { border-color: var(--muted-light); }
+/* Estado seleccionado: fondo guinda muy claro + borde guinda + check en esquina.
+   El checkbox nativo queda OCULTO (sigue en el DOM para envío del form) y todo
+   el chip funciona como tarjeta seleccionable. */
+.check-chip:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--surface-tint);
+  color: var(--primary);
+  font-weight: 600;
+}
+/* Check minimalista en la esquina superior derecha cuando está seleccionado.
+   Reemplaza el cuadro guinda grande que dominaba el chip antes. */
+.check-chip:has(input:checked)::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 14px;
+  height: 14px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--surface);
+  background: var(--primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+/* Input checkbox totalmente oculto pero accesible (lo lee el form y los lectores
+   de pantalla); el chip lo dispara con su click nativo. */
+.check-chip input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .check-card { border: 1px solid var(--surface-high); border-radius: var(--radius); padding: 14px; display: flex; gap: 10px; align-items: flex-start; min-width: 210px; flex: 1; }
 .check-card.is-disabled { opacity: .58; background: #f8fafc; }
+
+/* Bug #B11: opción tipo checkbox limpio (no es un .field con label uppercase).
+   Para casillas tipo "El pago es variable", "Aceptar términos", etc. donde el
+   checkbox y el texto van uno al lado del otro con tipografía normal. */
+.checkbox-opcion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color .15s, background .15s;
+}
+.checkbox-opcion:hover { border-color: var(--muted-light); }
+.checkbox-opcion input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.checkbox-opcion:has(input:checked) {
+  background: var(--surface-tint);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
 .check-card strong { display: block; font-size: 13px; margin-bottom: 4px; }
 .check-card span { color: var(--muted); font-size: 11px; }
 .requirement-list { display: grid; gap: 14px; }
-.requirement-card { border: 1px solid #dfe3ea; border-radius: var(--radius); background: #fbfcfe; padding: 18px; }
+.requirement-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-dim); padding: 18px; }
 .requirement-card > strong { display: block; margin-bottom: 14px; color: var(--primary-container); font-size: 14px; }
 .redundancy-list { display: grid; gap: 14px; }
-.redundancy-card { border: 1px solid #dfe3ea; border-radius: var(--radius); background: #fff; padding: 18px; }
+.redundancy-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 18px; }
 .redundancy-card > strong { display: block; margin-bottom: 14px; color: var(--primary-container); font-size: 14px; }
-.requirement-origin { display: none; grid-template-columns: 1fr 1fr; gap: 16px 20px; border: 1px dashed rgba(157,11,79,.32); border-radius: var(--radius); background: #fff7fb; padding: 14px; }
+.requirement-origin { display: none; grid-template-columns: 1fr 1fr; gap: 16px 20px; border: 1px dashed rgba(157,11,79,.32); border-radius: var(--radius); background: var(--surface-tint); padding: 14px; }
 .requirement-origin.active { display: grid; }
 .requirement-add-button { min-width: 170px; }
 .autofill-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
-.autofill-summary article { border: 1px solid #dfe3ea; border-radius: var(--radius); background: #fbfcfe; padding: 16px; }
-.autofill-summary span { display: block; margin-bottom: 6px; color: #667085; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.autofill-summary article { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-dim); padding: 16px; }
+.autofill-summary span { display: block; margin-bottom: 6px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .autofill-summary strong { display: block; color: var(--text); font-size: 14px; line-height: 19px; }
 .autofill-summary small { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 16px; }
-.auto-action-note { border: 1px solid rgba(157, 11, 79, .2); border-radius: var(--radius); background: #fff7fb; padding: 16px 18px; }
+.auto-action-note { border: 1px solid rgba(157, 11, 79, .2); border-radius: var(--radius); background: var(--surface-tint); padding: 16px 18px; }
 .auto-action-note strong { display: block; color: var(--primary-container); font-size: 14px; margin-bottom: 5px; }
 .auto-action-note p { color: var(--muted); font-size: 12px; line-height: 18px; }
 .autofill-followup { border-top: 1px solid var(--surface-high); padding-top: 18px; }
 .agenda-accordion { display: grid; gap: 12px; margin-top: 16px; }
-.agenda-accordion-item { border: 1px solid #dfe3ea; border-radius: var(--radius); background: #fff; overflow: hidden; }
-.agenda-accordion-head { width: 100%; border: 0; background: #fbfcfe; min-height: 54px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; color: #101828; font-weight: 800; }
+.agenda-accordion-item { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.agenda-accordion-head { width: 100%; border: 0; background: var(--surface-dim); min-height: 54px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; color: #101828; font-weight: 800; }
 .agenda-accordion-body { display: none; padding: 18px; border-top: 1px solid #e5e7eb; }
 .agenda-accordion-item.open .agenda-accordion-body { display: block; }
-.agenda-accordion-item.open .agenda-accordion-head { background: #fff7fb; color: var(--primary-container); }
+.agenda-accordion-item.open .agenda-accordion-head { background: var(--surface-tint); color: var(--primary-container); }
 .wizard-foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 20px; padding: 16px 0 0; }
 .wizard-actions {
   display: flex;
@@ -141,7 +254,7 @@
   gap: 16px;
   padding: 18px 32px 24px;
   border-top: 1px solid var(--surface-high);
-  background: #fff;
+  background: var(--surface);
 }
 .wizard-actions-right {
   display: flex;
@@ -176,7 +289,7 @@
   gap: 10px;
   padding: 24px 26px;
   border-bottom: 1px solid var(--surface-high);
-  background: #fff;
+  background: var(--surface);
 }
 .normativa-step {
   position: relative;
@@ -184,7 +297,7 @@
   align-items: center;
   gap: 10px;
   min-width: 0;
-  color: #98a2b3;
+  color: var(--muted-light);
   font-size: 12px;
   font-weight: 800;
 }
@@ -204,7 +317,7 @@
   place-items: center;
   flex: 0 0 28px;
   background: #e5e7eb;
-  color: #98a2b3;
+  color: var(--muted-light);
 }
 .normativa-step strong {
   white-space: normal;
@@ -219,7 +332,7 @@
 .normativa-step.active span,
 .normativa-step.done span {
   background: var(--primary-container);
-  color: #fff;
+  color: var(--surface);
 }
 .normativa-step.done span {
   font-size: 0;
@@ -234,7 +347,7 @@
 .normativa-info-box {
   border: 1px solid #ffc2d0;
   border-radius: var(--radius);
-  background: #fff7fb;
+  background: var(--surface-tint);
   padding: 16px 18px;
   margin-bottom: 18px;
 }
@@ -254,7 +367,7 @@
   min-height: 132px;
   border: 1px dashed #cbd5e1;
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   display: grid;
   place-items: center;
   gap: 7px;
@@ -282,14 +395,14 @@
   font-size: 13px;
 }
 .file-drop-zone small {
-  color: #98a2b3;
+  color: var(--muted-light);
   font-size: 11px;
 }
 .uploaded-file {
   margin-top: 10px;
   border: 1px solid var(--primary-container);
   border-radius: var(--radius);
-  background: #fff7fb;
+  background: var(--surface-tint);
   padding: 12px 14px;
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;
@@ -300,7 +413,7 @@
 .pdf-chip {
   border-radius: var(--radius-sm);
   background: var(--primary-container);
-  color: #fff;
+  color: var(--surface);
   padding: 5px 7px;
   font-size: 10px;
   font-weight: 800;
@@ -334,7 +447,7 @@
 .normativa-summary span {
   display: block;
   margin-bottom: 5px;
-  color: #98a2b3;
+  color: var(--muted-light);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: .06em;
@@ -364,7 +477,7 @@
 .version-list article {
   border: 1px solid #edf0f5;
   border-radius: var(--radius);
-  background: #fbfcfe;
+  background: var(--surface-dim);
   padding: 14px;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
@@ -378,7 +491,7 @@
   display: grid;
   place-items: center;
   background: var(--primary-container);
-  color: #fff;
+  color: var(--surface);
   font-size: 11px;
   font-weight: 800;
 }
@@ -393,7 +506,7 @@
 }
 .version-list p {
   margin: 4px 0 0;
-  color: #667085;
+  color: var(--muted);
   font-size: 12px;
 }
 .normativa-actions {

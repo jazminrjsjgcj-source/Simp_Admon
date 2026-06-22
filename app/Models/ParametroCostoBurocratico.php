@@ -14,7 +14,21 @@ use Illuminate\Database\Eloquent\Model;
 class ParametroCostoBurocratico extends Model
 {
     protected $table   = 'parametros_costo_burocratico';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * actualizado_por lo asigna el controlador al guardar.
+     */
+    protected $fillable = [
+        'clave',
+        'valor',
+        'unidad',
+        'fuente',
+        'vigencia_inicio',
+        'vigencia_fin',
+        'activo',
+        'actualizado_por',
+    ];
 
     protected $casts = [
         'valor'           => 'decimal:4',

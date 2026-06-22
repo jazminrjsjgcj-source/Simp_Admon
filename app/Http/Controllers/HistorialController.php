@@ -60,12 +60,73 @@ class HistorialController extends Controller
                 'bitacora.created_at',
                 'users.name as usuario_nombre'
             )
-            ->paginate(30);
+            ->paginate(10);
 
         return view('screens.historial', [
             'movimientos' => $movimientos,
             'tipo'        => $tipo,
             'id'          => $id,
+        ]);
+    }
+
+    /**
+     * Devuelve el historial de un registro en JSON, paginado, para el modal
+     * "Ver historial completo" que se abre desde el timeline del detalle.
+     *
+     * El modal carga los datos por AJAX (sin recargar la página) y permite
+     * elegir cuántos movimientos ver por página. Solo se aceptan los tamaños
+     * 5, 10 y 100 para evitar que se pida una página arbitrariamente grande.
+     *
+     * @param  string  $tipo  Tipo corto del recurso (tramite, propuesta...).
+     * @param  int     $id    ID del registro.
+     */
+    public function json(Request $request, string $tipo, int $id)
+    {
+        if (!isset(self::TIPOS[$tipo])) {
+            abort(404, 'Tipo de registro no válido.');
+        }
+
+        $claseModelo = self::TIPOS[$tipo];
+
+        // Tamaño de página: solo se permiten 5, 10 o 100. Cualquier otro valor
+        // cae al predeterminado de 10.
+        $porPagina = (int) $request->input('por_pagina', 10);
+        if (!in_array($porPagina, [5, 10, 100], true)) {
+            $porPagina = 10;
+        }
+
+        $movimientos = DB::table('bitacora')
+            ->leftJoin('users', 'bitacora.usuario_id', '=', 'users.id')
+            ->where('bitacora.auditable_type', $claseModelo)
+            ->where('bitacora.auditable_id', $id)
+            ->orderByDesc('bitacora.created_at')
+            ->select(
+                'bitacora.accion',
+                'bitacora.tipo',
+                'bitacora.detalle',
+                'bitacora.created_at',
+                'users.name as usuario_nombre'
+            )
+            ->paginate($porPagina);
+
+        // Se transforma cada fila a un arreglo plano y legible para el front:
+        // fecha formateada, acción, autor y los cambios ya separados.
+        $filas = collect($movimientos->items())->map(function ($ev) {
+            return [
+                'fecha'   => \Carbon\Carbon::parse($ev->created_at)->format('d/m/Y H:i'),
+                'accion'  => $ev->accion,
+                'tipo'    => $ev->tipo,
+                'usuario' => $ev->usuario_nombre ?? 'Sistema',
+                'cambios' => $ev->detalle ? explode(' | ', $ev->detalle) : [],
+            ];
+        });
+
+        return response()->json([
+            'filas'         => $filas,
+            'pagina_actual' => $movimientos->currentPage(),
+            'ultima_pagina' => $movimientos->lastPage(),
+            'total'         => $movimientos->total(),
+            'por_pagina'    => $porPagina,
         ]);
     }
 }

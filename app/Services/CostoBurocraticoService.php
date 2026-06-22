@@ -52,10 +52,20 @@ class CostoBurocraticoService
         $volumenAnual  = max(1, intval($tramite->volumen_anual ?? 1));
         $cbtTotalAnual = $cbuUnitario * $volumenAnual;
 
+        // Ítem E: bandera para que el desglose muestre una nota cuando hay montos
+        // no cuantificables (derechos variables del trámite o requisitos de costo
+        // de mercado), que quedan fuera del CBD pero existen para la ciudadanía.
+        if (!$tramite->relationLoaded('requisitos')) {
+            $tramite->load('requisitos');
+        }
+        $tieneCostosVariables = (bool) ($tramite->monto_derechos_variable
+            || $tramite->requisitos->contains(fn ($r) => (bool) $r->costo_variable));
+
         return array_merge($cbd, $cbi, [
-            'cbu_unitario'    => round($cbuUnitario,   2),
-            'volumen_anual'   => $volumenAnual,
-            'cbt_total_anual' => round($cbtTotalAnual, 2),
+            'cbu_unitario'           => round($cbuUnitario,   2),
+            'volumen_anual'          => $volumenAnual,
+            'cbt_total_anual'        => round($cbtTotalAnual, 2),
+            'tiene_costos_variables' => $tieneCostosVariables,
         ]);
     }
 
@@ -222,8 +232,11 @@ class CostoBurocraticoService
             $tramite->load('requisitos');
         }
 
+        // Ítem E: un requisito con costo variable (ej. plano arquitectónico) NO
+        // suma al costo directo, porque su monto no es cuantificable de forma
+        // objetiva. Su TIEMPO sí cuenta en el CBI (ver sumarTiempoRequisitos...).
         return $tramite->requisitos->sum(fn ($r) =>
-            $r->tiene_costo ? floatval($r->costo_requisito ?? 0) : 0
+            ($r->tiene_costo && !$r->costo_variable) ? floatval($r->costo_requisito ?? 0) : 0
         );
     }
 
@@ -255,6 +268,7 @@ class CostoBurocraticoService
 
         $dias = match($unidad) {
             'meses'   => $cantidad * $parametros['dias_por_mes'],
+            'anios'   => $cantidad * 365,
             'habiles' => $cantidad * $parametros['factor_dias_habiles'],
             default   => (float) $cantidad,
         };

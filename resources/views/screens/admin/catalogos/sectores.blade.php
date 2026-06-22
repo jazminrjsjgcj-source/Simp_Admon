@@ -15,9 +15,6 @@
     </div>
   </div>
 
-  @if(session('success'))
-    <div class="toast toast-success">{{ session('success') }}</div>
-  @endif
 
   <div class="assist-box">
     Los sectores y subsectores clasifican el impacto económico de trámites y propuestas.

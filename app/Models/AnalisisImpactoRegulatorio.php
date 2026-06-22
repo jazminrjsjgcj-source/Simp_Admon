@@ -16,7 +16,36 @@ class AnalisisImpactoRegulatorio extends Model
     use GeneraFolio;
 
     protected $table   = 'analisis_impacto_regulatorio';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps). Cubre los 7
+     * elementos del Art. 38 LNETB más los campos de dictamen. folio lo
+     * asigna GeneraFolio. Reconstruido desde las migraciones del AIR.
+     */
+    protected $fillable = [
+        'propuesta_id',
+        'folio',
+        'problematica',
+        'objetivos',
+        'alternativas',
+        'costos_implementacion',
+        'beneficios',
+        'impacto_estimado',
+        'impacta_tramites',
+        'sector_scian',
+        'subsector_scian',
+        'poblacion_volumen',
+        'ambito_aplicacion',
+        'consulta_publica',
+        'acciones_derivadas',
+        'anexos',
+        'estatus',
+        'created_by',
+        'dictamen',
+        'dictamen_observaciones',
+        'dictamen_fecha',
+        'dictaminado_por',
+    ];
 
     /** Prefijo de tipo para el folio: LPZ-AIR-... */
     protected function folioTipo(): string { return 'AIR'; }

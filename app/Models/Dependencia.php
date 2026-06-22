@@ -16,7 +16,16 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Dependencia extends Model
 {
-    protected $guarded = ['id'];
+    /**
+     * Columnas asignables en masa. Excluye id y timestamps (gestionados por
+     * Eloquent). Reconstruido desde las migraciones de la tabla dependencias.
+     */
+    protected $fillable = [
+        'codigo',
+        'nombre',
+        'activo',
+        'siglas',
+    ];
     protected $table   = 'dependencias';
 
     protected $casts = [

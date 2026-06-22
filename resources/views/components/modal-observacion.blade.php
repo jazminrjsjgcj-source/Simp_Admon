@@ -49,7 +49,14 @@
           <select name="destinatario_id" id="obsDestinatario" required>
             <option value="">Seleccione a quién va dirigida</option>
             @foreach($revisores as $r)
-              <option value="{{ $r->id }}">{{ $r->name }}</option>
+              @php
+                // Construir el detalle "Cargo · Rol" omitiendo lo que no exista.
+                $detalle = collect([$r->cargo ?? null, ucfirst($r->rol ?? '')])
+                    ->filter()->implode(' · ');
+              @endphp
+              <option value="{{ $r->id }}">
+                {{ $r->name }}@if($detalle) — {{ $detalle }}@endif
+              </option>
             @endforeach
           </select>
         </div>

@@ -8,6 +8,7 @@ use App\Models\AccionAgenda;
 use App\Models\Dependencia;
 use App\Models\Tramite;
 use App\Services\CalendarioEventoService;
+use App\Services\AgendaExportService;
 use Illuminate\Http\Request;
 
 class AgendaController extends Controller
@@ -16,13 +17,20 @@ class AgendaController extends Controller
         private CalendarioEventoService $calendario,
         private \App\Services\AgendaService $agendaService,
         private \App\Services\HitoAgendaService $hitoService,
+        private \App\Services\BitacoraService $bitacora,
+        private AgendaExportService $exportService,
     ) {}
 
     public function index(Request $request)
     {
         $user = $request->user();
-        $acciones = AccionAgenda::with(['dependencia', 'tramite'])
-            ->when($user->rol === User::ROL_ENLACE, fn ($q) => $q->where('created_by', $user->id))
+        $acciones = AccionAgenda::with(['dependencia', 'unidad', 'tramite'])
+            // Visibilidad por rol: admin y revisora ven todas las dependencias;
+            // jurídico, enlace y sujeto solo ven las acciones de su propia
+            // dependencia. Coincide con el show() (puedeVerRegistro), evitando
+            // listar acciones que el show bloquearía con 403.
+            ->when(!$user->veTodoElModulo('agenda'),
+                fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
             ->when($request->tipo,          fn ($q, $v) => $q->where('tipo', $v))
             ->when($request->estatus,       fn ($q, $v) => $q->where('estatus', $v))
             ->latest()
@@ -52,12 +60,15 @@ class AgendaController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'tipo'             => 'required|in:simplificacion,digitalizacion',
+            'alcance'          => 'nullable|in:simplificacion,digitalizacion,ambas',
+            'tipo'             => 'nullable|in:simplificacion,digitalizacion,ambas',
             'descripcion'      => 'required|string|min:10',
             'dependencia_id'   => 'nullable|exists:dependencias,id',
             'fecha_inicio'     => 'nullable|date',
             'fecha_compromiso' => 'nullable|date|after_or_equal:fecha_inicio',
             'tramite_id'       => 'nullable|exists:tramites,id',
+            'nivel_actual'     => 'nullable|integer|min:0|max:5',
+            'nivel_meta'       => 'nullable|integer|min:0|max:5',
         ]);
 
         $esEnvio = $request->input('accion') === 'enviar';
@@ -162,7 +173,9 @@ class AgendaController extends Controller
     private function datosAccionDesde(Request $request): array
     {
         return [
-            'tipo'             => $request->tipo,
+            // El alcance (simplificacion/digitalizacion/ambas) viaja en la columna
+            // tipo. Si el wizard manda 'alcance', tiene prioridad; si no, usa 'tipo'.
+            'tipo'             => $request->input('alcance') ?: $request->input('tipo'),
             'descripcion'      => $request->descripcion,
             'meta'             => $request->meta,
             'fecha_inicio'     => $request->fecha_inicio,
@@ -172,6 +185,18 @@ class AgendaController extends Controller
             'indicador'        => $request->indicador,
             'indicador_avance' => $request->indicador_avance,
             'tramite_id'       => $request->tramite_id ?: null,
+            // Paquete 3: catálogos oficiales con explicación por acción. El form
+            // envía las explicaciones en acciones_*[acción] (solo las marcadas, por
+            // el disabled). Se filtran vacíos por si llega alguno sin texto.
+            'acciones_simplificacion' => array_filter($request->input('acciones_simplificacion', []), fn ($v) => $v !== null && $v !== ''),
+            'acciones_digitalizacion' => array_filter($request->input('acciones_digitalizacion', []), fn ($v) => $v !== null && $v !== ''),
+            // #10/Paquete 3: el nivel actual se llena solo desde el trámite. Si la
+            // precarga dejó el select deshabilitado (no se envía), lo tomamos del
+            // trámite vinculado para que siempre quede registrado en la acción.
+            'nivel_actual'            => $request->input('nivel_actual') ?? optional(
+                $request->tramite_id ? \App\Models\Tramite::find($request->tramite_id) : null
+            )->nivel_digitalizacion,
+            'nivel_meta'              => $request->input('nivel_meta'),
         ];
     }
 
@@ -183,6 +208,15 @@ class AgendaController extends Controller
 
     public function show(AccionAgenda $agenda)
     {
+        // Control de acceso por dependencia (cierra fuga: antes cualquiera con
+        // el ID en la URL podía ver una acción de otra dependencia). Pueden ver:
+        //   - admin y revisora (transversales, vía puedeVerRegistro)
+        //   - quien es de la misma dependencia de la acción
+        // El jurídico observa SOLO lo de su dependencia, igual que enlace y sujeto.
+        if (!request()->user()->puedeVerRegistro($agenda, 'agenda')) {
+            abort(403, 'No tiene permiso para ver esta acción de agenda.');
+        }
+
         $agenda->load(['dependencia', 'tramite.requisitos', 'tramite.procesosAtencion' => function ($q) {
             $q->orderBy('paso')->orderBy('subpaso');
         }, 'observaciones.realizadaPor', 'creador']);
@@ -211,58 +245,129 @@ class AgendaController extends Controller
         // Solo el creador/enlace de la dependencia (o admin) puede marcar hitos.
         $user = request()->user();
         $puedeMarcarHitos = $user->isRol(User::ROL_ADMIN) || $user->esDeSuDependencia($agenda);
+        // Grupo 3: la revisora (permiso agenda.aprobar) da el visto bueno.
+        $puedeAprobarHitos = $user->tienePermiso('agenda.aprobar');
 
         return view('screens.agenda.show', compact(
             'agenda', 'puedeObservar', 'revisores',
             'observacionesPorSeccion', 'camposObservables',
-            'hitos', 'porcentaje', 'siguienteId', 'ayudas', 'puedeMarcarHitos'
+            'hitos', 'porcentaje', 'siguienteId', 'ayudas', 'puedeMarcarHitos', 'puedeAprobarHitos'
         ));
     }
 
     /**
-     * Marca un hito de avance como completado. Solo permite marcar el siguiente
-     * hito pendiente (avance lineal), y solo a quien pertenece a la dependencia.
+     * #9: el enlace (creador/dependencia o admin) sube la evidencia de un hito.
+     * El hito queda "pendiente de visto bueno". Flexible: cualquier hito, sin orden.
      */
-    public function marcarHito(AccionAgenda $agenda, \App\Models\HitoAgenda $hito)
+    public function subirEvidenciaHito(Request $request, AccionAgenda $agenda, \App\Models\HitoAgenda $hito)
     {
         $user = request()->user();
 
         if (!$user->isRol(User::ROL_ADMIN) && !$user->esDeSuDependencia($agenda)) {
             return back()->with('error', 'Solo puede actualizar acciones de su dependencia.');
         }
-
-        // Seguridad: el hito debe pertenecer a esta acción.
         if ($hito->accion_agenda_id !== $agenda->id) {
             return back()->with('error', 'El hito no corresponde a esta acción.');
         }
 
-        $marcado = $this->hitoService->marcarHito($agenda, $hito->id, $user->id);
+        $request->validate([
+            'evidencia' => 'required|file|mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx|max:10240',
+        ], [
+            'evidencia.required' => 'Debe adjuntar un archivo de evidencia.',
+            'evidencia.mimes'    => 'El archivo debe ser PDF, imagen, Word o Excel.',
+            'evidencia.max'      => 'El archivo no debe superar 10 MB.',
+        ]);
 
-        if (!$marcado) {
-            return back()->with('error', 'Debe completar los hitos en orden.');
+        $archivo = $request->file('evidencia');
+        $nombreOriginal = $archivo->getClientOriginalName();
+        $nombreGuardado = 'hito_' . $hito->id . '_' . time() . '.' . $archivo->getClientOriginalExtension();
+        $ruta = $archivo->storeAs('evidencias-hitos', $nombreGuardado, 'local');
+
+        $this->hitoService->subirEvidencia($hito, $ruta, $nombreOriginal, $user->id);
+        $this->bitacora->registrar($agenda, 'agenda', 'hito', 'Evidencia subida: ' . $hito->nombre, null, $user->id);
+
+        return back()->with('success', 'Evidencia enviada. Queda pendiente del visto bueno de la revisora.');
+    }
+
+    /**
+     * #5: la revisora (permiso agenda.aprobar) aprueba un hito con evidencia.
+     */
+    public function aprobarHito(AccionAgenda $agenda, \App\Models\HitoAgenda $hito)
+    {
+        $user = request()->user();
+
+        if (!$user->tienePermiso('agenda.aprobar')) {
+            return back()->with('error', 'No tiene permiso para dar visto bueno.');
+        }
+        if ($hito->accion_agenda_id !== $agenda->id) {
+            return back()->with('error', 'El hito no corresponde a esta acción.');
         }
 
-        // Registrar el hito completado en la bitácora del registro padre (la
-        // acción de agenda), para que aparezca en su historial/timeline. El
-        // AuditObserver no escucha HitoAgenda, así que se inserta manualmente,
-        // igual que se hace con las observaciones en RevisionService.
-        try {
-            \Illuminate\Support\Facades\DB::table('bitacora')->insert([
-                'auditable_type' => \App\Models\AccionAgenda::class,
-                'auditable_id'   => $agenda->id,
-                'usuario_id'     => $user->id,
-                'modulo'         => 'agenda',
-                'tipo'           => 'hito',
-                'accion'         => 'Hito completado: ' . $hito->nombre,
-                'detalle'        => 'Avance: ' . $this->hitoService->calcularPorcentaje($agenda) . '%',
-                'ip_address'     => request()->ip(),
-                'created_at'     => now(),
-            ]);
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('marcarHito bitácora error: ' . $e->getMessage());
+        if (!$this->hitoService->aprobarHito($hito, $user->id)) {
+            return back()->with('error', 'El hito no está pendiente de visto bueno.');
         }
 
-        return back()->with('success', 'Hito marcado como completado.');
+        $this->bitacora->registrar($agenda, 'agenda', 'hito',
+            'Hito aprobado: ' . $hito->nombre,
+            'Avance: ' . $this->hitoService->calcularPorcentaje($agenda) . '%', $user->id);
+
+        return back()->with('success', 'Hito aprobado.');
+    }
+
+    /**
+     * #5: la revisora rechaza un hito con un motivo escrito. Vuelve al enlace.
+     */
+    public function rechazarHito(Request $request, AccionAgenda $agenda, \App\Models\HitoAgenda $hito)
+    {
+        $user = request()->user();
+
+        if (!$user->tienePermiso('agenda.aprobar')) {
+            return back()->with('error', 'No tiene permiso para dar visto bueno.');
+        }
+        if ($hito->accion_agenda_id !== $agenda->id) {
+            return back()->with('error', 'El hito no corresponde a esta acción.');
+        }
+
+        $request->validate([
+            'motivo_rechazo' => 'required|string|min:5|max:500',
+        ], [
+            'motivo_rechazo.required' => 'Debe indicar el motivo del rechazo.',
+            'motivo_rechazo.min'      => 'El motivo debe tener al menos 5 caracteres.',
+        ]);
+
+        if (!$this->hitoService->rechazarHito($hito, $request->input('motivo_rechazo'), $user->id)) {
+            return back()->with('error', 'El hito no está pendiente de visto bueno.');
+        }
+
+        $this->bitacora->registrar($agenda, 'agenda', 'hito', 'Hito rechazado: ' . $hito->nombre,
+            'Motivo: ' . $request->input('motivo_rechazo'), $user->id);
+
+        return back()->with('success', 'Hito rechazado. El enlace deberá corregir la evidencia.');
+    }
+
+    /**
+     * #9: descarga la evidencia de un hito (enlace de su dependencia, admin o
+     * revisora con permiso de aprobar).
+     */
+    public function descargarEvidenciaHito(AccionAgenda $agenda, \App\Models\HitoAgenda $hito)
+    {
+        $user = request()->user();
+        $puede = $user->isRol(User::ROL_ADMIN)
+            || $user->esDeSuDependencia($agenda)
+            || $user->tienePermiso('agenda.aprobar');
+
+        if (!$puede) {
+            return back()->with('error', 'No tiene permiso para ver esta evidencia.');
+        }
+        if ($hito->accion_agenda_id !== $agenda->id || empty($hito->evidencia_archivo)) {
+            return back()->with('error', 'No hay evidencia para este hito.');
+        }
+        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($hito->evidencia_archivo)) {
+            return back()->with('error', 'El archivo de evidencia no se encuentra.');
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('local')
+            ->download($hito->evidencia_archivo, $hito->evidencia_nombre);
     }
 
     /**
@@ -326,6 +431,16 @@ class AgendaController extends Controller
 
         $data = $request->only(['descripcion', 'tipo', 'meta', 'fecha_inicio', 'fecha_compromiso', 'responsable', 'indicador', 'indicador_avance']);
 
+        // Paquete 3: el alcance (si el wizard lo manda) tiene prioridad sobre tipo.
+        if ($request->filled('alcance')) {
+            $data['tipo'] = $request->input('alcance');
+        }
+        // Paquete 3: catálogos oficiales con explicación por acción (filtra vacíos).
+        $data['acciones_simplificacion'] = array_filter($request->input('acciones_simplificacion', []), fn ($v) => $v !== null && $v !== '');
+        $data['acciones_digitalizacion'] = array_filter($request->input('acciones_digitalizacion', []), fn ($v) => $v !== null && $v !== '');
+        $data['nivel_actual']            = $request->input('nivel_actual');
+        $data['nivel_meta']              = $request->input('nivel_meta');
+
         if ($agenda->estatus === AccionAgenda::ESTATUS_EN_CORRECCION) {
             $data['estatus'] = AccionAgenda::ESTATUS_EN_CORRECCION;
         }
@@ -346,6 +461,10 @@ class AgendaController extends Controller
 
     public function destroy(AccionAgenda $agenda)
     {
+        if (!request()->user()->puedeEliminarAgenda($agenda)) {
+            abort(403, 'Solo se pueden eliminar acciones en borrador de su propia dependencia.');
+        }
+
         $this->calendario->eliminar($agenda);
         $agenda->delete();
 
@@ -360,5 +479,34 @@ class AgendaController extends Controller
 
         return redirect()->route('agenda.show', $agenda)
             ->with('success', 'Estatus actualizado.');
+    }
+
+    /**
+     * Exporta a Excel todas las acciones de SIMPLIFICACIÓN (Art. 23 LNETB).
+     * Incluye las acciones de tipo 'simplificacion' y 'ambas'.
+     * Solo accesible a revisora y admin (la ruta lo controla por middleware).
+     */
+    public function exportarSimp()
+    {
+        $acciones = AccionAgenda::with(['dependencia', 'tramite', 'hitos', 'periodo', 'creador'])
+            ->whereIn('tipo', ['simplificacion', 'ambas'])
+            ->latest()
+            ->get();
+
+        return $this->exportService->exportarSimp($acciones);
+    }
+
+    /**
+     * Exporta a Excel todas las acciones de DIGITALIZACIÓN (Art. 24 LNETB).
+     * Incluye las acciones de tipo 'digitalizacion' y 'ambas'.
+     */
+    public function exportarDig()
+    {
+        $acciones = AccionAgenda::with(['dependencia', 'tramite', 'hitos', 'periodo', 'creador'])
+            ->whereIn('tipo', ['digitalizacion', 'ambas'])
+            ->latest()
+            ->get();
+
+        return $this->exportService->exportarDig($acciones);
     }
 }

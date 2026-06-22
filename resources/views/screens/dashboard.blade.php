@@ -107,7 +107,7 @@
     <div class="card">
       <div class="panel-head">
         <div><h3 id="dashFilterTitle" class="nowrap">Resultados</h3><p id="dashFilterSub" class="nowrap">—</p></div>
-        <button type="button" class="btn btn-outline btn-sm" onclick="dashLimpiar()">Ver todos</button>
+        <button type="button" class="btn btn-soft btn-sm" onclick="dashLimpiar()">Ver todos</button>
       </div>
       <div id="dashFilterLoading" style="padding:24px;text-align:center;color:#6b7280;display:none">Cargando…</div>
       <div class="table-wrap" id="dashFilterTable">
@@ -128,6 +128,15 @@
       </div>
     </div>
   </div>
+
+  {{--
+    Bug #B8: todo lo que sigue (botones de acción, pendientes, firmas y estado vacío)
+    se envuelve en #dashSecondaryContent. El JS de dashFiltrar lo oculta cuando hay
+    un filtro activo, y dashLimpiar lo restaura. Así, al filtrar, el usuario ve
+    SOLO los KPIs (con el activo marcado) y el panel de resultados — todo lo demás
+    desaparece hasta que desactive el filtro.
+  --}}
+  <div id="dashSecondaryContent">
 
   {{-- Accesos rápidos --}}
   @if($rol === 'enlace')
@@ -152,15 +161,25 @@
   <div class="card">
     <div class="panel-head">
       <div><h3 class="nowrap">Trámites pendientes</h3><p class="nowrap">Trámites que requieren atención.</p></div>
-      <a href="{{ route('tramites.index') }}" class="btn btn-outline btn-sm">Ver todos</a>
+      <a href="{{ route('tramites.index') }}" class="btn btn-soft btn-sm">Ver todos</a>
     </div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Folio</th><th>Nombre</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
       @foreach($pendientesTramites as $t)
         <tr>
           <td>{{ $t->homoclave ?? 'Sin folio' }}</td>
           <td><strong>{{ $t->nombre_oficial }}</strong></td>
-          <td><span class="badge {{ match($t->estatus){'en_observacion','en_correccion'=>'warning-b','en_firma'=>'info-b','completado'=>'success-b',default=>''} }}">@estatus($t->estatus)</span></td>
-          <td class="table-action-cell"><div class="table-actions"><a href="{{ route('tramites.show',$t) }}" class="btn table-action-btn">Atender</a></div></td>
+          <td><x-badge-estatus :estatus="$t->estatus" /></td>
+          <td class="table-action-cell"><div class="table-actions">
+            {{-- Ver: siempre disponible para quien tenga el registro a la vista --}}
+            <a href="{{ route('tramites.show',$t) }}" class="btn table-action-btn btn-outline btn-sm">Ver</a>
+            {{-- Atender: solo si el rol puede editar este trámite --}}
+            @if(auth()->user()->puedeEditarTramite($t))
+              <a href="{{ route('tramites.edit',$t) }}" class="btn table-action-btn btn-sm">Atender</a>
+            {{-- Revisar: solo si el rol observa o aprueba (revisora, jurídico) --}}
+            @elseif(auth()->user()->tienePermiso('tramites.observar') || auth()->user()->tienePermiso('tramites.aprobar'))
+              <a href="{{ route('tramites.show',$t) }}" class="btn table-action-btn btn-sm">Revisar</a>
+            @endif
+          </div></td>
         </tr>
       @endforeach
     </tbody></table></div>
@@ -172,16 +191,33 @@
   <div class="card">
     <div class="panel-head">
       <div><h3 class="nowrap">Agenda SyD pendiente</h3><p class="nowrap">Acciones de simplificación y digitalización.</p></div>
-      <a href="{{ route('agenda.index') }}" class="btn btn-outline btn-sm">Ver todas</a>
+      <a href="{{ route('agenda.index') }}" class="btn btn-soft btn-sm">Ver todas</a>
     </div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Folio</th><th>Descripción</th><th>Tipo</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
       @foreach($pendientesAgenda as $a)
         <tr>
-          <td>AGD-{{ str_pad($a->id,3,'0',STR_PAD_LEFT) }}</td>
+          <td>{{ $a->folio ?? 'AGD-' . str_pad($a->id,3,'0',STR_PAD_LEFT) }}</td>
           <td><strong>{{ Str::limit($a->descripcion,50) }}</strong></td>
-          <td><span class="badge {{ $a->tipo==='simplificacion'?'accent-b':'info-b' }}">{{ ucfirst($a->tipo) }}</span></td>
-          <td><span class="badge">@estatus($a->estatus)</span></td>
-          <td class="table-action-cell"><div class="table-actions"><a href="{{ route('agenda.show',$a) }}" class="btn table-action-btn">Atender</a></div></td>
+          <td><span class="badge">{{ ucfirst($a->tipo) }}</span></td>
+          <td><x-badge-estatus :estatus="$a->estatus" /></td>
+          <td class="table-action-cell"><div class="table-actions">
+            {{-- Ver: siempre disponible --}}
+            <a href="{{ route('agenda.show',$a) }}" class="btn table-action-btn btn-outline btn-sm">Ver</a>
+            {{-- Atender: admin siempre; enlace solo su propia acción en estado editable --}}
+            @if(
+              auth()->user()->isRol(App\Models\User::ROL_ADMIN) ||
+              (
+                auth()->user()->isRol(App\Models\User::ROL_ENLACE)
+                && $a->created_by === auth()->id()
+                && in_array($a->estatus, ['borrador','en_correccion'])
+              )
+            )
+              <a href="{{ route('agenda.edit',$a) }}" class="btn table-action-btn btn-sm">Atender</a>
+            {{-- Revisar: solo si el rol observa o aprueba (revisora, jurídico) --}}
+            @elseif(auth()->user()->tienePermiso('agenda.observar') || auth()->user()->tienePermiso('agenda.aprobar'))
+              <a href="{{ route('agenda.show',$a) }}" class="btn table-action-btn btn-sm">Revisar</a>
+            @endif
+          </div></td>
         </tr>
       @endforeach
     </tbody></table></div>
@@ -193,16 +229,29 @@
   <div class="card">
     <div class="panel-head">
       <div><h3 class="nowrap">Agenda Regulatoria pendiente</h3><p class="nowrap">Propuestas con acciones pendientes.</p></div>
-      <a href="{{ route('agenda-regulatoria.index') }}" class="btn btn-outline btn-sm">Ver todas</a>
+      <a href="{{ route('agenda-regulatoria.index') }}" class="btn btn-soft btn-sm">Ver todas</a>
     </div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Folio</th><th>Propuesta</th><th>Tipo</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
       @foreach($pendientesPropu as $p)
         <tr>
-          <td>REG-{{ str_pad($p->id,3,'0',STR_PAD_LEFT) }}</td>
+          <td>{{ $p->folio ?? 'REG-' . str_pad($p->id,3,'0',STR_PAD_LEFT) }}</td>
           <td><strong>{{ Str::limit($p->nombre,50) }}</strong></td>
           <td>{{ $p->tipo_regulacion ?? '—' }}</td>
-          <td><span class="badge">@estatus($p->estatus ?? 'borrador')</span></td>
-          <td class="table-action-cell"><div class="table-actions"><a href="{{ route('propuestas.show',$p) }}" class="btn table-action-btn">Atender</a></div></td>
+          <td><x-badge-estatus :estatus="$p->estatus ?? 'borrador'" /></td>
+          <td class="table-action-cell"><div class="table-actions">
+            {{-- Ver: siempre disponible --}}
+            <a href="{{ route('propuestas.show',$p) }}" class="btn table-action-btn btn-outline btn-sm">Ver</a>
+            {{-- Atender: admin siempre; quien tiene permiso de editar y la propuesta es de su dependencia --}}
+            @if(
+              auth()->user()->isRol(App\Models\User::ROL_ADMIN) ||
+              (auth()->user()->tienePermiso('agenda_regulatoria.editar') && auth()->user()->esDeSuDependencia($p))
+            )
+              <a href="{{ route('propuestas.edit',$p) }}" class="btn table-action-btn btn-sm">Atender</a>
+            {{-- Revisar: solo si el rol observa o aprueba (revisora, jurídico) --}}
+            @elseif(auth()->user()->tienePermiso('agenda_regulatoria.observar') || auth()->user()->tienePermiso('agenda_regulatoria.aprobar'))
+              <a href="{{ route('propuestas.show',$p) }}" class="btn table-action-btn btn-sm">Revisar</a>
+            @endif
+          </div></td>
         </tr>
       @endforeach
     </tbody></table></div>
@@ -214,7 +263,7 @@
   <div class="card">
     <div class="panel-head">
       <div><h3 class="nowrap">Dictámenes AIR pendientes</h3><p class="nowrap">Análisis de impacto esperando su dictamen.</p></div>
-      <a href="{{ route('dictamenes-air.index') }}" class="btn btn-outline btn-sm">Ver todos</a>
+      <a href="{{ route('dictamenes-air.index') }}" class="btn btn-soft btn-sm">Ver todos</a>
     </div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Propuesta</th><th>Dependencia</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
       @foreach($pendientesAir as $air)
@@ -248,11 +297,42 @@
         <tr>
           <td>{{ $f['folio'] }}</td>
           <td><strong>{{ $f['nombre'] }}</strong></td>
-          <td><span class="badge info-b">{{ $f['tipo'] }}</span></td>
+          <td><span class="badge">{{ $f['tipo'] }}</span></td>
           <td class="table-action-cell"><div class="table-actions"><a href="{{ $f['url_firma'] }}" class="btn table-action-btn">Firmar</a></div></td>
         </tr>
       @endforeach
     </tbody></table></div>
+  </div>
+  @endif
+
+  {{-- Actividad general del sistema: timeline público de transparencia.
+       Todos ven TODO lo que está pasando (qué se creó, aprobó, observó, firmó).
+       Es distinto de la campana de notificaciones, que es personal y filtrada.
+       Solo se muestra si hay eventos. --}}
+  @if(isset($actividadGeneral) && $actividadGeneral->count())
+  <div class="card">
+    <div class="panel-head">
+      <div><h3 class="nowrap">Actividad general</h3><p class="nowrap">Lo que está ocurriendo en el sistema: aprobaciones, observaciones y avances.</p></div>
+    </div>
+    <div class="feed-actividad">
+      @foreach($actividadGeneral as $evento)
+        <div class="feed-item">
+          <div class="feed-modulo">{{ $evento->modulo_etiqueta }}</div>
+          <div class="feed-contenido">
+            @if($evento->url)
+              <a href="{{ $evento->url }}" class="feed-accion">{{ $evento->accion }}</a>
+            @else
+              <span class="feed-accion">{{ $evento->accion }}</span>
+            @endif
+            <div class="feed-meta">
+              <span>{{ $evento->autor }}</span>
+              @if($evento->dependencia)<span>·</span><span>{{ $evento->dependencia }}</span>@endif
+              <span>·</span><span>{{ $evento->fecha_relativa }}</span>
+            </div>
+          </div>
+        </div>
+      @endforeach
+    </div>
   </div>
   @endif
 
@@ -265,6 +345,8 @@
     </tbody></table></div>
   </div>
   @endif
+
+  </div>{{-- /#dashSecondaryContent (Bug #B8) --}}
 
 </div>
 @endsection
@@ -302,6 +384,12 @@
     var kpiEl = document.getElementById('kpi-' + kpiIdx);
     if (kpiEl) kpiEl.classList.add('kpi-active');
 
+    // Bug #B8: ocultar el resto del dashboard mientras hay filtro activo.
+    // Solo permanecen visibles los KPIs (con el activo marcado) y el panel de
+    // resultados. Se restaura en dashLimpiar.
+    var secundario = document.getElementById('dashSecondaryContent');
+    if (secundario) secundario.style.display = 'none';
+
     var panel  = document.getElementById('dashFilterPanel');
     var loading = document.getElementById('dashFilterLoading');
     var table   = document.getElementById('dashFilterTable');
@@ -328,7 +416,8 @@
     setTimeout(function() { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
 
     fetch('/api/dashboard/filtrar?tipo=' + encodeURIComponent(tipo || '') + '&filtro=' + encodeURIComponent(filtro || ''), {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      cache: 'no-store'
     })
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -365,6 +454,11 @@
       activoKpi = null;
     }
     document.getElementById('dashFilterPanel').style.display = 'none';
+
+    // Bug #B8: restaurar visibilidad del resto del dashboard cuando se
+    // desactiva el filtro.
+    var secundario = document.getElementById('dashSecondaryContent');
+    if (secundario) secundario.style.display = '';
   };
 
   // Autoridad Revisora: "Pendientes" (tarjeta 0) seleccionada por defecto al ingresar.

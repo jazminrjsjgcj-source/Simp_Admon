@@ -23,7 +23,18 @@ use Illuminate\Database\Eloquent\Model;
 class UnidadResponsable extends Model
 {
     protected $table   = 'unidades_responsables';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * Reconstruido desde la migración create_unidades_responsables.
+     */
+    protected $fillable = [
+        'codigo',
+        'nombre',
+        'poder',
+        'nivel',
+        'activo',
+    ];
 
     protected $casts = [
         'activo' => 'boolean',

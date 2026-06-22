@@ -11,7 +11,22 @@ use Illuminate\Database\Eloquent\Model;
 class UnidadValorReferencia extends Model
 {
     protected $table   = 'unidades_valor_referencia';
-    protected $guarded = ['id'];
+
+    /**
+     * Columnas asignables en masa (sin id ni timestamps).
+     * actualizado_por SÍ va aquí: UnidadValorController lo asigna en
+     * create() y update(). Reconstruido desde las migraciones de la tabla.
+     */
+    protected $fillable = [
+        'unidad',
+        'valor_pesos',
+        'anio',
+        'vigencia_inicio',
+        'vigencia_fin',
+        'fuente',
+        'activo',
+        'actualizado_por',
+    ];
 
     protected $casts = [
         'valor_pesos'     => 'decimal:4',

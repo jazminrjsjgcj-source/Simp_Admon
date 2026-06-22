@@ -48,7 +48,7 @@
             @csrf
             <input type="hidden" name="resolucion" value="aprobada">
             <button type="submit" class="btn btn-success btn-sm"
-              onclick="return confirm('¿Aprobar la exención? La propuesta quedará exenta de AIR.')">
+              onclick="return confirmarAccion(this, '¿Aprobar la exención? La propuesta quedará exenta de AIR.')">
               Aprobar exención
             </button>
           </form>
@@ -56,7 +56,7 @@
             @csrf
             <input type="hidden" name="resolucion" value="rechazada">
             <button type="submit" class="btn btn-outline btn-sm danger"
-              onclick="return confirm('¿Rechazar la exención? La propuesta deberá presentar AIR completo.')">
+              onclick="return confirmarAccion(this, '¿Rechazar la exención? La propuesta deberá presentar AIR completo.')">
               Rechazar
             </button>
           </form>

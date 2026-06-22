@@ -234,6 +234,10 @@
 
     </div>{{-- /acordeon-tramite --}}
   </form>
+
+  {{-- #7: citas de impacto (fuera del form para evitar conflictos de submit) --}}
+  @include('partials.citas-impacto-propuesta', ['propuesta' => $propuesta, 'modoEdicion' => true])
+
     </div>{{-- /detalle-main --}}
 
     <aside class="detalle-aside">
