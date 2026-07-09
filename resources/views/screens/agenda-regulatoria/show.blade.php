@@ -132,8 +132,6 @@
         '10. Posibles beneficios'                       => $d['beneficios'] ?? null,
         '11. Posibles costos burocráticos'              => $d['costos_burocraticos'] ?? null,
         '12. Trámites y servicios en los que impacta'   => $d['tramites_impacta'] ?? null,
-        '13. Acciones de simplificación asociadas'      => $d['acciones_simplificacion'] ?? null,
-        '14. Acciones de digitalización asociadas'      => $d['acciones_digitalizacion'] ?? null,
         '15. Fundamento jurídico'                       => $d['fundamento_juridico'] ?? null,
         '16. Impacto en comercio o inversión'           => $d['impacto_comercio'] ?? null,
       ] as $label => $value)
@@ -141,6 +139,24 @@
           <div>
             <p class="label-meta">{{ $label }}</p>
             <p class="text-muted-sm">{{ $value }}</p>
+          </div>
+        @endif
+      @endforeach
+
+      {{-- Rubros 13/14: se guardan como objeto { tipo de acción: explicación },
+           así que se muestran como lista, no como texto plano. --}}
+      @foreach([
+        '13. Acciones de simplificación asociadas'  => $d['acciones_simplificacion'] ?? null,
+        '14. Acciones de digitalización asociadas'  => $d['acciones_digitalizacion'] ?? null,
+      ] as $label => $acciones)
+        @if(is_array($acciones) && count($acciones))
+          <div>
+            <p class="label-meta">{{ $label }}</p>
+            <ul class="text-muted-sm" style="margin:4px 0 0; padding-left:18px">
+              @foreach($acciones as $tipo => $explicacion)
+                <li><strong>{{ $tipo }}:</strong> {{ $explicacion }}</li>
+              @endforeach
+            </ul>
           </div>
         @endif
       @endforeach
@@ -307,7 +323,7 @@
       <div class="modal-grid">
         <div class="modal-data-item">
           <span>Folio</span>
-          <strong>REG-{{ str_pad($propuesta->id, 3, '0', STR_PAD_LEFT) }}</strong>
+          <strong>{{ $propuesta->folio ?? 'Sin folio (borrador)' }}</strong>
         </div>
         <div class="modal-data-item">
           <span>Estatus</span>

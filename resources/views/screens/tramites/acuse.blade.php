@@ -153,7 +153,7 @@
       <div class="acuse-grid">
         <div class="acuse-field"><span class="label">Dirigido a:</span><span class="value">{{ ucfirst($tramite->dirigido_a ?? 'Ambas') }}</span></div>
         <div class="acuse-field"><span class="label">Volumen anual:</span><span class="value">{{ number_format($tramite->volumen_anual ?? 0) }}</span></div>
-        <div class="acuse-field"><span class="label">Plazo resolución:</span><span class="value">{{ $tramite->plazo_resolucion_cantidad ?? '—' }} {{ $tramite->plazo_resolucion_unidad ?? '' }}</span></div>
+        <div class="acuse-field"><span class="label">Plazo resolución:</span><span class="value">@plazo($tramite->plazo_resolucion_cantidad, $tramite->plazo_resolucion_unidad)</span></div>
         <div class="acuse-field"><span class="label">Digitalización:</span><span class="value">{{ $tramite->nivel_digitalizacion ?? '—' }} / 5</span></div>
       </div>
       @if($tramite->objetivo)

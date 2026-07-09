@@ -58,7 +58,11 @@
                   {{ strtoupper(substr($ev->tipo,0,3)) }}
                 </span>
               </td>
-              <td><strong>{{ $ev->titulo }}</strong>@if($ev->accion)<br><small>{{ $ev->accion }}</small>@endif</td>
+              <td>
+                @if($ev->url)<a href="{{ $ev->url }}" style="color:inherit;text-decoration:none">@endif
+                  <strong>{{ $ev->titulo }}</strong>@if($ev->accion)<br><small>{{ $ev->accion }}</small>@endif
+                @if($ev->url)</a>@endif
+              </td>
               <td>@dato($ev->responsable)</td>
               <td>
                 <div style="display:flex;align-items:center;gap:8px;min-width:120px">
@@ -111,9 +115,15 @@
             <div style="font-size:12px;font-weight:{{ $esHoy ? '800' : '500' }};color:{{ $esHoy ? 'var(--primary)' : '#374151' }};margin-bottom:4px">{{ $d }}</div>
             @if(isset($eventosPorDia[$d]))
               @foreach($eventosPorDia[$d]->take(3) as $ev)
+                @if($ev->url)
+                <a href="{{ $ev->url }}" class="cal-event-chip cal-{{ substr($ev->tipo,0,3) }}" style="display:block;margin-bottom:2px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:inherit;text-decoration:none">
+                  {{ $ev->titulo }}
+                </a>
+                @else
                 <div class="cal-event-chip cal-{{ substr($ev->tipo,0,3) }}" style="display:block;margin-bottom:2px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
                   {{ $ev->titulo }}
                 </div>
+                @endif
               @endforeach
               @if($eventosPorDia[$d]->count() > 3)
                 <small style="color:#667085;font-size:10px">+{{ $eventosPorDia[$d]->count() - 3 }} más</small>

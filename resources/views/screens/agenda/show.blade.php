@@ -2,6 +2,14 @@
 @section('title', 'Detalle de Acción')
 
 @section('content')
+@php
+  // #38/#54: mismo criterio que en tramites/show — quien puede editar esta
+  // acción de agenda (de su propia dependencia, o admin) puede atender
+  // cualquier observación de la sección; el destinatario específico de cada
+  // observación también puede atenderla individualmente (dentro del partial).
+  $puedeAtender = auth()->user()->tienePermiso('agenda.editar')
+      && (auth()->user()->isRol(\App\Models\User::ROL_ADMIN) || auth()->user()->esDeSuDependencia($agenda));
+@endphp
 <style>
   /* Paquete 3: listado de acciones con explicación en el detalle */
   .acciones-show { list-style:none; padding:0; margin:0; }
@@ -52,9 +60,21 @@
     <h1 class="text-primary-lg">{{ $agenda->descripcion }}</h1>
     <p class="text-muted-sm">
       Acción de Agenda · {{ ucfirst($agenda->tipo) }}
-      @if($agenda->tramite) · vinculada a {{ $agenda->tramite->nombre_oficial }} @endif
+      @if($agenda->tramite) · vinculada a <a href="{{ route('tramites.show', $agenda->tramite) }}" style="color:var(--primary);text-decoration:underline">{{ $agenda->tramite->nombre_oficial }}</a> @endif
     </p>
   </div>
+
+  {{-- Aviso de dependencia: la agenda no puede avanzar a firma si el trámite no está completado --}}
+  @if($agenda->tramite && $agenda->tramite->estatus !== 'completado')
+  <div class="assist-box" style="border-color:#fbbf24;background:#fffbeb;color:#92400e;display:flex;align-items:center;gap:12px">
+    <strong style="font-size:18px">⏳</strong>
+    <div>
+      <strong>Esta acción no podrá enviarse a firma</strong> hasta que el trámite o servicio vinculado
+      <a href="{{ route('tramites.show', $agenda->tramite) }}" style="color:#92400e;text-decoration:underline">{{ $agenda->tramite->nombre_oficial }}</a>
+      esté completado. Estatus actual del trámite: <strong>{{ str_replace('_', ' ', $agenda->tramite->estatus) }}</strong>.
+    </div>
+  </div>
+  @endif
 
   {{-- DATOS DE LA ACCIÓN --}}
   <div class="card">
@@ -67,7 +87,7 @@
     <div class="card-body-padded">
       <div class="modal-grid">
         <div class="modal-data-item"><span>Folio</span><strong>AGD-{{ str_pad($agenda->id,3,'0',STR_PAD_LEFT) }}</strong></div>
-        <div class="modal-data-item"><span>Trámite vinculado</span><strong>{{ $agenda->tramite->nombre_oficial ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Trámite vinculado</span><strong>@if($agenda->tramite)<a href="{{ route('tramites.show', $agenda->tramite) }}" style="color:var(--primary)">{{ $agenda->tramite->nombre_oficial }}</a> <small>(@estatus($agenda->tramite->estatus))</small>@else — @endif</strong></div>
         <div class="modal-data-item"><span>Alcance</span><strong>{{ ['simplificacion' => 'Solo simplificación', 'digitalizacion' => 'Solo digitalización', 'ambas' => 'Simplificación y digitalización'][$agenda->tipo] ?? ucfirst($agenda->tipo) }}</strong></div>
         <div class="modal-data-item"><span>Acción registrada</span><strong>{{ $agenda->descripcion }}</strong></div>
         <div class="modal-data-item"><span>Responsable</span><strong>{{ $agenda->responsable ?? '—' }}</strong></div>
@@ -77,12 +97,16 @@
       </div>
     </div>
   </div>
+  {{-- Bug #35: ninguna sección de agenda/show tenía obs-inline. Las observaciones
+       del jurídico/revisora solo aparecían en el checklist lateral sin contexto.
+       Se agrega el inline para cada sección observable. --}}
+  @include('partials.obs-inline', ['seccion' => 'Datos de la acción', 'observaciones' => $observacionesPorSeccion ?? collect(), 'puedeAtender' => $puedeAtender])
 
   {{-- REQUISITOS HEREDADOS DEL TRÁMITE (solo lectura) --}}
   @if($agenda->tramite && $agenda->tramite->requisitos->isNotEmpty())
   <div class="card">
     <div class="panel-head">
-      <div><h3>Requisitos del trámite</h3><p>Heredados del trámite vinculado. Se editan desde el trámite, no aquí.</p></div>
+      <div><h3>Requisitos</h3><p>Heredados del trámite o servicio vinculado. Se editan desde el registro original, no aquí.</p></div>
     </div>
     <div class="card-body-padded">
       <ol class="requisitos-heredados">
@@ -103,7 +127,7 @@
   @if($agenda->tramite && $agenda->tramite->procesosAtencion->isNotEmpty())
   <div class="card">
     <div class="panel-head">
-      <div><h3>Pasos para realizar el trámite</h3><p>Heredados del trámite vinculado. Se editan desde el trámite.</p></div>
+      <div><h3>Pasos para realizar el trámite o servicio</h3><p>Heredados del registro vinculado. Se editan desde el registro original.</p></div>
     </div>
     <div class="card-body-padded">
       <ol class="pasos-heredados">
@@ -125,7 +149,7 @@
   @if($agenda->tramite && $agenda->tramite->cbu_unitario !== null && (float)$agenda->tramite->cbu_unitario > 0)
   <div class="card">
     <div class="panel-head">
-      <div><h3>Costo burocrático del trámite</h3><p>Calculado a partir de los datos del trámite (metodología ATDT).</p></div>
+      <div><h3>Costo burocrático</h3><p>Calculado a partir de los datos del trámite o servicio (metodología ATDT).</p></div>
     </div>
     <div class="card-body-padded">
       <div class="costo-heredado-grid">
@@ -157,6 +181,7 @@
       </div>
     </div>
   </div>
+  @include('partials.obs-inline', ['seccion' => 'Alcance y necesidad', 'observaciones' => $observacionesPorSeccion ?? collect(), 'puedeAtender' => $puedeAtender])
 
   {{-- Paquete 3: Acciones y niveles, filtrados por el alcance guardado --}}
   @php
@@ -228,6 +253,7 @@
       ])
     </div>
   </div>
+  @include('partials.obs-inline', ['seccion' => 'Avance y evidencias', 'observaciones' => $observacionesPorSeccion ?? collect(), 'puedeAtender' => $puedeAtender])
 
   {{-- OBSERVACIONES: el listado completo ahora vive en el panel lateral
        (partials.observaciones-checklist), agrupado por sección. --}}
@@ -251,5 +277,17 @@
     :id="$agenda->id"
     :campos="config('punta.campos_observables_agenda')"
     :revisores="$revisores" />
+@endif
+
+{{-- Forms invisibles para el botón "Marcar como atendida" del checklist lateral.
+     Mismo patrón que en tramites/show: el botón usa form="obs-atend-{id}" para
+     conectarse a este form sin anidarlo. --}}
+@if(isset($observacionesPorSeccion))
+  @foreach(collect($observacionesPorSeccion)->flatten() as $obs)
+    @if($obs->destinatario_id === auth()->id() && !in_array($obs->estatus ?? 'pendiente', ['atendida','validada']))
+      <form method="POST" action="{{ route('revision.atendida', $obs) }}"
+        id="obs-atend-{{ $obs->id }}" class="hidden">@csrf</form>
+    @endif
+  @endforeach
 @endif
 @endsection

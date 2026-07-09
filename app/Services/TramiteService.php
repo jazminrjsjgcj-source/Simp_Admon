@@ -47,16 +47,7 @@ class TramiteService
             // Separar los datos del fundamento jurídico: no son columnas de
             // `tramites`, van a la tabla fundamento_juridico. Puede haber varias
             // citas del catálogo (array $citas) más una captura manual de norma.
-            $citas = $datos['citas'] ?? [];
-            $fundamentoManual = [
-                'normativa_nombre' => $datos['fundamento_normativa'] ?? $datos['normativa_nombre'] ?? null,
-                'tipo_normativa'   => $datos['fundamento_tipo'] ?? $datos['tipo_normativa'] ?? null,
-                'articulo_fraccion'=> $datos['fundamento_articulo'] ?? $datos['articulo_fraccion'] ?? null,
-                'resumen'          => $datos['fundamento_resumen'] ?? $datos['resumen'] ?? null,
-            ];
-            unset($datos['citas'], $datos['regulacion_id'], $datos['articulo_fraccion'],
-                  $datos['fundamento_normativa'], $datos['fundamento_tipo'],
-                  $datos['fundamento_articulo'], $datos['fundamento_resumen']);
+            ['citas' => $citas, 'manual' => $fundamentoManual] = $this->separarFundamento($datos);
 
             // El total de derechos alimenta monto_derechos (entra al costo).
             // Convierte los derechos en UMA a pesos antes de sumar.
@@ -69,6 +60,11 @@ class TramiteService
             $datos['estatus'] = $esEnvio
                 ? Tramite::ESTATUS_EN_OBSERVACION
                 : Tramite::ESTATUS_BORRADOR;
+
+            // costo_tipo / costo_monto / costo_unidad son ayudantes del formulario
+            // (validan y arman el texto portal_costo_publico); no son columnas del
+            // trámite, así que se quitan antes de crear para no romper el guardado.
+            unset($datos['costo_tipo'], $datos['costo_monto'], $datos['costo_unidad']);
 
             $tramite = Tramite::create($datos);
 
@@ -110,16 +106,7 @@ class TramiteService
 
             // Separar el fundamento jurídico igual que en crear(): no son
             // columnas de `tramites`, van a la tabla fundamento_juridico.
-            $citas = $datos['citas'] ?? [];
-            $fundamentoManual = [
-                'normativa_nombre' => $datos['fundamento_normativa'] ?? $datos['normativa_nombre'] ?? null,
-                'tipo_normativa'   => $datos['fundamento_tipo'] ?? $datos['tipo_normativa'] ?? null,
-                'articulo_fraccion'=> $datos['fundamento_articulo'] ?? $datos['articulo_fraccion'] ?? null,
-                'resumen'          => $datos['fundamento_resumen'] ?? $datos['resumen'] ?? null,
-            ];
-            unset($datos['citas'], $datos['regulacion_id'], $datos['articulo_fraccion'],
-                  $datos['fundamento_normativa'], $datos['fundamento_tipo'],
-                  $datos['fundamento_articulo'], $datos['fundamento_resumen']);
+            ['citas' => $citas, 'manual' => $fundamentoManual] = $this->separarFundamento($datos);
 
             // El total de derechos es la fuente única de monto_derechos.
             $datos['monto_derechos'] = \App\Models\TramiteDerecho::totalEnPesos($derechos);
@@ -203,6 +190,61 @@ class TramiteService
         $this->sincronizarFundamento($tramite, $citas, $manual);
     }
 
+    /**
+     * Separa del array de datos del trámite los campos que pertenecen al
+     * fundamento jurídico (tabla fundamento_juridico, NO a `tramites`), y los
+     * elimina de $datos para que Tramite::create()/update() no intente
+     * asignarlos como columnas inexistentes.
+     *
+     * Acepta dos juegos de nombres para el mismo dato, según el formulario de
+     * origen: el wizard de Trámites usa el prefijo `fundamento_*`, y el wizard
+     * de Agenda usa los nombres planos (`normativa_nombre`, `tipo_normativa`,
+     * etc.). Unificar aquí evita el bug que ocurría cuando un controlador
+     * enviaba un nombre que el unset no contemplaba (causa de la
+     * MassAssignmentException de `normativa_nombre`).
+     *
+     * @param  array $datos  Se modifica por referencia: se le quitan los campos de fundamento.
+     * @return array{citas: array, manual: array}  Datos del fundamento extraídos.
+     */
+    private function separarFundamento(array &$datos): array
+    {
+        // Modo del fundamento de origen: 'catalogo' o 'manual' (excluyentes).
+        // En 'catalogo' se ignoran los campos manuales; en 'manual' se ignoran
+        // las citas. Así nunca se mezclan, aunque el formulario haya dejado
+        // valores ocultos del lado que no se eligió.
+        $modo = $datos['fundamento_modo'] ?? 'catalogo';
+
+        $citas = $modo === 'manual' ? [] : ($datos['citas'] ?? []);
+
+        $manual = $modo === 'catalogo'
+            ? ['normativa_nombre' => null, 'tipo_normativa' => null, 'articulo_fraccion' => null, 'resumen' => null]
+            : [
+                'normativa_nombre'  => $datos['fundamento_normativa'] ?? $datos['normativa_nombre'] ?? null,
+                'tipo_normativa'    => $datos['fundamento_tipo'] ?? $datos['tipo_normativa'] ?? null,
+                'articulo_fraccion' => $datos['fundamento_articulo'] ?? $datos['articulo_fraccion'] ?? null,
+                'resumen'           => $datos['fundamento_resumen'] ?? $datos['resumen'] ?? null,
+            ];
+
+        // Quitar TODOS los campos auxiliares que NO son columnas de `tramites`,
+        // para que ninguno llegue a la asignación masiva del modelo:
+        //  - fundamento_modo: bandera del modo (catálogo/manual).
+        //  - requisitos: se sincronizan aparte (sincronizarRequisitos); nunca
+        //    son columna de `tramites`, se quitan por defensa.
+        //  - los campos de fundamento en sus dos variantes (con prefijo y planos).
+        unset(
+            $datos['fundamento_modo'],
+            $datos['requisitos'],
+            $datos['citas'],
+            $datos['regulacion_id'],
+            $datos['fundamento_normativa'], $datos['fundamento_tipo'],
+            $datos['fundamento_articulo'], $datos['fundamento_resumen'],
+            $datos['normativa_nombre'], $datos['tipo_normativa'],
+            $datos['articulo_fraccion'], $datos['resumen'],
+        );
+
+        return ['citas' => $citas, 'manual' => $manual];
+    }
+
     private function sincronizarFundamento(Tramite $tramite, array $citas, array $manual): void
     {
         $registros = [];
@@ -273,17 +315,36 @@ class TramiteService
             $costoVariable = ($modoCosto === 'variable');
             $montoFijo    = ($modoCosto === 'fijo') ? floatval($req['costo_monto'] ?? 0) : 0;
 
+            // Tipo de presentación: checkboxes (original / copia / digital) que
+            // pueden marcarse a la vez (#44). Llega como arreglo; lo normalizamos
+            // a una lista limpia. El cast a (array) tolera el formato viejo (un
+            // solo texto) por si quedara algún envío heredado. Se guarda como CSV
+            // en tipo_presentacion y se derivan los booleanos original/copia para
+            // que el resto del sistema siga consistente.
+            $tiposPres = array_values(array_filter((array) ($req['tipo'] ?? [])));
+            $tipoPresCsv = implode(',', $tiposPres);
+
+            // Bug #18/#19: el formulario envía costo_unidad (PESOS o UMA) pero
+            // el servicio no lo incluía en el array de datos. La columna existe
+            // en la tabla (migración add_costo_unidad_to_requisitos) y el modelo
+            // ahora la tiene en $fillable, pero aquí se descartaba el valor.
+            // Solo se asigna cuando el requisito tiene costo; si no lo tiene,
+            // la unidad no aplica y queda null.
+            $costoUnidad = $tieneCosto ? ($req['costo_unidad'] ?? 'PESOS') : null;
+
             $datos = [
                 'orden'             => $i + 1,
                 'nombre'            => $req['nombre'],
-                'original'          => !empty($req['original']),
-                'copia'             => !empty($req['copia']),
+                'tipo_presentacion' => $tipoPresCsv !== '' ? $tipoPresCsv : null,
+                'original'          => in_array('original', $tiposPres, true),
+                'copia'             => in_array('copia', $tiposPres, true),
                 'dias_estimados'    => $req['dias']    ?? 0,
                 'horas_estimadas'   => $req['horas']   ?? 0,
                 'minutos_estimados' => $req['minutos'] ?? 0,
                 'tiene_costo'       => $tieneCosto,
                 'costo_variable'    => $costoVariable,
                 'costo_requisito'   => $montoFijo,
+                'costo_unidad'      => $costoUnidad,
                 'observaciones'     => $req['observaciones'] ?? null,
                 'fj_norma'          => $req['fj_norma']    ?? null,
                 'fj_capitulo'       => $req['fj_capitulo'] ?? null,

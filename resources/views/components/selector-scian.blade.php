@@ -28,7 +28,7 @@
 <div class="field">
     <label>Sector económico (SCIAN) @if($required)*@endif</label>
     <select name="{{ $name_sector }}" {{ $required ? 'required' : '' }} id="{{ $uid }}_sector">
-        <option value="">Seleccione sector...</option>
+        <option value="">Seleccione una opción</option>
         @foreach($sectores as $s)
             <option value="{{ $s->id }}" {{ (string) $sector === (string) $s->id ? 'selected' : '' }}>
                 {{ $s->codigo }} — {{ $s->nombre }}
@@ -61,7 +61,7 @@
 
     function filtrarSubsectores() {
         var sectorId = sectorSel.value;
-        subsectorSel.innerHTML = '<option value="">Seleccione subsector...</option>';
+        subsectorSel.innerHTML = '<option value="">Seleccione una opción</option>';
         todasOpciones.forEach(function (opt) {
             if (opt.dataset.sector === sectorId) {
                 subsectorSel.appendChild(opt.cloneNode(true));

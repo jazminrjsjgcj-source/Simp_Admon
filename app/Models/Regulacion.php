@@ -3,11 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Concerns\GeneraFolio;
 
 class Regulacion extends Model
 {
-    use GeneraFolio;
+    use GeneraFolio, SoftDeletes;
 
     protected $table   = 'regulaciones';
 
@@ -40,15 +41,41 @@ class Regulacion extends Model
         'deroga_otra',
         'regulacion_derogada',
         'indice',
+        'estructurada',
     ];
 
     /** Prefijo de tipo para el folio: LPZ-REG-... */
     protected function folioTipo(): string { return 'REG'; }
 
+    /**
+     * #8: genera el folio automáticamente al crear la regulación.
+     * A diferencia de AccionAgenda y PropuestaRegulatoria (que generan folio
+     * al dejar borrador), las regulaciones no tienen estado "borrador" — se
+     * crean directamente como vigentes o en revisión, así que el folio se
+     * asigna al momento de la creación.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Regulacion $regulacion) {
+            if (empty($regulacion->folio)) {
+                $regulacion->load('dependencia');
+                $regulacion->folio = $regulacion->generarFolio();
+            }
+        });
+    }
+
     /** Estatus de la regulación. */
     public const ESTATUS_VIGENTE     = 'vigente';
     public const ESTATUS_EN_REVISION = 'en_revision';
     public const ESTATUS_DEROGADA    = 'derogada';
+
+    /**
+     * Estado CALCULADO al vuelo (no se guarda en BD). Una regulación 'vigente'
+     * cuya fecha de vencimiento ya pasó se reporta como 'vencida' mediante
+     * estatusEfectivo(). No forma parte de ESTATUS_TODOS porque no es un valor
+     * que el usuario asigne ni que se almacene.
+     */
+    public const ESTATUS_VENCIDA     = 'vencida';
 
     public const ESTATUS_TODOS = [
         self::ESTATUS_VIGENTE,
@@ -63,6 +90,27 @@ class Regulacion extends Model
     public const CONVERSION_ERROR      = 'error';
 
     public const EXTENSIONES_PERMITIDAS = ['pdf', 'docx', 'doc'];
+
+    /**
+     * MIME types válidos para archivos de regulación. Se usan como segunda
+     * capa de validación (la primera es la extensión). Un archivo .jpg
+     * renombrado a .docx pasaría la validación de extensión pero fallaría
+     * la de MIME type — este array lo atrapa.
+     *
+     * application/msword              → .doc (Word 97–2003, formato binario OLE)
+     * application/vnd.openxml...      → .docx (Word 2007+, formato ZIP/XML)
+     * application/pdf                 → .pdf
+     * application/octet-stream        → fallback de Windows para .doc en algunos casos
+     */
+    public const MIME_TYPES_PERMITIDOS = [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/octet-stream',
+    ];
+
+    /** Mensaje de error centralizado para validación de archivos. */
+    public const ARCHIVO_ERROR_TIPO = 'El archivo debe ser Word (.doc, .docx) o PDF (.pdf). No se permiten otros formatos.';
 
     /** Materias disponibles (Art. 153 fracc. II Lineamientos). */
     public const MATERIAS = [
@@ -86,6 +134,7 @@ class Regulacion extends Model
         'fecha_vigencia'    => 'date',
         'deroga_otra'       => 'boolean',
         'indice'            => 'array',
+        'estructurada'      => 'boolean',
     ];
 
     // ========== Relaciones ==========
@@ -93,6 +142,28 @@ class Regulacion extends Model
     public function dependencia() { return $this->belongsTo(Dependencia::class); }
     public function creador()     { return $this->belongsTo(User::class, 'created_by'); }
     public function sector()      { return $this->belongsTo(SectorScian::class, 'sector_id'); }
+
+    /** Todos los nodos del articulado (árbol del editor). */
+    public function nodos()
+    {
+        return $this->hasMany(RegulacionNodo::class)->orderBy('orden');
+    }
+
+    /** Solo los nodos raíz (sin padre), ordenados; punto de entrada del árbol. */
+    public function nodosRaiz()
+    {
+        return $this->hasMany(RegulacionNodo::class)->whereNull('parent_id')->orderBy('orden');
+    }
+
+    /**
+     * Usuarios que marcaron esta regulación como favorita (tabla pivot
+     * regulacion_favorita). Relación inversa de User::regulacionesFavoritas().
+     */
+    public function usuariosQueLaFavoritaron()
+    {
+        return $this->belongsToMany(User::class, 'regulacion_favorita')
+            ->withTimestamps();
+    }
 
     // ========== Helpers de estado ==========
 
@@ -102,9 +173,38 @@ class Regulacion extends Model
             && !empty($this->archivo_markdown);
     }
 
+    /**
+     * ¿La regulación ya venció? Es decir, tiene fecha de vigencia (entendida
+     * como fecha de VENCIMIENTO) y esa fecha ya quedó en el pasado.
+     *
+     * Se calcula al vuelo desde la fecha real: no depende de ningún proceso
+     * programado ni de un campo que pueda quedar desincronizado.
+     */
+    public function estaVencida(): bool
+    {
+        return $this->fecha_vigencia !== null
+            && $this->fecha_vigencia->isPast();
+    }
+
+    /**
+     * Estatus EFECTIVO de la regulación, considerando el vencimiento.
+     *
+     * Una regulación marcada 'vigente' cuya fecha de vencimiento ya pasó deja
+     * de estar vigente de hecho: se reporta como 'vencida'. El estatus
+     * almacenado en BD no se modifica (cálculo al vuelo); esta es la fuente
+     * única de verdad para mostrar el estado real en cualquier vista.
+     */
+    public function estatusEfectivo(): string
+    {
+        if ($this->estatus === self::ESTATUS_VIGENTE && $this->estaVencida()) {
+            return self::ESTATUS_VENCIDA;
+        }
+        return $this->estatus;
+    }
+
     public function estaVigente(): bool
     {
-        return $this->estatus === self::ESTATUS_VIGENTE;
+        return $this->estatus === self::ESTATUS_VIGENTE && !$this->estaVencida();
     }
 
     public function tieneIndice(): bool
@@ -122,5 +222,49 @@ class Regulacion extends Model
         }
 
         return array_map('trim', explode(',', $this->palabras_clave));
+    }
+
+    // ── Análisis de impacto ────────────────────────────────────────────────
+
+    /**
+     * Devuelve un resumen de qué trámites citan esta regulación como
+     * fundamento jurídico y qué artículos/fracciones referencian.
+     *
+     * Se usa para:
+     * - Bloquear el borrado si hay trámites que dependen de ella.
+     * - Mostrar un aviso de impacto en el editor antes de re-estructurar.
+     * - Avisar al reemplazar el archivo.
+     *
+     * @return array{total: int, tramites: Collection, articulos: array}
+     */
+    public function citacionesEnTramites(): array
+    {
+        $fundamentos = FundamentoJuridico::where('regulacion_id', $this->id)
+            ->with('tramite:id,nombre_oficial,homoclave')
+            ->get();
+
+        if ($fundamentos->isEmpty()) {
+            return ['total' => 0, 'tramites' => collect(), 'articulos' => []];
+        }
+
+        $tramites = $fundamentos
+            ->pluck('tramite')
+            ->filter()
+            ->unique('id')
+            ->values();
+
+        $articulos = $fundamentos
+            ->pluck('articulo_fraccion')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->toArray();
+
+        return [
+            'total'     => $tramites->count(),
+            'tramites'  => $tramites,
+            'articulos' => $articulos,
+        ];
     }
 }

@@ -28,10 +28,11 @@
 
     {{-- Lista de citas existentes --}}
     @if($impactos->isNotEmpty())
-      <table class="data-table" style="margin-bottom:16px">
+      <div class="table-wrap" style="margin-bottom:16px">
+      <table class="data-table">
         <thead>
           <tr>
-            <th>Trámite</th>
+            <th>Trámite o servicio</th>
             <th>Requisito afectado</th>
             <th>Artículo / Fracción</th>
             <th>Descripción del cambio</th>
@@ -42,7 +43,7 @@
           @foreach($impactos as $imp)
             <tr>
               <td>{{ $imp->tramite->nombre_oficial ?? '—' }}</td>
-              <td>{{ $imp->requisito->nombre ?? 'Trámite en general' }}</td>
+              <td>{{ $imp->requisito->nombre ?? 'Registro en general' }}</td>
               <td>{{ $imp->articulo_fraccion ?? '—' }}</td>
               <td>{{ $imp->descripcion ?? '—' }}</td>
               @if($modoEdicion)
@@ -59,6 +60,7 @@
           @endforeach
         </tbody>
       </table>
+      </div>
     @else
       <p class="muted" style="margin-bottom:16px">No se han registrado citas de impacto para esta propuesta.</p>
     @endif
@@ -74,7 +76,7 @@
           <div class="wizard-fields">
             {{-- Buscador de trámite --}}
             <div class="field span-2">
-              <label>Trámite afectado *</label>
+              <label>Trámite o servicio afectado *</label>
               <input type="text" id="buscadorTramiteImpacto" autocomplete="off"
                      placeholder="Buscar por nombre o clave...">
               <div id="resultadosTramiteImpacto" style="position:relative"></div>
@@ -84,9 +86,9 @@
 
             {{-- Selector de requisito (se carga cuando se elige trámite) --}}
             <div class="field span-2" id="requisitoImpactoWrap" style="display:none">
-              <label>Requisito específico <small>(opcional — dejar en blanco si afecta el trámite en general)</small></label>
+              <label>Requisito específico <small>(opcional — dejar en blanco si afecta el registro en general)</small></label>
               <select name="requisito_id" id="requisitoImpactoSelect">
-                <option value="">— Trámite en general —</option>
+                <option value="">— Registro en general —</option>
               </select>
             </div>
 
@@ -163,7 +165,7 @@
           })
           .then(function (r) { return r.json(); })
           .then(function (d) {
-            requisitoSelect.innerHTML = '<option value="">— Trámite en general —</option>';
+            requisitoSelect.innerHTML = '<option value="">— Registro en general —</option>';
             if (d.requisitos && d.requisitos.length) {
               d.requisitos.forEach(function (req) {
                 var opt = document.createElement('option');

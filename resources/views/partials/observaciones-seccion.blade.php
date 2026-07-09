@@ -36,10 +36,13 @@
         <small class="obs-meta">— {{ $obs->realizadaPor->name ?? 'Revisor' }}, {{ $obs->created_at->format('d/m/Y') }}</small>
 
         @unless($obs->estaResuelta())
-          <form method="POST" action="{{ route('revision.atendida', $obs) }}" class="obs-aviso-accion">
-            @csrf
-            <button type="submit" class="btn btn-outline btn-sm">Marcar como atendida</button>
-          </form>
+          {{-- El form real vive FUERA del formulario de edición (los <form>
+               anidados son inválidos en HTML y el navegador los descarta, por
+               eso el clic enviaba el form padre y la observación nunca se
+               marcaba). Con el atributo form= el botón se asocia a su propio
+               form, declarado al final de la vista, sin anidarlo. --}}
+          <button type="submit" form="obs-atendida-{{ $obs->id }}"
+            class="btn btn-outline btn-sm">Marcar como atendida</button>
         @endunless
       </div>
     @endforeach

@@ -90,6 +90,18 @@
       var dep = document.querySelector('[name="tramite_dependencia_id"]');
       if (!nom.value.trim()) { mostrarErrorPaso('El nombre del trámite es obligatorio.'); nom.focus(); return false; }
       if (!dep.value) { mostrarErrorPaso('La dependencia del trámite es obligatoria.'); dep.focus(); return false; }
+
+      // Rangos: rechazar datos imposibles (volumen y plazo) en el propio paso,
+      // usando los topes de la fuente única (window.PUNTA.topes / config).
+      var errRango = validarRangoTramite();
+      if (errRango) { mostrarErrorPaso(errRango); return false; }
+    }
+    // Paso 3 (Alcance): debe elegirse una de las tres opciones antes de avanzar.
+    if (n === 3) {
+      if (!document.getElementById('alcanceCampo').value) {
+        mostrarErrorPaso('Seleccione el alcance del registro (simplificación, digitalización o ambas).');
+        return false;
+      }
     }
     if (n === 4) {
       var desc = document.querySelector('[name="descripcion"]');
@@ -101,17 +113,45 @@
     return true;
   }
 
+  // Valida los topes numéricos del trámite nuevo (volumen y plazo) contra los
+  // límites de window.PUNTA.topes (config/punta.php, misma fuente que el
+  // backend). Devuelve un mensaje de error, o null si todo está en rango.
+  function validarRangoTramite() {
+    var topes = (window.PUNTA && window.PUNTA.topes) || {};
+
+    var vol = document.querySelector('[name="tramite_volumen_anual"]');
+    if (vol && vol.value && topes.volumen_anual !== undefined) {
+      if (parseFloat(vol.value) > topes.volumen_anual) {
+        vol.focus();
+        return 'El volumen anual supera el máximo permitido (' + topes.volumen_anual + '). Verifique el dato.';
+      }
+    }
+
+    var plazo = document.querySelector('[name="tramite_plazo_resolucion_cantidad"]');
+    var unidadSel = document.querySelector('[name="tramite_plazo_resolucion_unidad"]');
+    if (plazo && plazo.value && topes.plazo_anios !== undefined) {
+      var unidad = unidadSel ? unidadSel.value : 'anios';
+      var topePlazo = unidad === 'anios' ? topes.plazo_anios
+                    : unidad === 'meses' ? topes.plazo_anios * 12
+                    : topes.plazo_anios * 365;
+      if (parseFloat(plazo.value) > topePlazo) {
+        plazo.focus();
+        return 'El plazo de resolución supera el máximo permitido (' + topePlazo + '). Verifique el dato.';
+      }
+    }
+    return null;
+  }
+
   // ---- Camino (paso 1) ----
   window.elegirCamino = function (cual) {
-    caminoNuevo = (cual === 'nuevo');
-    document.getElementById('modoTramite').value = cual;
-    document.getElementById('opcExistente').classList.toggle('sel', !caminoNuevo);
-    document.getElementById('opcNuevo').classList.toggle('sel', caminoNuevo);
-    document.getElementById('bloqueBuscar').style.display = caminoNuevo ? 'none' : '';
-    document.getElementById('precargaSub').textContent = caminoNuevo
-      ? 'Capture la identificación e información del trámite nuevo.'
-      : 'Estos datos se precargan del trámite seleccionado.';
-    if (caminoNuevo) limpiarTramite();
+    caminoNuevo = false; // Camino B eliminado: siempre es 'existente'.
+    document.getElementById('modoTramite').value = 'existente';
+    var opcEx = document.getElementById('opcExistente');
+    if (opcEx) opcEx.classList.add('sel');
+    var buscar = document.getElementById('bloqueBuscar');
+    if (buscar) buscar.style.display = '';
+    var sub = document.getElementById('precargaSub');
+    if (sub) sub.textContent = 'Estos datos se precargan del trámite seleccionado.';
     ajustarStepperVisible();
   };
 
@@ -319,7 +359,6 @@
         }
       })
       .catch(function (err) {
-        console.error('Error al precargar trámite:', err);
         mostrarErrorPaso('No se pudo precargar el trámite: ' + err.message);
       });
   }
@@ -454,6 +493,35 @@
     actualizar();
   })();
 
+  // B24 — Ficha del portal: muestra dirección y/o URL según la modalidad.
+  window.sydToggleModalidad = function () {
+    var sel = document.getElementById('sydPortalModalidad');
+    var dir = document.getElementById('sydModalidadDireccion');
+    var url = document.getElementById('sydModalidadUrl');
+    if (!sel) return;
+    var v = sel.value;
+    if (dir) dir.style.display = (v === 'Presencial' || v === 'Mixta') ? '' : 'none';
+    if (url) url.style.display = (v === 'En línea'   || v === 'Mixta') ? '' : 'none';
+  };
+  sydToggleModalidad();
+
   ajustarStepperVisible();
   mostrar(1);
+
+  // ─── Retorno desde el wizard de trámites ───────────────────────────────
+  // Si el usuario fue a crear un trámite completo y volvió, el blade inyecta
+  // tramiteIdRetorno con el id recién creado. Lo seleccionamos como existente
+  // y saltamos directo al paso 3 (Alcance) para que continúe la agenda.
+  var idRetorno = (window.PUNTA && window.PUNTA.tramiteIdRetorno) || 0;
+  if (idRetorno > 0) {
+    elegirCamino('existente');
+    document.getElementById('tramiteIdSel').value = idRetorno;
+    precargarTramite(idRetorno);
+    var elegido = document.getElementById('tramiteElegido');
+    if (elegido) elegido.style.display = '';
+    var nombre = document.getElementById('tramiteElegidoNombre');
+    if (nombre) nombre.textContent = 'Trámite #' + idRetorno + ' (recién creado)';
+    // Ir directo al paso 3 (Alcance), saltando la selección.
+    mostrar(3);
+  }
 })();

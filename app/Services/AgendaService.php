@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AccionAgenda;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Concentra la creación de acciones de agenda SyD.
@@ -173,14 +174,53 @@ class AgendaService
     /** Si la acción tiene fecha compromiso, crea su evento de calendario. */
     private function crearEventoSiHayFecha(AccionAgenda $accion): void
     {
-        if ($accion->fecha_compromiso) {
-            $this->calendario->crear($accion, [
-                'tipo'           => $accion->tipo,
-                'titulo'         => $accion->descripcion ?: 'Acción de Agenda',
-                'fecha'          => $accion->fecha_compromiso,
-                'responsable'    => $accion->responsable,
-                'dependencia_id' => $accion->dependencia_id,
-            ]);
+        if (empty($accion->fecha_compromiso)) {
+            return;
         }
+        $this->calendario->crear($accion, $this->datosEventoDesde($accion));
+    }
+
+    /**
+     * Sincroniza el evento de calendario de una acción ya existente (al editar).
+     * Usa exactamente los mismos datos normalizados que al crear, para que el
+     * evento se vea igual sin importar por qué camino se guardó.
+     */
+    public function sincronizarEvento(AccionAgenda $accion): void
+    {
+        if (empty($accion->fecha_compromiso)) {
+            return;
+        }
+        $this->calendario->actualizar($accion, $this->datosEventoDesde($accion));
+    }
+
+    /**
+     * Arma —en UN SOLO lugar— los datos del evento de calendario de una acción.
+     * Antes esta lógica estaba solo en la creación; ahora la comparten crear y
+     * editar, así el título y el tipo se calculan igual en ambos caminos.
+     *
+     * - Título: se trunca a 200 caracteres. La columna ya es TEXT (migración
+     *   #22), así que esto es por consistencia visual, no para evitar desborde.
+     * - Tipo: 'ambas' se guarda tal cual; el filtro y los KPIs del calendario
+     *   lo hacen aparecer en simplificación y en digitalización a la vez (#24/#26).
+     */
+    private function datosEventoDesde(AccionAgenda $accion): array
+    {
+        // 'ambas' se guarda tal cual (el ENUM ya lo acepta). El filtro y los KPIs
+        // del calendario lo hacen aparecer TANTO en simplificación como en
+        // digitalización, que es lo correcto para una acción que es de las dos.
+        $tipo = match ($accion->tipo) {
+            'simplificacion' => 'simplificacion',
+            'digitalizacion' => 'digitalizacion',
+            'ambas'          => 'ambas',
+            default          => 'simplificacion',
+        };
+
+        return [
+            'tipo'           => $tipo,
+            'titulo'         => Str::limit($accion->descripcion ?? '', 200) ?: 'Acción de Agenda',
+            'fecha'          => $accion->fecha_compromiso,
+            'responsable'    => $accion->responsable,
+            'dependencia_id' => $accion->dependencia_id,
+        ];
     }
 }

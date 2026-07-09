@@ -66,8 +66,27 @@ class RevisionController extends Controller
         return back()->with('success', 'Observación registrada.');
     }
 
-    public function marcarAtendida(Observacion $observacion)
+    public function marcarAtendida(Request $request, Observacion $observacion)
     {
+        $user = $request->user();
+
+        // #54: este endpoint ya existía enrutado pero sin ningún control de
+        // acceso — cualquier usuario autenticado podía marcar como atendida
+        // la observación de cualquier otra persona. Solo puede hacerlo:
+        //   - el destinatario de la observación, o
+        //   - quien tenga permiso de editar el registro observado (enlace
+        //     de la dependencia, admin), o
+        //   - admin, siempre.
+        $puedeAtender = $user->id === $observacion->destinatario_id
+            || $user->isRol(User::ROL_ADMIN)
+            || (method_exists($user, 'puedeEditarTramite')
+                && $observacion->observable instanceof \App\Models\Tramite
+                && $user->puedeEditarTramite($observacion->observable));
+
+        if (!$puedeAtender) {
+            abort(403, 'No tiene permiso para marcar esta observación como atendida.');
+        }
+
         $this->revision->marcarObservacionAtendida($observacion);
 
         return back()->with('success', 'Observación marcada como atendida.');

@@ -3,45 +3,11 @@
 
   Uso: @include('partials.timeline', ['tipo' => 'propuesta', 'id' => $propuesta->id])
 
-  Consulta la bitácora del registro y la pinta como línea de tiempo
-  vertical (el más reciente arriba). Cada evento muestra fecha, acción,
-  quién la hizo y qué cambió. Es reutilizable en propuesta, trámite,
-  agenda y regulación.
+  Muestra la línea de tiempo vertical del registro (el más reciente arriba).
+  $eventos, $total y $LIMITE llegan automáticamente desde el View::composer
+  registrado en AppServiceProvider (BitacoraService::eventosRecientes).
+  No se necesita pasar nada más que $tipo e $id desde el @include.
 --}}
-@php
-  $mapaClases = [
-    'tramite'    => \App\Models\Tramite::class,
-    'agenda'     => \App\Models\AccionAgenda::class,
-    'propuesta'  => \App\Models\PropuestaRegulatoria::class,
-    'regulacion' => \App\Models\Regulacion::class,
-    'air'        => \App\Models\AnalisisImpactoRegulatorio::class,
-  ];
-  $claseModelo = $mapaClases[$tipo] ?? null;
-
-  $eventos = collect();
-  $total   = 0;
-  $LIMITE  = 10;
-  if ($claseModelo) {
-      $base = \Illuminate\Support\Facades\DB::table('bitacora')
-          ->leftJoin('users', 'bitacora.usuario_id', '=', 'users.id')
-          ->where('bitacora.auditable_type', $claseModelo)
-          ->where('bitacora.auditable_id', $id);
-
-      $total = (clone $base)->count();
-
-      $eventos = $base
-          ->orderByDesc('bitacora.created_at')
-          ->limit($LIMITE)
-          ->select(
-              'bitacora.accion',
-              'bitacora.tipo',
-              'bitacora.detalle',
-              'bitacora.created_at',
-              'users.name as usuario_nombre'
-          )
-          ->get();
-  }
-@endphp
 
 <div class="card card-pad">
   <h3 class="timeline-titulo">Historial</h3>

@@ -2,7 +2,7 @@
 @section('title', 'Subir Regulación')
 
 @section('content')
-<div class="page-narrow">
+<div class="page-default">
 
   <div class="screen-head">
     <div>
@@ -14,14 +14,6 @@
       <a href="{{ route('regulaciones.index') }}" class="btn btn-outline">Cancelar</a>
     </div>
   </div>
-
-  @if($errors->any())
-    <div class="card-body-padded u-error-box">
-      <ul class="error-list">
-        @foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach
-      </ul>
-    </div>
-  @endif
 
   <form method="POST" action="{{ route('regulaciones.store') }}" enctype="multipart/form-data">
     @csrf

@@ -9,6 +9,7 @@ use App\Http\Controllers\CalendarioController;
 use App\Http\Controllers\NotificacionController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\RegulacionController;
+use App\Http\Controllers\RegulacionNodoController;
 use App\Http\Controllers\Admin\AclController;
 use App\Http\Controllers\Admin\ParametroCostoController;
 use App\Http\Controllers\Admin\UnidadValorController;
@@ -19,6 +20,8 @@ use App\Http\Controllers\AirController;
 use App\Http\Controllers\DictamenAirController;
 use App\Http\Controllers\HistorialController;
 use App\Http\Controllers\Admin\CatalogoController;
+use App\Http\Controllers\Admin\TipoRegulacionController;
+use App\Http\Controllers\Admin\TipoTramiteController;
 use App\Models\Tramite;
 use App\Models\UnidadAdministrativa;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +38,46 @@ Route::middleware(['auth'])->group(function () {
 
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Buscador global — accesible para todos los roles sin restricción
+    Route::get('buscar', [\App\Http\Controllers\BuscadorController::class, 'index'])->name('buscar');
+
+    // Artículo completo en JSON, para el modal de lectura del buscador.
+    // {nodo} puede ser el id de una fracción o inciso — el controlador sube
+    // a su artículo padre usando LegalArticleResolverService.
+    Route::get('buscar/articulo/{nodo}', [\App\Http\Controllers\BuscadorController::class, 'obtenerArticulo'])->name('buscar.articulo');
+
+    // Bitácora del buscador — Capa 1 (clic en resultado) y Capa 2 (feedback 👍/👎).
+    Route::post('buscar/clic', [\App\Http\Controllers\BuscadorController::class, 'registrarClic'])->name('buscar.clic');
+    Route::post('buscar/feedback', [\App\Http\Controllers\BuscadorController::class, 'registrarFeedback'])->name('buscar.feedback');
+    Route::get('buscar/detalle/{tipo}/{id}', [\App\Http\Controllers\BuscadorController::class, 'obtenerDetalle'])->name('buscar.detalle');
+
+    // Digitalización — Biblioteca del Digitalizador
+    Route::get('digitalizacion/dashboard', [\App\Http\Controllers\DigitalizacionController::class, 'dashboard'])->name('digitalizacion.dashboard');
+    Route::get('digitalizacion', [\App\Http\Controllers\DigitalizacionController::class, 'index'])->name('digitalizacion.index');
+    Route::get('digitalizacion/{tramite}', [\App\Http\Controllers\DigitalizacionController::class, 'show'])->name('digitalizacion.show');
+
+    // Digitalización — Iniciar y completar
+    Route::post('digitalizacion/{tramite}/iniciar', [\App\Http\Controllers\DigitalizacionController::class, 'iniciarDigitalizacion'])->name('digitalizacion.iniciar');
+    Route::post('digitalizacion/{tramite}/completar', [\App\Http\Controllers\DigitalizacionController::class, 'completarDigitalizacion'])->name('digitalizacion.completar');
+
+    // Digitalización — Reingeniería CRUD
+    Route::get('digitalizacion/{tramite}/reingenieria/crear', [\App\Http\Controllers\DigitalizacionController::class, 'crearReingenieria'])->name('digitalizacion.reingenieria.crear');
+    Route::post('digitalizacion/{tramite}/reingenieria', [\App\Http\Controllers\DigitalizacionController::class, 'guardarReingenieria'])->name('digitalizacion.reingenieria.guardar');
+    Route::get('digitalizacion/{tramite}/reingenieria/{reingenieria}/editar', [\App\Http\Controllers\DigitalizacionController::class, 'editarReingenieria'])->name('digitalizacion.reingenieria.editar');
+    Route::put('digitalizacion/{tramite}/reingenieria/{reingenieria}', [\App\Http\Controllers\DigitalizacionController::class, 'actualizarReingenieria'])->name('digitalizacion.reingenieria.actualizar');
+    Route::post('digitalizacion/{tramite}/reingenieria/{reingenieria}/enviar-firma', [\App\Http\Controllers\DigitalizacionController::class, 'enviarAFirma'])->name('digitalizacion.reingenieria.enviarFirma');
+    Route::post('digitalizacion/{tramite}/reingenieria/nueva-version', [\App\Http\Controllers\DigitalizacionController::class, 'crearNuevaVersion'])->name('digitalizacion.reingenieria.nuevaVersion');
+
+    // Digitalización — Diagrama
+    Route::post('digitalizacion/{tramite}/diagrama/generar', [\App\Http\Controllers\DigitalizacionController::class, 'generarDiagrama'])->name('digitalizacion.diagrama.generar');
+    Route::get('digitalizacion/diagrama/{diagrama}/descargar', [\App\Http\Controllers\DigitalizacionController::class, 'descargarDiagrama'])->name('digitalizacion.diagrama.descargar');
+
+    // Flujo del proceso (levantamiento AS-IS)
+    Route::post('tramites/{tramite}/flujo/iniciar', [\App\Http\Controllers\FlujoController::class, 'iniciar'])->name('flujo.iniciar');
+    Route::post('tramites/{tramite}/flujo/enviar-revision', [\App\Http\Controllers\FlujoController::class, 'enviarRevision'])->name('flujo.enviarRevision');
+    Route::post('tramites/{tramite}/flujo/aprobar', [\App\Http\Controllers\FlujoController::class, 'aprobar'])->name('flujo.aprobar');
+    Route::post('tramites/{tramite}/flujo/observar', [\App\Http\Controllers\FlujoController::class, 'observar'])->name('flujo.observar');
 
     // Trámites
     Route::resource('tramites', TramiteController::class);
@@ -76,7 +119,38 @@ Route::middleware(['auth'])->group(function () {
     Route::put('regulaciones/{regulacion}',             [RegulacionController::class, 'update'])->name('regulaciones.update');
     Route::delete('regulaciones/{regulacion}',          [RegulacionController::class, 'destroy'])->name('regulaciones.destroy');
     Route::get('regulaciones/{regulacion}/descargar',   [RegulacionController::class, 'descargarOriginal'])->name('regulaciones.descargar');
+    Route::get('regulaciones/{regulacion}/preview',    [RegulacionController::class, 'preview'])->name('regulaciones.preview');
+    Route::get('regulaciones/{regulacion}/descargar-md', [RegulacionController::class, 'descargarMarkdown'])->name('regulaciones.descargar-md');
+    Route::get('regulaciones/{regulacion}/descargar-pdf', [RegulacionController::class, 'descargarPdf'])->name('regulaciones.descargar-pdf');
+    Route::get('regulaciones/{regulacion}/descargar-docx', [RegulacionController::class, 'descargarDocx'])->name('regulaciones.descargar-docx');
     Route::post('regulaciones/{regulacion}/reintentar', [RegulacionController::class, 'reintentar'])->name('regulaciones.reintentar');
+    Route::post('regulaciones/{regulacion}/estructurar', [RegulacionController::class, 'estructurar'])->name('regulaciones.estructurar');
+    Route::post('regulaciones/{regulacion}/reemplazar-archivo', [RegulacionController::class, 'reemplazarArchivo'])->name('regulaciones.reemplazar-archivo');
+    Route::get('regulaciones/{regulacion}/editor/{unidad?}', [RegulacionController::class, 'editor'])->name('regulaciones.editor');
+
+    // Editor jerárquico de regulaciones (capa de nodos). Todas exigen permiso
+    // de edición sobre la regulación (jurídico de su dependencia o admin).
+    Route::post('regulaciones/{regulacion}/nodos',        [RegulacionNodoController::class, 'store'])->name('regulaciones.nodos.store');
+    Route::get('regulaciones/{regulacion}/nodos/sugerir-numero', [RegulacionNodoController::class, 'sugerirNumero'])->name('regulaciones.nodos.sugerir-numero');
+    Route::put('regulaciones/nodos/{nodo}',               [RegulacionNodoController::class, 'update'])->name('regulaciones.nodos.update');
+    Route::put('regulaciones/nodos/{nodo}/mover',         [RegulacionNodoController::class, 'mover'])->name('regulaciones.nodos.mover');
+    Route::post('regulaciones/nodos/{nodo}/derogar',      [RegulacionNodoController::class, 'derogar'])->name('regulaciones.nodos.derogar');
+    Route::post('regulaciones/nodos/{nodo}/restaurar',    [RegulacionNodoController::class, 'restaurar'])->name('regulaciones.nodos.restaurar');
+    Route::delete('regulaciones/nodos/{nodo}',            [RegulacionNodoController::class, 'destroy'])->name('regulaciones.nodos.destroy');
+
+    // Papelera del articulado: ver elementos enviados, restaurar o borrar definitivo.
+    // {nodo} aquí es un id (el nodo está en papelera, no resuelve por route binding).
+    Route::get('regulaciones/{regulacion}/papelera',          [RegulacionNodoController::class, 'papelera'])->name('regulaciones.papelera');
+    Route::post('regulaciones/nodos/{nodo}/papelera/restaurar', [RegulacionNodoController::class, 'restaurarPapelera'])->name('regulaciones.nodos.papelera.restaurar');
+    Route::delete('regulaciones/nodos/{nodo}/papelera',         [RegulacionNodoController::class, 'eliminarDefinitivo'])->name('regulaciones.nodos.papelera.eliminar');
+    Route::post('regulaciones/{regulacion}/favorita',    [RegulacionController::class, 'toggleFavorita'])->name('regulaciones.favorita');
+
+    // #33: Papelera de regulaciones completas (soft-deleted).
+    // Las rutas usan IDs explícitos (no route model binding) porque los
+    // registros tienen deleted_at y el binding normal los excluiría.
+    Route::get('regulaciones-papelera',                      [RegulacionController::class, 'papeleraRegulaciones'])->name('regulaciones.papelera-regulaciones');
+    Route::post('regulaciones-papelera/{id}/restaurar',      [RegulacionController::class, 'restaurar'])->name('regulaciones.restaurar');
+    Route::delete('regulaciones-papelera/{id}/eliminar',     [RegulacionController::class, 'eliminarDefinitivo'])->name('regulaciones.eliminar-definitivo');
 
     // Calendario
     Route::get('calendario', [CalendarioController::class, 'index'])->name('calendario');
@@ -172,20 +246,20 @@ Route::middleware(['auth'])->group(function () {
             Route::delete('unidades/{unidad}',           [CatalogoController::class, 'eliminarUnidad'])->name('admin.catalogos.unidades.eliminar');
 
             // Tipos de regulación
-            Route::get('tipos-regulacion',                          [CatalogoController::class, 'tiposRegulacion'])->name('admin.catalogos.tipos-regulacion');
-            Route::get('tipos-regulacion/crear',                    [CatalogoController::class, 'crearTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.crear');
-            Route::post('tipos-regulacion',                         [CatalogoController::class, 'guardarTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.guardar');
-            Route::get('tipos-regulacion/{tipo}/editar',            [CatalogoController::class, 'editarTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.editar');
-            Route::put('tipos-regulacion/{tipo}',                   [CatalogoController::class, 'actualizarTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.actualizar');
-            Route::post('tipos-regulacion/{tipo}/toggle',           [CatalogoController::class, 'toggleTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.toggle');
+            Route::get('tipos-regulacion',                          [TipoRegulacionController::class, 'tiposRegulacion'])->name('admin.catalogos.tipos-regulacion');
+            Route::get('tipos-regulacion/crear',                    [TipoRegulacionController::class, 'crearTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.crear');
+            Route::post('tipos-regulacion',                         [TipoRegulacionController::class, 'guardarTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.guardar');
+            Route::get('tipos-regulacion/{tipo}/editar',            [TipoRegulacionController::class, 'editarTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.editar');
+            Route::put('tipos-regulacion/{tipo}',                   [TipoRegulacionController::class, 'actualizarTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.actualizar');
+            Route::post('tipos-regulacion/{tipo}/toggle',           [TipoRegulacionController::class, 'toggleTipoRegulacion'])->name('admin.catalogos.tipos-regulacion.toggle');
 
             // Tipos de trámite
-            Route::get('tipos-tramite',                             [CatalogoController::class, 'tiposTramite'])->name('admin.catalogos.tipos-tramite');
-            Route::get('tipos-tramite/crear',                       [CatalogoController::class, 'crearTipoTramite'])->name('admin.catalogos.tipos-tramite.crear');
-            Route::post('tipos-tramite',                            [CatalogoController::class, 'guardarTipoTramite'])->name('admin.catalogos.tipos-tramite.guardar');
-            Route::get('tipos-tramite/{tipo}/editar',               [CatalogoController::class, 'editarTipoTramite'])->name('admin.catalogos.tipos-tramite.editar');
-            Route::put('tipos-tramite/{tipo}',                      [CatalogoController::class, 'actualizarTipoTramite'])->name('admin.catalogos.tipos-tramite.actualizar');
-            Route::post('tipos-tramite/{tipo}/toggle',              [CatalogoController::class, 'toggleTipoTramite'])->name('admin.catalogos.tipos-tramite.toggle');
+            Route::get('tipos-tramite',                             [TipoTramiteController::class, 'tiposTramite'])->name('admin.catalogos.tipos-tramite');
+            Route::get('tipos-tramite/crear',                       [TipoTramiteController::class, 'crearTipoTramite'])->name('admin.catalogos.tipos-tramite.crear');
+            Route::post('tipos-tramite',                            [TipoTramiteController::class, 'guardarTipoTramite'])->name('admin.catalogos.tipos-tramite.guardar');
+            Route::get('tipos-tramite/{tipo}/editar',               [TipoTramiteController::class, 'editarTipoTramite'])->name('admin.catalogos.tipos-tramite.editar');
+            Route::put('tipos-tramite/{tipo}',                      [TipoTramiteController::class, 'actualizarTipoTramite'])->name('admin.catalogos.tipos-tramite.actualizar');
+            Route::post('tipos-tramite/{tipo}/toggle',              [TipoTramiteController::class, 'toggleTipoTramite'])->name('admin.catalogos.tipos-tramite.toggle');
 
             // Sectores SCIAN
             Route::get('sectores',                                  [CatalogoController::class, 'sectores'])->name('admin.catalogos.sectores');
@@ -255,13 +329,26 @@ Route::middleware(['auth'])->group(function () {
                 return response()->json(['homoclave' => null, 'error' => 'Selecciona dependencia y unidad.'], 422);
             }
 
+            // Sin siglas no se puede armar la homoclave. Antes esto reventaba con
+            // 500 porque formatearHomoclave() exige strings y recibía null. Ahora
+            // se responde con un mensaje claro que el frontend puede mostrar.
+            if (blank($dependencia->siglas) || blank($unidad->siglas)) {
+                return response()->json([
+                    'homoclave' => null,
+                    'error'     => 'Falta capturar las siglas de la dependencia o de la unidad en Catálogos.',
+                ], 422);
+            }
+
             $consecutivo = Tramite::siguienteConsecutivoGlobal();
+
+            // 'S' si el wizard eligió servicio; 'T' (trámite) por defecto.
+            $naturaleza = $request->query('naturaleza') === 'servicio' ? 'S' : 'T';
 
             return response()->json([
                 'siglas_dependencia' => $dependencia->siglas,
                 'siglas_unidad'      => $unidad->siglas,
                 'consecutivo'        => $consecutivo,
-                'homoclave'          => Tramite::formatearHomoclave($dependencia->siglas, $unidad->siglas, $consecutivo),
+                'homoclave'          => Tramite::formatearHomoclave($naturaleza, $dependencia->siglas, $unidad->siglas, $consecutivo),
             ]);
         })->name('api.homoclave.previsualizar');
         Route::get('dependencias/{id}/unidades', fn ($id) =>

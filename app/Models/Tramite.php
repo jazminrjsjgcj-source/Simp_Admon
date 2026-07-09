@@ -18,6 +18,8 @@ class Tramite extends Model
     protected $fillable = [
         // Identificación
         'nombre_oficial',
+        'naturaleza',       // ENUM: tramite | servicio
+        'tipo_servicio',    // VARCHAR(200), solo cuando naturaleza = 'servicio'
         'tipo_tramite_id',
         'dependencia_id',
         'unidad_id',
@@ -90,6 +92,13 @@ class Tramite extends Model
         'fj_norma',
         'fj_capitulo',
         'fj_articulo',
+        // Digitalización — estados del flujo de digitalización
+        'flujo_estado',
+        'digitalizacion_estado',
+        'digitalizacion_origen',
+        'flujo_enviado_en',
+        'flujo_aprobado_en',
+        'flujo_aprobado_por',
     ];
     protected $table   = 'tramites';
 
@@ -114,6 +123,23 @@ class Tramite extends Model
         self::ESTATUS_EN_FIRMA,
         self::ESTATUS_COMPLETADO,
     ];
+
+    // ── Naturaleza del registro (Art. 3 LNETB) ─────────────────────────
+    //
+    // Trámite: solicitud o entrega de información que una persona realiza
+    //          ante un Sujeto Obligado para acceder a un derecho, cumplir
+    //          una obligación u obtener un beneficio.
+    //
+    // Servicio: beneficio, programa social o actividad que el Sujeto
+    //           Obligado brinda a las personas, previo cumplimiento de
+    //           requisitos.
+    //
+    // Son conceptos jurídicamente distintos pero comparten el mismo flujo
+    // operativo en el sistema (wizard, observaciones, firmas, costo).
+    //   - Trámite  → tipo viene de tipo_tramite_id (FK al catálogo editable)
+    //   - Servicio → tipo viene de tipo_servicio   (string, lista fija LNETB)
+    public const NATURALEZA_TRAMITE  = 'tramite';
+    public const NATURALEZA_SERVICIO = 'servicio';
 
     /**
      * Constantes para el cálculo de costo burocrático (metodología ATDT).
@@ -152,6 +178,9 @@ class Tramite extends Model
         // Ítem F: catálogos de selección múltiple guardados como JSON.
         'acciones_simplificacion' => 'array',
         'grupos_atencion'         => 'array',
+        // Fase 4: timestamps de revisión del flujo
+        'flujo_enviado_en'  => 'datetime',
+        'flujo_aprobado_en' => 'datetime',
     ];
 
     /**
@@ -180,7 +209,54 @@ class Tramite extends Model
     public function unidad()           { return $this->belongsTo(UnidadAdministrativa::class, 'unidad_id'); }
     public function sector()           { return $this->belongsTo(SectorScian::class, 'sector_id'); }
     public function subsector()        { return $this->belongsTo(SubsectorScian::class, 'subsector_id'); }
-    public function unidadResponsable(){ return $this->belongsTo(UnidadResponsable::class, 'unidad_responsable_id'); }
+    public function tipoTramite()      { return $this->belongsTo(TipoTramite::class); }
+
+    // ── Naturaleza ───────────────────────────────────────────────────────
+
+    /** ¿Este registro es un servicio municipal (no un trámite)? */
+    public function esServicio(): bool
+    {
+        return $this->naturaleza === self::NATURALEZA_SERVICIO;
+    }
+
+    /** ¿Este registro es un trámite (no un servicio)? */
+    public function esTramite(): bool
+    {
+        return $this->naturaleza !== self::NATURALEZA_SERVICIO;
+    }
+
+    /**
+     * Devuelve la etiqueta legible del tipo, sin importar si es trámite o servicio.
+     * Trámite  → nombre del tipo del catálogo (ej. "Licencia")
+     * Servicio → tipo_servicio tal como se guardó (ej. "Servicio catastral o territorial")
+     */
+    public function tipoLegible(): string
+    {
+        if ($this->esServicio()) {
+            return $this->tipo_servicio ?? 'Servicio';
+        }
+        return $this->tipoTramite?->nombre ?? 'Sin tipo';
+    }
+
+    /**
+     * Etiqueta corta para badges y tablas: "Trámite" o "Servicio".
+     */
+    public function naturalezaLegible(): string
+    {
+        return $this->esServicio() ? 'Servicio' : 'Trámite';
+    }
+
+    /** Scope: solo trámites (excluye servicios). */
+    public function scopeTramites($query)
+    {
+        return $query->where('naturaleza', self::NATURALEZA_TRAMITE);
+    }
+
+    /** Scope: solo servicios (excluye trámites). */
+    public function scopeServicios($query)
+    {
+        return $query->where('naturaleza', self::NATURALEZA_SERVICIO);
+    }
     public function creador()          { return $this->belongsTo(User::class, 'created_by'); }
     public function requisitos()       { return $this->hasMany(Requisito::class)->orderBy('orden'); }
     public function procesosAtencion() { return $this->hasMany(ProcesoAtencion::class); }
@@ -190,6 +266,22 @@ class Tramite extends Model
     public function acciones()         { return $this->hasMany(AccionAgenda::class); }
     public function observaciones()    { return $this->morphMany(Observacion::class, 'observable'); }
     public function firmas()           { return $this->morphMany(Firma::class, 'firmable'); }
+
+    /**
+     * Trámites del catálogo que este trámite cita como relacionados (rubro 10.2).
+     * La tabla pivot tramite_relacionados usa la columna "relacionado_id" para
+     * el lado "citado", a diferencia del nombre estándar que usaría "tramite_id"
+     * en ambos lados. Se declara explícitamente para evitar ambigüedad.
+     */
+    public function relacionados()
+    {
+        return $this->belongsToMany(
+            Tramite::class,
+            'tramite_relacionados',
+            'tramite_id',
+            'relacionado_id'
+        )->withTimestamps();
+    }
 
     // ========== Lógica de negocio ==========
 
@@ -304,14 +396,6 @@ class Tramite extends Model
     }
 
     /**
-     * Devuelve el último snapshot de costo burocrático calculado para este trámite.
-     */
-    public function ultimoCostoBurocratico()
-    {
-        return $this->hasOne(TramiteCostoBurocratico::class)->latestOfMany('calculado_en');
-    }
-
-    /**
      * Genera la homoclave a partir del código jerárquico de la UR y el correlativo.
      *
      * Formato: T-{P}{SS}-{AA}-{NNN}
@@ -389,11 +473,12 @@ class Tramite extends Model
      * @param  int     $consecutivo        Número consecutivo global del trámite.
      * @return string  Homoclave completa.
      */
-    public static function formatearHomoclave(string $siglasDependencia, string $siglasUnidad, int $consecutivo): string
+    public static function formatearHomoclave(string $naturaleza, string $siglasDependencia, string $siglasUnidad, int $consecutivo): string
     {
         $prefijo = config('punta.prefijo_homoclave', 'LPZ');
 
-        return sprintf('%s-%s-%s-%d', $prefijo, $siglasDependencia, $siglasUnidad, $consecutivo);
+        // $naturaleza: 'T' (trámite) o 'S' (servicio). Queda LPZ-T-DGGD-CM-5.
+        return sprintf('%s-%s-%s-%s-%d', $prefijo, $naturaleza, $siglasDependencia, $siglasUnidad, $consecutivo);
     }
 
     /**
@@ -419,4 +504,97 @@ class Tramite extends Model
         return ($maxConsecutivo ?? 0) + 1;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Digitalización — estados, relaciones y helpers
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // ── Estados del flujo (levantamiento AS-IS) ──────────────────────────
+
+    public const FLUJO_SIN_FLUJO       = 'sin_flujo';
+    public const FLUJO_EN_CAPTURA      = 'flujo_en_captura';
+    public const FLUJO_EN_REVISION     = 'flujo_en_revision';
+    public const FLUJO_OBSERVADO       = 'flujo_observado';
+    public const FLUJO_APROBADO        = 'flujo_aprobado';
+
+    public const FLUJO_ESTADOS = [
+        self::FLUJO_SIN_FLUJO,
+        self::FLUJO_EN_CAPTURA,
+        self::FLUJO_EN_REVISION,
+        self::FLUJO_OBSERVADO,
+        self::FLUJO_APROBADO,
+    ];
+
+    // ── Estados de digitalización ────────────────────────────────────────
+
+    public const DIG_NO_INICIADA       = 'no_iniciada';
+    public const DIG_LISTA             = 'lista_para_digitalizacion';
+    public const DIG_EN_DIGITALIZACION = 'en_digitalizacion';
+    public const DIG_DIGITALIZADO      = 'digitalizado';
+    public const DIG_REQUIERE_REVISION = 'requiere_revision_por_cambio';
+
+    public const DIG_ESTADOS = [
+        self::DIG_NO_INICIADA,
+        self::DIG_LISTA,
+        self::DIG_EN_DIGITALIZACION,
+        self::DIG_DIGITALIZADO,
+        self::DIG_REQUIERE_REVISION,
+    ];
+
+    // ── Relaciones de digitalización ─────────────────────────────────────
+
+    /** Todas las reingenierías (historial de versiones). */
+    public function reingenierias()
+    {
+        return $this->hasMany(Reingenieria::class)->orderByDesc('version');
+    }
+
+    /** Reingeniería activa (última versión no eliminada). */
+    public function reingenieriaActiva()
+    {
+        return $this->hasOne(Reingenieria::class)->latestOfMany('version');
+    }
+
+    /** Todos los diagramas del trámite. */
+    public function diagramas()
+    {
+        return $this->hasMany(Diagrama::class);
+    }
+
+    // ── Helpers de digitalización ────────────────────────────────────────
+
+    public function tieneFlujoAprobado(): bool
+    {
+        return $this->flujo_estado === self::FLUJO_APROBADO;
+    }
+
+    public function puedeIniciarDigitalizacion(): bool
+    {
+        return $this->tieneFlujoAprobado()
+            && $this->reingenieriaActiva
+            && $this->reingenieriaActiva->estaFirmada();
+    }
+
+    public function flujoEstadoLegible(): string
+    {
+        return match ($this->flujo_estado) {
+            self::FLUJO_SIN_FLUJO   => 'Sin flujo',
+            self::FLUJO_EN_CAPTURA  => 'En captura',
+            self::FLUJO_EN_REVISION => 'En revisión',
+            self::FLUJO_OBSERVADO   => 'Observado',
+            self::FLUJO_APROBADO    => 'Aprobado',
+            default => ucfirst(str_replace('_', ' ', $this->flujo_estado ?? 'sin_flujo')),
+        };
+    }
+
+    public function digitalizacionEstadoLegible(): string
+    {
+        return match ($this->digitalizacion_estado) {
+            self::DIG_NO_INICIADA       => 'No iniciada',
+            self::DIG_LISTA             => 'Lista',
+            self::DIG_EN_DIGITALIZACION => 'En digitalización',
+            self::DIG_DIGITALIZADO      => 'Digitalizado',
+            self::DIG_REQUIERE_REVISION => 'Requiere revisión',
+            default => ucfirst(str_replace('_', ' ', $this->digitalizacion_estado ?? 'no_iniciada')),
+        };
+    }
 }

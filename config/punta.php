@@ -151,4 +151,61 @@ return [
         ],
     ],
 
+    /**
+     * Topes máximos para los campos numéricos del trámite.
+     *
+     * FUENTE ÚNICA DE VERDAD: estos límites los consume tanto la validación de
+     * backend (App\Http\Requests\TramiteRequest) como la validación de frontend
+     * de los wizards (inyectados a window.PUNTA.topes). Cambiar un tope aquí lo
+     * cambia en ambos lados, sin duplicar el número en PHP y en JS.
+     *
+     * Son deliberadamente estrictos para forzar revisión manual de los casos
+     * extremos: un plazo de "124 años" o un volumen de "185 mil" produce un
+     * costo burocrático irreal que, además, desbordaba la base de datos.
+     */
+    'topes_tramite' => [
+        'plazo_anios'   => 2,        // plazo de resolución, en años
+        'volumen_anual' => 1000000,  // trámites gestionados al año
+        'num_areas'     => 50,       // áreas que intervienen
+        'visitas'       => 50,       // visitas presenciales requeridas
+        'copias'        => 100,      // copias solicitadas
+        'horas'         => 999,      // horas de cualquier tramo de tiempo
+        'minutos'       => 59,       // minutos (tope natural del reloj)
+        'nivel_digital' => 5,        // escala de digitalización 0-5
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tipos de servicio municipal (lista fija LNETB)
+    |--------------------------------------------------------------------------
+    |
+    | Clasifica los servicios municipales cuando el usuario elige registrar un
+    | servicio en vez de un trámite. Esta lista es fija (viene de la LNETB) y
+    | no se edita desde el admin. Si en el futuro se necesita que sea editable,
+    | se migra a una tabla 'tipos_servicio' con FK, igual que tipos_tramite.
+    |
+    | El orden del array determina el orden en el select del wizard.
+    |
+    */
+    'tipos_servicio' => [
+        'Servicio de inspección o verificación',
+        'Servicio documental, constancia o certificación',
+        'Servicio catastral o territorial',
+        'Servicio urbano o de construcción',
+        'Servicio de uso u ocupación de vía pública',
+        'Servicio de limpia, recolección o residuos',
+        'Servicio de seguridad pública o tránsito',
+        'Servicio de protección civil',
+        'Servicio de bomberos',
+        'Servicio ambiental o saneamiento',
+        'Servicio funerario o de panteón',
+        'Servicio de rastro municipal',
+        'Servicio de regulación comercial',
+        'Servicio de anuncios o publicidad',
+        'Servicio de atención, orientación o asesoría',
+        'Programa social o beneficio',
+        'Actividad institucional',
+        'Otro',
+    ],
+
 ];

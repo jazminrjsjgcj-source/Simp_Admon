@@ -35,7 +35,7 @@
 <style>
   .calc-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:9998; }
   .calc-backdrop.open { display:grid; place-items:center; }
-  .calc-modal { background:var(--surface,#fff); border-radius:16px; width:min(720px,calc(100% - 32px)); max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.25); }
+  .calc-modal { background:var(--surface,#fff); border-radius:16px; width:min(960px,calc(100% - 32px)); max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.25); }
   .calc-head { padding:18px 22px; border-bottom:1px solid var(--surface-high,#eee); display:flex; align-items:center; justify-content:space-between; }
   .calc-head h3 { margin:0; font-size:17px; }
 

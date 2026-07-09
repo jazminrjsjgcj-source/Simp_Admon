@@ -89,8 +89,8 @@
 
   {{-- Stepper estándar del sistema (mismas clases y CSS que los demás wizards) --}}
   <div class="wizard-stepper" id="agendaWizard">
-    <div class="wizard-step active" data-step="1"><span class="wizard-dot"></span><strong>Inicio</strong><small>Trámite</small></div>
-    <div class="wizard-step" data-step="2" data-opcional="tramite"><span class="wizard-dot"></span><strong>Trámite</strong><small>Datos</small></div>
+    <div class="wizard-step active" data-step="1"><span class="wizard-dot"></span><strong>Inicio</strong><small>Registro</small></div>
+    <div class="wizard-step" data-step="2" data-opcional="tramite"><span class="wizard-dot"></span><strong>Registro</strong><small>Datos</small></div>
     <div class="wizard-step" data-step="3"><span class="wizard-dot"></span><strong>Alcance</strong><small>Agenda</small></div>
     <div class="wizard-step" data-step="4"><span class="wizard-dot"></span><strong>Acciones</strong><small>Mejora</small></div>
     <div class="wizard-step" data-step="5"><span class="wizard-dot"></span><strong>Fundamento</strong><small>Requisitos</small></div>
@@ -116,25 +116,25 @@
       <div class="wz-head">
         <span class="wz-head-ic"></span>
         <div>
-          <h3>¿El trámite ya está cargado?</h3>
+          <h3>¿El trámite o servicio ya está cargado?</h3>
           <p>Elija si se precargará desde el catálogo o si se capturará desde cero.</p>
         </div>
       </div>
       <div class="wz-opts">
         <div class="wz-opt" id="opcExistente" onclick="elegirCamino('existente')">
-          Sí, seleccionar trámite existente
-          <small>Lo busco en el catálogo y lo ligo.</small>
+          Sí, seleccionar trámite o servicio existente
+          <small>Lo busco en el catálogo y lo selecciono.</small>
         </div>
-        <div class="wz-opt" id="opcNuevo" onclick="elegirCamino('nuevo')">
-          No, registrar desde cero
-          <small>Capturo el trámite completo aquí.</small>
-        </div>
+        <a href="{{ route('tramites.create', ['retorno' => 'agenda']) }}" class="wz-opt" style="text-decoration:none;color:inherit">
+          Registrar trámite o servicio nuevo
+          <small>Ir al formulario completo y volver aquí al guardar.</small>
+        </a>
       </div>
 
       {{-- Buscador (camino A) --}}
       <div class="wz-sub" id="bloqueBuscar" style="margin-top:16px; display:none">
-        <p class="wz-sub-tit">Precargar trámite existente</p>
-        <x-field-help label="Buscar trámite, folio u homoclave" class="span-2">
+        <p class="wz-sub-tit">Precargar trámite o servicio existente</p>
+        <x-field-help label="Buscar trámite o servicio por nombre, folio u homoclave" class="span-2">
                 <input type="text" id="buscadorTramite" placeholder="Escribe al menos 2 letras..." autocomplete="off">
               </x-field-help>
         <div id="resultadosTramite"></div>
@@ -143,7 +143,7 @@
           <button type="button" class="btn btn-outline btn-sm" style="margin-left:8px" onclick="limpiarTramite()">Cambiar</button>
         </div>
         <div class="assist-box" style="margin-top:12px">
-          <strong>¿No aparece?</strong> Si el trámite no existe en el catálogo, elija "registrar desde cero".
+          <strong>¿No aparece?</strong> Si el trámite o servicio no existe en el catálogo, elija "registrar desde cero".
         </div>
       </div>
 
@@ -179,206 +179,19 @@
       </div>
     </div>
 
-    {{-- ============ PASO 2: Trámite (formulario completo, solo camino nuevo) ============ --}}
-    <div class="wz-card wz-panel" data-panel="2">
-      <div class="wz-head">
-        <span class="wz-head-ic"></span>
-        <div>
-          <h3>Datos base del trámite</h3>
-          <p id="precargaSub">Identificación e información general del trámite.</p>
-        </div>
-      </div>
-
-      {{-- BLOQUE I: Identificación --}}
-      <div class="wz-bloque">
-        <div class="wz-bloque-head"><strong>Identificación del trámite</strong><small>Dependencia, nombre, clave y fundamento.</small></div>
-        <div class="wz-bloque-body">
-          <div class="wizard-fields">
-            <x-field-help label="Nombre oficial">
-                <input name="tramite_nombre_oficial" type="text" maxlength="500" placeholder="Nombre del trámite o servicio">
-              </x-field-help>
-            <x-field-help label="Dependencia responsable">
-                <input type="hidden" name="tramite_dependencia_id" value="{{ auth()->user()->dependencia_id }}">
-                <input type="text" value="{{ auth()->user()->dependencia->nombre ?? 'Sin dependencia asignada' }}" disabled class="u-input-disabled">
-              </x-field-help>
-            <x-field-help label="Unidad administrativa">
-                <select name="tramite_unidad_id">
-                <option value="">Seleccione</option>
-                @foreach(($misUnidades ?? []) as $u)
-                  <option value="{{ $u->id }}">{{ $u->nombre }}</option>
-                @endforeach
-              </select>
-              </x-field-help>
-            <x-field-help label="Persona servidora pública responsable">
-                <input name="tramite_servidor_publico" type="text" placeholder="Nombre completo">
-              </x-field-help>
-            <x-field-help label="Sector principal">
-                <select name="tramite_sector_id" id="selSector" onchange="cargarSubsectores()">
-                <option value="">Seleccione</option>
-                @foreach(($sectores ?? []) as $s)
-                  <option value="{{ $s->id }}">{{ $s->nombre }}</option>
-                @endforeach
-              </select>
-              </x-field-help>
-            <x-field-help label="Subsector o actividad relacionada">
-                <select name="tramite_subsector_id" id="selSubsector" disabled>
-                  <option value="">Primero elija un sector</option>
-                </select>
-              </x-field-help>
-            <x-field-help label="Clave u homoclave" class="span-2">
-                <input name="tramite_homoclave" id="homoclaveAgenda" type="text" readonly
-                       class="u-input-readonly"
-                       placeholder="Se generará al elegir la unidad administrativa">
-                <small class="help-small">Se genera automáticamente: {{ config('punta.prefijo_homoclave', 'LPZ') }}-(siglas dependencia)-(siglas unidad)-(consecutivo).</small>
-              </x-field-help>
-            <x-field-help label="Tipo de registro">
-                <select name="tramite_tipo_registro">
-                <option value="TR">Trámite</option>
-                <option value="SV">Servicio</option>
-              </select>
-              </x-field-help>
-            <x-citar-regulacion />
-            <x-field-help label="Resumen del fundamento" class="span-2">
-                <textarea name="tramite_fundamento" rows="2" placeholder="Ej. Reglamento de Comercio del Municipio de La Paz, artículo __, fracción __"></textarea>
-              </x-field-help>
-          </div>
-        </div>
-      </div>
-
-      {{-- BLOQUE II: Información general --}}
-      <div class="wz-bloque">
-        <div class="wz-bloque-head"><strong>Información general</strong><small>Objetivo, población, volumen y relación con otros trámites.</small></div>
-        <div class="wz-bloque-body">
-          <div class="wizard-fields">
-            <x-field-help label="Objetivo del trámite" class="span-2">
-                <textarea name="tramite_objetivo" rows="3" placeholder="Describa qué resuelve o qué beneficio otorga..."></textarea>
-              </x-field-help>
-            <x-field-help label="Población objetivo">
-                <select name="tramite_dirigido_a">
-                <option value="ambas">Ciudadanía en general</option>
-                <option value="fisica">Personas físicas</option>
-                <option value="moral">Personas morales</option>
-              </select>
-              </x-field-help>
-            <x-field-help label="Volumen anual estimado">
-                <input name="tramite_volumen_anual" type="number" min="0" placeholder="0">
-              </x-field-help>
-            <x-field-help label="Frecuencia">
-                <select name="tramite_frecuencia">
-                  <option value="">Seleccione</option>
-                  <option value="Alta">Alta</option>
-                  <option value="Media">Media</option>
-                  <option value="Baja">Baja</option>
-                  <option value="Eventual">Eventual</option>
-                </select>
-              </x-field-help>
-            <x-field-help label="Plazo máximo de resolución">
-                <input name="tramite_plazo_resolucion_cantidad" type="number" min="0" placeholder="0">
-              </x-field-help>
-            <x-field-help label="Unidad de plazo">
-                <select name="tramite_plazo_resolucion_unidad">
-                <option value="habiles">Días hábiles</option>
-                <option value="naturales">Días naturales</option>
-                <option value="meses">Meses</option>
-              </select>
-              </x-field-help>
-            {{-- Grupos de atención prioritaria: catálogo oficial de 11 categorías
-                 (LNETB Art. 19 fracc. III). Cuando el enlace vincula un trámite
-                 existente, se precargan automáticamente desde ese trámite por JS.
-                 Cuando crea un trámite nuevo desde aquí, los marca y se guardan
-                 en el trámite creado. --}}
-            @php
-              $catGruposAgenda = [
-                'No Aplica',
-                'Niñas, niños y adolescentes',
-                'Mujeres',
-                'Personas mayores',
-                'Personas con discapacidad',
-                'Personas pertenecientes a pueblos y comunidades indígenas o afrodescendientes',
-                'Personas pertenecientes a la comunidad LGBTTTI',
-                'Personas migrantes o refugiadas',
-                'Personas víctimas de violaciones a derechos humanos',
-                'Personas en situación de calle',
-                'Personas periodistas y defensoras de DDHH',
-              ];
-            @endphp
-            <x-field-help label="Grupos de atención prioritaria" class="span-2">
-              <div class="check-grid-compact" id="agendaGruposGrid">
-                @foreach($catGruposAgenda as $opcion)
-                  <label class="check-chip">
-                    <input type="checkbox" name="tramite_grupos_atencion[]" value="{{ $opcion }}">
-                    <span>{{ $opcion }}</span>
-                  </label>
-                @endforeach
-              </div>
-            </x-field-help>
-            {{-- Pregunta diagnóstico: relacionados --}}
-            <x-field-help label="¿Guarda relación con otros trámites o servicios?" class="span-2">
-              <div class="wz-sino">
-                <label><input type="radio" name="tramite_tiene_relacionados" value="1" onclick="toggleDetalle('detRelacionados',true)"> Sí</label>
-                <label><input type="radio" name="tramite_tiene_relacionados" value="0" checked onclick="toggleDetalle('detRelacionados',false)"> No</label>
-              </div>
-              <div class="wz-detalle" id="detRelacionados">
-                <label class="wz-sublabel">Tipo de relación</label>
-                <select name="tramite_tipo_relacion">
-                  <option value="">Seleccione el tipo</option>
-                  <option value="naturaleza">Naturaleza (se resuelven de forma similar o igual)</option>
-                  <option value="secuencia">Secuencia (uno se requiere para iniciar el otro, distinta materia)</option>
-                  <option value="dependencia_funcional">Dependencia funcional (uno se requiere para el otro, misma materia)</option>
-                </select>
-                <label class="wz-sublabel" style="margin-top:8px">Trámites con los que guarda relación</label>
-                <input name="tramite_relacionados_detalle" type="text" placeholder="Enliste los trámites o servicios">
-              </div>
-            </x-field-help>
-          </div>
-        </div>
-      </div>
-
-      {{-- BLOQUE: Costos (alimenta el cálculo del costo burocrático) --}}
-      <div class="wz-bloque">
-        <div class="wz-bloque-head"><strong>Costos</strong><small>Derechos y copias. El costo burocrático se calcula automáticamente al guardar.</small></div>
-        <div class="wz-bloque-body">
-          <div class="wizard-fields">
-            <x-field-help label="Pago de derechos" class="span-2">
-                <div id="derechosLista" class="derechos-lista"></div>
-                <div class="derechos-pie" style="display:flex; justify-content:space-between; align-items:center; margin-top:8px">
-                  <button type="button" class="btn btn-outline btn-sm" onclick="agregarDerecho()">+ Agregar derecho</button>
-                  <span class="derechos-total">Total derechos: <strong id="derechosTotal">$0.00 MXN</strong></span>
-                </div>
-                <input type="hidden" name="derechos_json" id="derechosJson" value="[]">
-              </x-field-help>
-            <x-field-help label="Número de copias">
-                <input name="tramite_copias_cantidad" type="number" min="0" placeholder="0">
-              </x-field-help>
-            <x-field-help label="Precio por copia (pesos)">
-                <input name="tramite_copias_precio" type="number" min="0" step="0.01" placeholder="0.00">
-              </x-field-help>
-          </div>
-        </div>
-      </div>
-
-      <div class="wz-foot">
-        <button type="button" class="btn btn-outline" onclick="wzNav(-1)">Atrás</button>
-        <div class="wz-foot-right">
-          <a href="{{ route('agenda.index') }}" class="btn btn-outline">Cancelar</a>
-          <button type="button" class="btn btn-success" onclick="wzNav(1)">Siguiente</button>
-        </div>
-      </div>
-    </div>
-
     {{-- ============ PASO 4: Acciones de Mejora (Bloques III, V, VI) ============ --}}
     <div class="wz-card wz-panel" data-panel="4">
       <div class="wz-head">
         <span class="wz-head-ic"></span>
         <div>
           <h3>Acciones de Mejora</h3>
-          <p>Operación actual del trámite y qué se simplificará o digitalizará.</p>
+          <p>Operación actual del trámite o servicio y qué se simplificará o digitalizará.</p>
         </div>
       </div>
 
       {{-- Costo burocrático heredado del trámite (solo lectura, camino A) --}}
       <div id="costoHeredado" style="display:none" class="wz-bloque">
-        <div class="wz-bloque-head"><strong>Costo burocrático del trámite</strong><small>Calculado a partir de los datos del trámite (metodología ATDT).</small></div>
+        <div class="wz-bloque-head"><strong>Costo burocrático</strong><small>Calculado a partir de los datos del trámite o servicio (metodología ATDT).</small></div>
         <div class="wz-bloque-body">
           <div id="costoHeredadoCalculado">
             <div class="costo-heredado-grid">
@@ -390,7 +203,7 @@
             </div>
           </div>
           <div id="costoHeredadoSinCalcular" class="assist-box" style="display:none">
-            Este trámite aún no tiene su costo burocrático calculado. Se calculará cuando el trámite se complete.
+            Este registro aún no tiene su costo burocrático calculado. Se calculará cuando se complete.
           </div>
         </div>
       </div>
@@ -439,6 +252,28 @@
                 <textarea name="tramite_redundantes_detalle" rows="2" placeholder="Describa cuáles procesos son redundantes"></textarea>
               </div>
             </x-field-help>
+            {{-- B24: nivel de digitalización (faltaba). Select simple; la
+                 calculadora oficial de 35 criterios queda para el trámite normal. --}}
+            <x-field-help label="Nivel de digitalización" class="span-2">
+              {{-- Igual que en Trámites: el nivel NO se teclea, se calcula con el
+                   cuestionario oficial ATDT. El select queda bloqueado (solo
+                   visual) y el valor real viaja en el hidden #nivelDigHidden, que
+                   la calculadora (partial calculadora-digitalizacion) actualiza.
+                   El hidden lleva el nombre con prefijo que espera el backend de
+                   Agenda (tramite_nivel_digitalizacion). --}}
+              <select id="nivelDigSelect" class="impacto-accion" disabled
+                style="background:var(--surface-low);cursor:not-allowed">
+                <option value="0" {{ old('tramite_nivel_digitalizacion')==='0'?'selected':'' }}>Nivel 0 — Sin digitalización</option>
+                <option value="1" {{ old('tramite_nivel_digitalizacion','1')=='1'?'selected':'' }}>Nivel 1 — Eficiencia administrativa básica</option>
+                <option value="2" {{ old('tramite_nivel_digitalizacion')=='2'?'selected':'' }}>Nivel 2 — Productividad y reducción de costos</option>
+                <option value="3" {{ old('tramite_nivel_digitalizacion')=='3'?'selected':'' }}>Nivel 3 — Acceso electrónico transaccional</option>
+                <option value="4" {{ old('tramite_nivel_digitalizacion')=='4'?'selected':'' }}>Nivel 4 — Experiencia ciudadana unificada</option>
+                <option value="5" {{ old('tramite_nivel_digitalizacion')=='5'?'selected':'' }}>Nivel 5 — Innovación, transparencia y participación</option>
+              </select>
+              <input type="hidden" name="tramite_nivel_digitalizacion" id="nivelDigHidden" value="{{ old('tramite_nivel_digitalizacion', 1) }}">
+              <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px" onclick="abrirCalcDig()">Calcular nivel con el cuestionario oficial</button>
+              <small class="campo-nota">Use la calculadora oficial para establecer el nivel. No se puede editar a mano.</small>
+            </x-field-help>
           </div>
         </div>
       </div>
@@ -451,7 +286,7 @@
         <div class="wz-bloque-body">
           <div class="wizard-fields">
             <x-field-help label="Descripción general de la acción" class="span-2">
-              <textarea name="descripcion" rows="3" placeholder="Ej. Reducir requisitos y digitalizar el trámite de licencia de funcionamiento..."></textarea>
+              <textarea name="descripcion" rows="3" placeholder="Ej. Reducir requisitos y digitalizar la licencia de funcionamiento..."></textarea>
             </x-field-help>
           </div>
         </div>
@@ -611,13 +446,13 @@
       <div class="wz-head">
         <span class="wz-head-ic"></span>
         <div>
-          <h3>Requisitos del trámite</h3>
+          <h3>Requisitos</h3>
           <p>Documentos que el ciudadano debe presentar.</p>
         </div>
       </div>
       <div id="tramiteRequisitos" style="display:none; margin-bottom:16px" class="card card-pad">
-        <strong style="display:block; margin-bottom:8px; font-size:13px">Requisitos heredados del trámite</strong>
-        <p style="margin:0 0 10px; font-size:12px; color:var(--muted)">Estos requisitos vienen del trámite vinculado. Se editan desde el trámite, no aquí.</p>
+        <strong style="display:block; margin-bottom:8px; font-size:13px">Requisitos heredados</strong>
+        <p style="margin:0 0 10px; font-size:12px; color:var(--muted)">Estos requisitos vienen del registro vinculado. Se editan desde el trámite o servicio, no aquí.</p>
         <ol id="tramiteRequisitosLista" class="requisitos-heredados"></ol>
       </div>
       <div id="reqLista"></div>
@@ -702,6 +537,11 @@
     </div>
 
   </form>
+
+  {{-- Calculadora de nivel de digitalización (mismo partial que Trámites).
+       Trae su propio modal y JS; el botón "Calcular nivel" la abre y el
+       resultado se escribe en #nivelDigHidden. Va fuera del form. --}}
+  @include('partials.calculadora-digitalizacion')
 </div>{{-- /page-default --}}
 
 @push('scripts')
@@ -712,9 +552,12 @@
     apiTramitesBuscar:          "{{ route('api.tramites.buscar') }}",
     apiTramiteDetalle:          "{{ url('api/tramites') }}",
     apiHomoclavePrevisualizar:  "{{ url('api/homoclave/previsualizar') }}",
-    subsectoresPorSector:       @json($subsectoresPorSector ?? [])
+    subsectoresPorSector:       @json($subsectoresPorSector ?? []),
+    topes:                      @json(config('punta.topes_tramite')),
+    tramiteIdRetorno:           {{ (int) request()->query('tramite_id', 0) }}
   };
 </script>
+<script src="{{ asset('js/horarios.js') }}?v={{ filemtime(public_path('js/horarios.js')) }}"></script>
 <script src="{{ asset('js/agenda-create.js') }}?v={{ filemtime(public_path('js/agenda-create.js')) }}"></script>
 @endpush
 @endsection

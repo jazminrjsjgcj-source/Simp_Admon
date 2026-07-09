@@ -1,0 +1,233 @@
+/* ===========================================================================
+   13-regulaciones.css
+   Vista de catálogo de regulaciones con enfoque de biblioteca jurídica:
+   - Estante de favoritos (lomos horizontales) en la parte superior.
+   - Catálogo de libros con portada y apertura 3D al pasar el cursor.
+   Reutiliza las variables de color del sistema (01-variables.css).
+   =========================================================================== */
+
+/* ---- Estante de favoritos (lomos en fila) -------------------------------- */
+.reg-estante {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  min-height: 150px;
+  padding: 18px 16px 0;
+  background: var(--primary-fixed);
+  border-radius: 8px 8px 0 0;
+  border-bottom: 8px solid #8a6d5a;
+  overflow-x: auto;
+}
+
+.reg-lomo {
+  flex: 0 0 44px;
+  height: 150px;
+  background: var(--primary);
+  border-radius: 3px 3px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14px;
+  box-shadow: inset -3px 0 6px rgba(0, 0, 0, .2);
+  cursor: pointer;
+  text-decoration: none;
+  transition: height .2s ease;
+}
+
+/* Variación de tamaños para que el estante parezca una repisa real:
+   distintos anchos, altos y tonos en ciclos, según la posición del lomo. */
+.reg-lomo:nth-child(5n + 1) { flex-basis: 38px; height: 168px; background: var(--primary); }
+.reg-lomo:nth-child(5n + 2) { flex-basis: 52px; height: 140px; background: var(--primary-container); }
+.reg-lomo:nth-child(5n + 3) { flex-basis: 34px; height: 158px; background: #5a002b; }
+.reg-lomo:nth-child(5n + 4) { flex-basis: 48px; height: 148px; background: var(--primary-container); }
+.reg-lomo:nth-child(5n + 5) { flex-basis: 42px; height: 164px; background: var(--primary); }
+
+.reg-lomo:hover { height: 174px; }
+.reg-lomo span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  max-height: 120px;
+  text-overflow: ellipsis;
+}
+/* Lomos alternos en guinda media para dar variedad visual */
+.reg-lomo:nth-child(even) { background: var(--primary-container); }
+
+.reg-estante-vacio {
+  align-self: center;
+  color: var(--primary);
+  font-size: 13px;
+  opacity: .7;
+  padding: 0 8px;
+}
+
+/* ---- Catálogo de libros (portada con apertura 3D) ------------------------ */
+.reg-catalogo {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 24px;
+}
+
+.reg-frame {
+  position: relative;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid rgba(117, 0, 56, .15);
+  border-radius: 12px;
+}
+
+.reg-corazon {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .9);
+  color: var(--primary);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .2);
+  transition: transform .15s ease;
+}
+.reg-corazon:hover { transform: scale(1.15); }
+.reg-corazon[aria-pressed="true"] { background: var(--primary); color: #fff; }
+
+.reg-book {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  perspective: 1400px;
+}
+
+.reg-inside {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px 10px 10px 6px;
+  background: var(--surface);
+  border: 1px solid rgba(117, 0, 56, .18);
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+.reg-inside-meta { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.reg-inside-resumen { font-size: 12px; color: var(--text); line-height: 1.45; }
+.reg-inside-acciones { display: flex; gap: 6px; }
+.reg-inside-acciones a {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  padding: 6px 0;
+  border-radius: 6px;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.reg-cover {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px 10px 10px 6px;
+  border-left: 7px solid #5a002b;
+  background: linear-gradient(150deg, var(--primary) 0%, var(--primary-container) 100%);
+  color: #fff;
+  padding: 18px 15px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transform-origin: left center;
+  transition: transform .55s ease, box-shadow .55s ease;
+  box-shadow: 1px 1px 12px rgba(0, 0, 0, .35);
+  backface-visibility: hidden;
+  overflow: hidden;
+  text-decoration: none;
+}
+.reg-book:hover .reg-cover { transform: rotateY(-105deg); box-shadow: 6px 4px 20px rgba(0, 0, 0, .4); }
+.reg-cover-tipo { font-size: 10px; color: var(--primary-fixed); letter-spacing: .09em; margin-bottom: 10px; }
+.reg-cover-titulo { font-size: 15px; font-weight: 500; line-height: 1.3; color: #fff; }
+.reg-cover-pie { font-size: 10px; color: rgba(255, 217, 225, .85); margin-top: 8px; }
+.reg-cover .reg-cover-spine {
+  position: absolute;
+  top: 0;
+  left: 7px;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, .2);
+}
+
+/* Si el usuario pidió reducir animaciones, no giramos la portada:
+   mostramos la cara interior directamente para no perder las acciones. */
+@media (prefers-reduced-motion: reduce) {
+  .reg-cover { transition: none; }
+  .reg-book:hover .reg-cover { transform: none; }
+}
+
+/* ---- Colores por tipo de regulación (#7) --------------------------------
+   Cada tipo tiene su propio gradiente de portada. Los colores son oscuros
+   (como libros reales) y profesionales. Si el tipo no coincide con ninguna
+   regla, se usa el gradiente por defecto (--primary). */
+.reg-cover[data-tipo="ley"]          { background: linear-gradient(150deg, #1e3a5f, #2c5282); border-left-color: #12274d; }
+.reg-cover[data-tipo="reglamento"]   { background: linear-gradient(150deg, #5a1a2a, #822d44); border-left-color: #3d0e1b; }
+.reg-cover[data-tipo="decreto"]      { background: linear-gradient(150deg, #1a4731, #276749); border-left-color: #0f3020; }
+.reg-cover[data-tipo="lineamiento"]  { background: linear-gradient(150deg, #1a3c4f, #2a6478); border-left-color: #0f2a38; }
+.reg-cover[data-tipo="acuerdo"]      { background: linear-gradient(150deg, #3b1f5e, #5b3a8a); border-left-color: #2a1445; }
+.reg-cover[data-tipo="manual"]       { background: linear-gradient(150deg, #2d3748, #4a5568); border-left-color: #1a202c; }
+.reg-cover[data-tipo="circular"]     { background: linear-gradient(150deg, #744210, #975a16); border-left-color: #5a3209; }
+.reg-cover[data-tipo="nom"]          { background: linear-gradient(150deg, #1a365d, #2b6cb0); border-left-color: #0f2240; }
+
+/* ---- Botón blanco (estilo tarjeta limpia) -------------------------------
+   Fondo blanco con borde y texto guinda. Se usa en las acciones del catálogo
+   de regulaciones (Descargar ZIP, Subir, Ver) para aligerar la vista; los
+   botones de filtros conservan su estilo propio. */
+.btn-blanco,
+a.btn-blanco,
+button.btn-blanco {
+  background: #fff;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  box-shadow: none;
+}
+.btn-blanco:hover,
+a.btn-blanco:hover,
+button.btn-blanco:hover {
+  background: var(--surface-tint);
+  filter: none;
+}
+
+/* ---- Contenedor scrollable para articulado e índice ─────────────────
+   Limita la altura máxima a 60vh (60% de la pantalla) para que el
+   articulado (que puede tener 200+ nodos) no empuje el timeline y los
+   datos generales fuera de la pantalla. overflow:auto agrega scrollbar
+   horizontal y vertical solo cuando el contenido excede el espacio. */
+.reg-scroll-contenido {
+  max-height: 60vh;
+  overflow: auto;
+}
+
+/* Bug #29: badge de estatus visible en la portada de cada libro */
+.reg-estatus-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.reg-estatus-vigente     { background: rgba(34,197,94,.25); color: #bbf7d0; }
+.reg-estatus-en_revision { background: rgba(251,191,36,.25); color: #fef08a; }
+.reg-estatus-derogada    { background: rgba(156,163,175,.25); color: #d1d5db; }
+.reg-estatus-vencida     { background: rgba(239,68,68,.25);  color: #fca5a5; }

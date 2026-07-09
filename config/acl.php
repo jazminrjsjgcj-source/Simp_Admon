@@ -75,6 +75,13 @@ return [
 
         // Firmas (módulo futuro)
         'firmas.firmar'       => ['modulo' => 'firmas', 'accion' => 'firmar', 'descripcion' => 'Firmar digitalmente trámites y acuses'],
+
+        // Digitalización (biblioteca, reingenierías, diagramas)
+        'digitalizacion.ver'           => ['modulo' => 'digitalizacion', 'accion' => 'ver',           'descripcion' => 'Ver la Biblioteca de Digitalización'],
+        'digitalizacion.reingenieria'  => ['modulo' => 'digitalizacion', 'accion' => 'reingenieria',  'descripcion' => 'Crear y editar reingenierías TO-BE'],
+        'digitalizacion.diagrama'      => ['modulo' => 'digitalizacion', 'accion' => 'diagrama',      'descripcion' => 'Generar, visualizar y descargar diagramas'],
+        'digitalizacion.digitalizar'   => ['modulo' => 'digitalizacion', 'accion' => 'digitalizar',   'descripcion' => 'Iniciar y gestionar la digitalización de trámites'],
+        'digitalizacion.solicitar'     => ['modulo' => 'digitalizacion', 'accion' => 'solicitar',     'descripcion' => 'Solicitar reingeniería directa (sin Agenda)'],
     ],
 
     /**
@@ -141,6 +148,24 @@ return [
                 'regulaciones.ver',
                 'calendario.ver',
                 'firmas.firmar',
+            ],
+        ],
+        'digitalizador' => [
+            'nombre'      => 'Digitalizador',
+            'descripcion' => 'Gestiona la digitalización de trámites y servicios: biblioteca, reingenierías, diagramas y descargas.',
+            'sistema'     => true,
+            'permisos'    => [
+                'digitalizacion.ver',
+                'digitalizacion.reingenieria',
+                'digitalizacion.diagrama',
+                'digitalizacion.digitalizar',
+                'digitalizacion.solicitar',
+                'tramites.ver',
+                'tramites.editar',           // Para actualizar nivel de digitalización
+                'agenda.ver',                // Consultar acciones de agenda vinculadas
+                'regulaciones.ver',          // Consultar fundamentos
+                'agenda_regulatoria.ver',    // Solo consulta
+                'calendario.ver',
             ],
         ],
     ],

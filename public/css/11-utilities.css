@@ -173,16 +173,59 @@
 }
 .loading-overlay.active { display: grid; }
 
-.loading-spinner {
-  width: 36px;
-  height: 36px;
-  border: 4px solid #e5e7eb;
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
+/*
+ * Loader PUNTA (F27): animación "Papel → Celular → Avioncito".
+ *
+ * Tres siluetas SVG superpuestas que se transforman una en la siguiente
+ * mediante crossfade + escala/rotación (efecto morph sin librerías). El ciclo
+ * completo dura 2s: cada forma protagoniza ~un tercio y cede a la siguiente.
+ * Reemplaza al antiguo .loading-spinner; el overlay y su disparo no cambian.
+ */
+.punta-loader {
+  width: 64px;
+  height: 64px;
+  position: relative;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
+.punta-loader .pl-shape {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 64px;
+  height: 64px;
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  transform-origin: center;
+  animation: pl-morph 2s ease-in-out infinite;
+}
+
+/* Cada forma arranca su ciclo con un tercio de desfase. */
+.punta-loader .pl-papel    { animation-delay: 0s; }
+.punta-loader .pl-celular  { animation-delay: 0.66s; }
+.punta-loader .pl-avion    { animation-delay: 1.33s; }
+
+/*
+ * Una sola keyframe compartida: la forma aparece (fade + escala desde 0.6),
+ * se mantiene nítida un instante y se desvanece encogiéndose y girando un
+ * poco, dando la sensación de que "se convierte" en la siguiente.
+ */
+@keyframes pl-morph {
+  0%   { opacity: 0; transform: scale(0.6) rotate(-8deg); }
+  12%  { opacity: 1; transform: scale(1)   rotate(0deg); }
+  28%  { opacity: 1; transform: scale(1)   rotate(0deg); }
+  40%  { opacity: 0; transform: scale(0.8) rotate(8deg); }
+  100% { opacity: 0; transform: scale(0.6) rotate(-8deg); }
+}
+
+/* Respeta a quien pidió menos movimiento: deja una sola forma fija visible. */
+@media (prefers-reduced-motion: reduce) {
+  .punta-loader .pl-shape { animation: none; }
+  .punta-loader .pl-papel { opacity: 1; }
+}
 
 /* ===================================================
    Clases de layout para reemplazar estilos inline
@@ -678,9 +721,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
-.costo-grupo select { flex: 0 0 auto; min-width: 140px; }
-.costo-grupo input { flex: 1 1 auto; min-width: 120px; }
+.costo-grupo select { flex: 1 1 130px; min-width: 0; }
+.costo-grupo input { flex: 1 1 110px; min-width: 0; }
 .costo-moneda {
   flex: 0 0 auto;
   font-weight: 700;
@@ -723,6 +768,20 @@
 .carga-input-oculto { display: none; }
 .carga-control { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .carga-estado { font-size: 13px; color: var(--muted); }
+.carga-estado-error { color: #dc2626; font-weight: 500; }
+/* Zona de arrastrar y soltar archivos (#20). Borde punteado neutro; al
+   arrastrar un archivo encima se resalta en guinda con tinte suave. */
+.carga-dropzone {
+  border: 1.5px dashed var(--border); border-radius: var(--radius);
+  padding: 18px; text-align: center; font-size: 13px; color: var(--muted);
+  background: var(--bg); transition: border-color .15s, background .15s, color .15s;
+}
+.carga-dropzone-activa {
+  border-color: var(--primary); background: var(--surface-tint); color: var(--primary);
+}
+/* Botón deshabilitado por validación JS (p. ej. carga de archivo obligatoria
+   sin archivo seleccionado). Refuerza el estado disabled visualmente. */
+.u-btn-disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
 .carga-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .carga-item {
   display: flex;
@@ -887,3 +946,75 @@
 .fj-linea { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; padding: 8px; background: var(--surface-low); border: 1px solid var(--surface-high); border-radius: var(--radius-sm); }
 .fj-linea label { display: block; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 2px; }
 .fj-linea input { width: 100%; }
+
+/* ─── Correcciones QA: desbordamiento de texto largo ──────────────────── */
+
+/*
+ * Bug #2: nombre largo del trámite deforma el botón "Cancelar" en el header.
+ * El .row-center es un flex sin wrap ni overflow. Si el título (H1) crece
+ * demasiado, empuja los botones de actions-right fuera del contenedor
+ * visible o los aplasta contra el borde derecho.
+ *
+ * Fix: el row-center permite wrap para que los botones bajen a la siguiente
+ * línea en vez de aplastarse. El H1 (.text-primary-lg) se trunca si supera
+ * el espacio disponible. Los botones (.actions-right) se protegen con
+ * flex-shrink:0 para que nunca se compriman.
+ */
+.row-center { flex-wrap: wrap; }
+.text-primary-lg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.actions-right { flex-shrink: 0; }
+
+/*
+ * Bug #5: botón "Quitar" en el wizard de propuesta se deforma cuando el
+ * nombre del trámite seleccionado es largo. El botón vive dentro de un
+ * contenedor flex que no limita el texto vecino.
+ *
+ * Fix: la clase .pr-quitar (usada en el JS de propuesta) recibe flex-shrink:0
+ * y white-space:nowrap para que el texto del botón nunca se parta.
+ * La clase genérica .btn-outline btn-sm ya la protege, pero el JS del wizard
+ * usa una clase .pr-quitar propia que no tenía estas reglas.
+ */
+.pr-quitar { flex-shrink: 0; white-space: nowrap; }
+
+/*
+ * Bug #8/#9: nombre de archivo largo deforma la barra de progreso al
+ * subir evidencia en agenda. El <span> del nombre del archivo crece sin
+ * límite y empuja la barra fuera del contenedor.
+ *
+ * Fix: el estado del componente de carga (.carga-estado) se trunca con
+ * ellipsis. El contenedor (.carga-control) limita el ancho del texto
+ * para que la barra de progreso siempre quepa.
+ */
+.carga-estado {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/*
+ * Bug #30/#31: texto largo desborda en los eventos del calendario mensual.
+ * Los chips de evento (.cal-event-chip) ya tienen white-space:nowrap y
+ * text-overflow:ellipsis en el inline style del calendario (puesto en la
+ * sesión de Fase 5). Pero el contenedor padre (.cal-day) no tiene overflow
+ * hidden, así que el chip puede salirse visualmente de la celda.
+ *
+ * Fix: la celda del día del calendario limita la altura y oculta el
+ * desbordamiento. Los chips que no caben quedan cortados en vez de empujar
+ * la celda hacia abajo y romper la cuadrícula.
+ */
+.cal-day { overflow: hidden; }
+.cal-event-chip { max-width: 100%; box-sizing: border-box; }
+
+/*
+ * Bug #36: encabezado de la tabla "Trámites y requisitos afectados" en la
+ * propuesta regulatoria se corta porque las columnas no tienen espacio
+ * suficiente para el texto completo del header.
+ *
+ * Fix: los <th> de la tabla de impactos no se parten en múltiples líneas
+ * (white-space: nowrap) y la tabla tiene min-width para que el scroll
+ * horizontal se active antes de que los headers se corten.
+ */
+.data-table th { white-space: nowrap; }

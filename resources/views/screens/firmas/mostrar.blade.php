@@ -107,6 +107,10 @@
   </div>
 
   {{-- Acción: registrar nueva firma --}}
+  {{-- Formulario de firma: solo si el registro aún está en estatus de firma.
+       Después de completar todas las firmas, el estatus cambia a completado
+       y el formulario desaparece (bug 62/63). --}}
+  @if(($modelo->estatus ?? '') === 'en_firma')
   <div class="card">
     <div class="panel-head">
       <div>
@@ -166,6 +170,7 @@
       </div>
     </div>
   </div>
+  @endif
 
 </div>
 @endsection

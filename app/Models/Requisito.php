@@ -32,6 +32,7 @@ class Requisito extends Model
         'tiene_costo',
         'requiere_tercero',
         'costo_variable',
+        'costo_unidad',     // Bug #18/#19: ENUM('UMA','PESOS') — migración add_costo_unidad_to_requisitos
         'fj_norma',
         'fj_capitulo',
         'fj_articulo',

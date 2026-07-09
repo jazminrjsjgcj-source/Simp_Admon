@@ -2,6 +2,7 @@
 @section('title', 'Regulaciones')
 
 @section('content')
+@php $verDependencia = auth()->user()->veVariasDependencias(); @endphp
 <div class="page-wide">
 
   <div class="screen-head">
@@ -10,8 +11,33 @@
       <p class="nowrap">Leyes y reglamentos vigentes citables desde los wizards.</p>
     </div>
     <div class="head-actions">
-      <a href="{{ route('regulaciones.descargar-zip', request()->only(['q', 'estatus', 'dependencia'])) }}" class="btn btn-outline">Descargar ZIP</a>
-      <a href="{{ route('regulaciones.create') }}" class="btn">Subir regulación</a>
+      @if(auth()->user()->veVariasDependencias())
+        <a href="{{ route('regulaciones.papelera-regulaciones') }}" class="btn btn-outline btn-sm">Papelera</a>
+      @endif
+      <a href="{{ route('regulaciones.descargar-zip', request()->only(['q', 'estatus', 'dependencia'])) }}" class="btn btn-blanco">Descargar ZIP</a>
+      @if(auth()->user()->tienePermiso('regulaciones.crear'))
+        <a href="{{ route('regulaciones.create') }}" class="btn btn-blanco">Subir regulación</a>
+      @endif
+    </div>
+  </div>
+
+  {{-- Estante de favoritos del usuario (lomos en fila). Siempre visible; si no
+       hay favoritos muestra un mensaje. Los lomos se agregan/quitan en vivo al
+       marcar el corazón en el catálogo de abajo (ver JS al final). --}}
+  <div class="card" style="margin-bottom:16px; overflow:hidden">
+    <div class="card-body-padded" style="padding-bottom:0">
+      <h3 style="margin:0 0 4px">Mi estante de favoritos</h3>
+      <p class="text-muted-sm" style="margin:0 0 12px">Tus regulaciones marcadas, a la mano.</p>
+    </div>
+    <div class="reg-estante" id="regEstante" data-ruta-show="{{ url('regulaciones') }}">
+      <span class="reg-estante-vacio" id="regEstanteVacio" @if($favoritas->count()) style="display:none" @endif>
+        Aún no tienes favoritos. Marca el corazón de una regulación para guardarla aquí.
+      </span>
+      @foreach($favoritas as $fav)
+        <a href="{{ route('regulaciones.show', $fav) }}" class="reg-lomo" data-id="{{ $fav->id }}" title="{{ $fav->nombre }}">
+          <span>{{ $fav->nombre }}</span>
+        </a>
+      @endforeach
     </div>
   </div>
 
@@ -33,6 +59,7 @@
           @endforeach
         </select>
       </div>
+      @if($verDependencia)
       <div class="field">
         <label class="label-meta">Dependencia</label>
         <select name="dependencia">
@@ -44,65 +71,76 @@
           @endforeach
         </select>
       </div>
+      @endif
       <div class="field" style="display:flex;align-items:flex-end;gap:8px">
         <button type="submit" class="btn btn-outline">Filtrar</button>
-        <a href="{{ route('regulaciones.index') }}" class="btn btn-outline">Limpiar</a>
+        @if(request()->hasAny(['q', 'estatus', 'dependencia']))
+          <a href="{{ route('regulaciones.index') }}" class="btn btn-outline">Limpiar</a>
+        @endif
       </div>
     </div>
   </form>
 
-  {{-- Tabla de regulaciones --}}
-  <div class="card">
-    @if($regulaciones->isEmpty())
+  {{-- Catálogo de regulaciones como libros con apertura 3D --}}
+  @if($regulaciones->isEmpty())
+    <div class="card">
       <div class="text-center u-empty-lg">
         <h3 style="margin:0 0 8px">Aún no hay regulaciones registradas</h3>
         <p class="text-muted-sm">Sube el primer archivo PDF o Word para iniciar el catálogo.</p>
-        <a href="{{ route('regulaciones.create') }}" class="btn mt-4">Subir primera regulación</a>
+        @if(auth()->user()->tienePermiso('regulaciones.crear'))
+          <a href="{{ route('regulaciones.create') }}" class="btn btn-blanco mt-4">Subir primera regulación</a>
+        @endif
       </div>
-    @else
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Tipo</th>
-            <th>Dependencia</th>
-            <th>Estatus</th>
-            <th>Conversión</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          @foreach($regulaciones as $reg)
-            <tr>
-              <td><strong>{{ $reg->nombre }}</strong></td>
-              <td>{{ $reg->tipo ?? '—' }}</td>
-              <td>{{ $reg->dependencia->nombre ?? '—' }}</td>
-              <td>
-                <span class="chip chip-{{ $reg->estaVigente() ? 'success' : 'gray' }}">
-                  {{ ucfirst(str_replace('_', ' ', $reg->estatus)) }}
-                </span>
-              </td>
-              <td>
-                @switch($reg->conversion_estatus)
-                  @case('listo')      <span class="chip chip-success">Lista</span> @break
-                  @case('procesando') <span class="chip chip-amber">Procesando</span> @break
-                  @case('error')      <span class="chip chip-red">Error</span> @break
-                  @default            <span class="chip chip-gray">Pendiente</span>
-                @endswitch
-              </td>
-              <td>
-                <a href="{{ route('regulaciones.show', $reg) }}" class="btn btn-outline btn-sm">Ver</a>
-                @if(auth()->user()->puedeEditarRegulacion($reg))
-                  <a href="{{ route('regulaciones.edit', $reg) }}" class="btn btn-outline btn-sm">Editar</a>
-                @endif
-              </td>
-            </tr>
-          @endforeach
-        </tbody>
-      </table>
-      <div class="card-body-padded">{{ $regulaciones->links() }}</div>
-    @endif
-  </div>
+    </div>
+  @else
+    <div class="reg-catalogo">
+      @foreach($regulaciones as $reg)
+        @php $esFav = in_array($reg->id, $favoritasIds); @endphp
+        <div class="reg-frame">
+          <button type="button" class="reg-corazon" aria-pressed="{{ $esFav ? 'true' : 'false' }}"
+                  aria-label="Marcar como favorita"
+                  data-id="{{ $reg->id }}"
+                  data-nombre="{{ $reg->nombre }}"
+                  data-url="{{ route('regulaciones.favorita', $reg) }}">
+            &#9829;
+          </button>
+          <div class="reg-book">
+            <div class="reg-inside">
+              <div>
+                @if($verDependencia)<div class="reg-inside-meta">{{ $reg->dependencia->nombre ?? 'Sin dependencia' }}</div>@endif
+                <div class="reg-inside-resumen">{{ \Illuminate\Support\Str::limit($reg->resumen ?? 'Sin resumen.', 90) }}</div>
+              </div>
+              <div class="reg-inside-acciones">
+                <a href="{{ route('regulaciones.show', $reg) }}">Ver</a>
+              </div>
+            </div>
+            <a href="{{ route('regulaciones.show', $reg) }}" class="reg-cover" data-tipo="{{ strtolower($reg->tipo ?? '') }}">
+              <div class="reg-cover-spine"></div>
+              <div>
+                <div class="reg-cover-tipo">{{ strtoupper($reg->tipo ?? 'Regulación') }}</div>
+                <div class="reg-cover-titulo">{{ $reg->nombre }}</div>
+              </div>
+              <div class="reg-cover-pie">
+                {{-- Bug #29: badge de estatus visible en la portada --}}
+                @php $estatusEf = $reg->estatusEfectivo(); @endphp
+                <span class="reg-estatus-badge reg-estatus-{{ $estatusEf }}">{{ ucfirst(str_replace('_', ' ', $estatusEf)) }}</span>
+                · {{ optional($reg->fecha_publicacion)->format('Y') ?? '' }}
+              </div>
+            </a>
+          </div>
+        </div>
+      @endforeach
+    </div>
+    <div class="card-body-padded">{{ $regulaciones->links() }}</div>
+  @endif
 
 </div>
 @endsection
+
+@push('scripts')
+@php
+    $regFavJs = public_path('js/regulaciones-favoritas.js');
+    $regFavVer = file_exists($regFavJs) ? filemtime($regFavJs) : null;
+@endphp
+<script src="{{ asset('js/regulaciones-favoritas.js') }}{{ $regFavVer ? '?v=' . $regFavVer : '' }}"></script>
+@endpush

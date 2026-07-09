@@ -20,7 +20,7 @@
   .nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .nav button { justify-content: center; }
   .profile { justify-content: center; }
-  .kpis, .quick, .filters, .choice-row, .choice-row.two, .wizard-fields { grid-template-columns: 1fr; }
+  .kpis, .quick, .filters { grid-template-columns: 1fr; }
   .step-row { grid-template-columns: 1fr; }
   .requirement-origin { grid-template-columns: 1fr; }
   .autofill-summary { grid-template-columns: 1fr; }
@@ -54,8 +54,15 @@
   #airWizard > .card > .card-body {
     padding: 18px;
   }
-  .span-2 { grid-column: span 1; }
+  
   .table, table { min-width: 760px; }
+}
+/* Los campos en pareja del formulario aguantan lado a lado hasta 760px,
+   no desde 1100px. Ese umbral tan alto (más el body{zoom:.9}) los apilaba
+   demasiado pronto. Aquí es donde de verdad se ven apretados y toca apilar. */
+@media (max-width: 760px) {
+  .wizard-fields, .choice-row, .choice-row.two { grid-template-columns: 1fr; }
+  .span-2 { grid-column: span 1; }
 }
 @media (max-width: 760px) {
   .login-card {

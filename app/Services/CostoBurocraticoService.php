@@ -198,19 +198,37 @@ class CostoBurocraticoService
 
     private function calcularCostoDirecto(Tramite $tramite): array
     {
-        $montoDerechos   = floatval($tramite->monto_derechos    ?? 0);
+        // Monto total de derechos (para referencia informativa).
+        $montoDerechosTodos = floatval($tramite->monto_derechos ?? 0);
+
+        // CBD: solo suma derechos que NO son variables (Art. 29 LNETB).
+        // Los derechos variables (ej. predial) no son cuantificables de forma
+        // fija, así que se excluyen del cálculo pero se registran como nota
+        // informativa (monto_derechos_referencia + bandera tiene_costos_variables).
+        if (!$tramite->relationLoaded('derechos')) {
+            $tramite->load('derechos');
+        }
+        $valorUma = \App\Models\TramiteDerecho::valorUmaVigente();
+        $montoDerechosFijos = $tramite->derechos
+            ->filter(fn ($d) => !$d->es_variable)
+            ->sum(fn ($d) => ($d->unidad ?? 'pesos') === 'UMA'
+                ? floatval($d->monto) * $valorUma
+                : floatval($d->monto));
+
         $numeroCopias    = intval($tramite->copias_cantidad     ?? 0);
         $precioCopia     = floatval($tramite->copias_precio     ?? 0);
         $montoCopias     = $numeroCopias * $precioCopia;
         $montoRequisitos = $this->sumarCostoRequisitos($tramite);
 
-        $cbdUnitario = $montoDerechos + $montoCopias + $montoRequisitos;
+        // El CBD unitario solo incluye derechos fijos + copias + requisitos.
+        $cbdUnitario = $montoDerechosFijos + $montoCopias + $montoRequisitos;
 
         return [
-            'monto_derechos'   => round($montoDerechos,   2),
-            'monto_copias'     => round($montoCopias,     2),
-            'monto_requisitos' => round($montoRequisitos, 2),
-            'cbd_unitario'     => round($cbdUnitario,     2),
+            'monto_derechos'       => round($montoDerechosTodos,  2),
+            'monto_derechos_fijos' => round($montoDerechosFijos,  2),
+            'monto_copias'         => round($montoCopias,         2),
+            'monto_requisitos'     => round($montoRequisitos,     2),
+            'cbd_unitario'         => round($cbdUnitario,         2),
         ];
     }
 

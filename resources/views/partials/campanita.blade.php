@@ -11,8 +11,19 @@
 @php
   $usuarioNoti   = auth()->user();
   $noLeidas      = $usuarioNoti->unreadNotifications;
-  $ultimas       = $usuarioNoti->notifications()->latest()->take(8)->get();
   $totalNoLeidas = $noLeidas->count();
+
+  // Bug #12: antes se usaba ->latest()->take(8), que traía las 8 más recientes
+  // sin importar si estaban leídas o no. Si el usuario tenía 10 no leídas pero
+  // 6 leídas más recientes, el panel mostraba 6 leídas + 2 no leídas, mientras
+  // el badge decía "9+". Ahora las no leídas (read_at IS NULL) van primero,
+  // y dentro de cada grupo se ordenan por fecha descendente. Así el badge y
+  // el contenido del panel quedan alineados.
+  $ultimas = $usuarioNoti->notifications()
+      ->orderByRaw('read_at IS NOT NULL')  // NULL primero (no leídas arriba)
+      ->latest()                            // dentro de cada grupo, más recientes primero
+      ->take(8)
+      ->get();
 @endphp
 
 <div class="noti-wrap" style="position:relative;">

@@ -1,0 +1,126 @@
+/* ===========================================
+   Paginación — PUNTA
+   =========================================== */
+
+.punta-paginacion {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.punta-paginacion-lista {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.punta-paginacion-item {
+  display: flex;
+}
+
+/* Números de página: mismo tamaño para que el guion "..." y los dígitos
+   se vean alineados y con el mismo peso visual. */
+.punta-paginacion-item a,
+.punta-paginacion-item > span:not(.punta-paginacion-punto) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.punta-paginacion-item a:hover {
+  background: var(--surface-tint);
+  border-color: var(--primary-container);
+  color: var(--primary);
+}
+
+.punta-paginacion-item a:focus-visible {
+  outline: 3px solid rgba(157, 11, 79, .18);
+  outline-offset: 2px;
+}
+
+/* Página activa: fondo guinda sólido, texto blanco, sin borde — el mismo
+   lenguaje visual que .btn (botón principal) en 04-components.css, para
+   que se sienta parte del mismo sistema y no un componente aparte. */
+.punta-paginacion-actual {
+  position: relative;
+  background: var(--primary-container);
+  border-color: var(--primary-container);
+  color: var(--surface);
+}
+
+/* Punto indicador debajo de la página activa, igual que en la referencia
+   visual: un pequeño círculo que refuerza cuál página está seleccionada
+   incluso si el usuario no distingue bien el color de fondo. */
+.punta-paginacion-punto {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--primary-container);
+}
+
+/* "..." de páginas omitidas: no es clicable, se ve apagado a propósito. */
+.punta-paginacion-puntos span {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted-light);
+  cursor: default;
+}
+
+/* Anterior / Siguiente: texto en vez de número, un poco más angosto que
+   los botones numéricos, para que se note que son acciones distintas a
+   "ir a la página N". */
+.punta-paginacion-item-lateral a,
+.punta-paginacion-item-lateral span {
+  min-width: auto;
+  padding: 0 16px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.punta-paginacion-item-lateral a:hover {
+  color: var(--primary);
+}
+
+/* Deshabilitado: primera página no tiene "Anterior", última no tiene
+   "Siguiente" — se ve apagado y sin cursor de mano, sin desaparecer del
+   layout (para que los botones de alrededor no salten de posición). */
+.punta-paginacion-disabled span {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted-light);
+  cursor: not-allowed;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .punta-paginacion-lista { gap: 4px; }
+  .punta-paginacion-item a,
+  .punta-paginacion-item > span:not(.punta-paginacion-punto) {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  .punta-paginacion-item-lateral a,
+  .punta-paginacion-item-lateral span {
+    padding: 0 10px;
+  }
+}

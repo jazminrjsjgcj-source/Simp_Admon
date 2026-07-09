@@ -102,9 +102,26 @@
                 @csrf
                 <x-carga-archivos name="evidencia" :required="true"
                     accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" :maxMb="10" />
-                <button type="submit" class="btn btn-sm">
+                <button type="submit" class="btn btn-sm" disabled
+                  style="opacity:.5;cursor:not-allowed"
+                  id="btnEvidencia{{ $hito->id }}">
                   {{ $tieneEvidencia ? 'Reemplazar evidencia' : 'Subir evidencia' }}
                 </button>
+                <script>
+                (function(){
+                  var btn   = document.getElementById('btnEvidencia{{ $hito->id }}');
+                  var form  = btn.closest('form');
+                  var input = form.querySelector('input[type="file"]');
+                  if (input) {
+                    input.addEventListener('change', function() {
+                      var tiene = this.files && this.files.length > 0;
+                      btn.disabled = !tiene;
+                      btn.style.opacity = tiene ? '' : '.5';
+                      btn.style.cursor  = tiene ? '' : 'not-allowed';
+                    });
+                  }
+                })();
+                </script>
               </form>
             @endif
 

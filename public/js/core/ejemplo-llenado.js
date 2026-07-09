@@ -56,17 +56,21 @@
       problematica: 'Existe una proliferación desordenada de puestos ambulantes en zonas turísticas y comerciales que genera conflictos viales, problemas de higiene y competencia desleal con el comercio establecido. La falta de regulación actualizada impide al municipio ordenar esta actividad de manera efectiva.',
       alternativas: 'Se evaluaron tres alternativas: 1) Campaña voluntaria de reordenamiento (descartada por falta de mecanismos de cumplimiento), 2) Acuerdo con cámaras de comercio para autorregulación (insuficiente cobertura), 3) Emisión de reglamento municipal (seleccionada por dar certeza jurídica a todas las partes).',
       beneficios: 'Ordenamiento del comercio en vía pública, reducción de conflictos viales, mejora de imagen urbana en zonas turísticas, certeza jurídica para vendedores ambulantes, recaudación por permisos.',
-      genera_costos_burocraticos: '1',
       costos_burocraticos: 'Se crearán dos trámites nuevos: Permiso de Comercio Ambulante (anual) y Constancia de Ubicación Autorizada. Se estima un costo de $350 por permiso anual.',
-      impacta_tramites_existentes: '1',
-      tramites_impacta: 'Modifica el trámite actual de "Permiso de Venta en Vía Pública" que opera sin regulación clara. También impacta la Licencia de Funcionamiento al definir zonas exclusivas.',
-      acciones_simplificacion: 'Unificar el permiso actual de venta en vía pública con el nuevo permiso de comercio ambulante, eliminando la duplicidad de trámites.',
-      acciones_digitalizacion: 'Habilitar solicitud en línea del permiso anual y mapa digital de ubicaciones autorizadas consultable por la ciudadanía.',
+      // Rubros 13/14: objeto { tipo de acción: explicación }. Marca el checkbox
+      // del tipo y llena su textarea (los tipos deben existir en el catálogo).
+      acciones_simplificacion: {
+        'Fusión de trámites y/o modalidades': 'Unificar el permiso actual de venta en vía pública con el nuevo permiso de comercio ambulante, eliminando la duplicidad de trámites.',
+        'Reducción de requisitos': 'Eliminar la constancia de domicilio y aceptar la credencial de elector como comprobante único.',
+      },
+      acciones_digitalizacion: {
+        'Mejorar experiencia de usuario': 'Habilitar solicitud en línea del permiso anual y mapa digital de ubicaciones autorizadas consultable por la ciudadanía.',
+      },
       fundamento_juridico: 'Art. 115 fracc. II Constitución Política de los Estados Unidos Mexicanos; Art. 42 fracc. VI Ley Orgánica del Municipio Libre del Estado de B.C.S.; Art. 3 fracc. XXVIII LNETB.',
       impacta_comercio_inversion: '1',
       impacto_comercio: 'Establece nuevas condiciones para el ejercicio del comercio ambulante: zonas autorizadas, horarios, higiene y presentación. Impacta a aproximadamente 2,400 vendedores ambulantes registrados y no registrados.',
-      presenta_proyecto: 'no',
-      num_anexos: '0',
+      presenta_proyecto: '0',
+      observaciones: 'El proyecto del reglamento se entregará en la siguiente etapa de la propuesta.',
     },
 
     regulacion: {
@@ -124,8 +128,43 @@
   }
 
   function llenar(nombre, valor) {
+    // Caso especial 1: checkboxes de catálogo con explicación.
+    // El valor es un objeto { "Tipo de acción": "explicación" }. Por cada clave,
+    // se marca el checkbox cuyo value coincide y se llena su textarea asociado.
+    // Usado por los rubros 13/14 de la propuesta y el catálogo de la Agenda SyD.
+    if (valor && typeof valor === 'object' && !Array.isArray(valor)) {
+      Object.keys(valor).forEach(function (tipo) {
+        var chk = document.querySelector('input[type="checkbox"][value="' + tipo.replace(/"/g, '\\"') + '"]');
+        if (chk && !chk.checked) {
+          chk.checked = true;
+          chk.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        // El textarea de explicación se llama nombre[tipo].
+        var ta = document.querySelector('[name="' + nombre + '[' + tipo + ']"]');
+        if (ta) {
+          ta.disabled = false;
+          ta.value = valor[tipo];
+          ta.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+      return;
+    }
+
     var campo = document.querySelector('[name="' + nombre + '"]');
     if (!campo) return;
+
+    // Caso especial 2: grupo de radios. Se marca el que tenga el value indicado.
+    if (campo.type === 'radio') {
+      var radios = document.querySelectorAll('[name="' + nombre + '"]');
+      for (var r = 0; r < radios.length; r++) {
+        if (radios[r].value === String(valor)) {
+          radios[r].checked = true;
+          radios[r].dispatchEvent(new Event('change', { bubbles: true }));
+          return;
+        }
+      }
+      return;
+    }
 
     if (campo.tagName === 'SELECT') {
       // Buscar opción por value o por texto
@@ -162,10 +201,31 @@
       llenar(nombre, datos[nombre]);
     });
 
-    // Mostrar advertencia
-    var aviso = document.getElementById('aviso-ejemplo');
-    if (aviso) aviso.style.display = '';
+    // Mostrar el botón "Limpiar" (oculto hasta que se usa el ejemplo).
+    var btnLimpiar = document.getElementById('btnLimpiarEjemplo');
+    if (btnLimpiar) btnLimpiar.style.display = '';
+
+    // Aviso flotante temporal de datos ficticios (toast del sistema).
+    mostrarAvisoEjemplo();
   };
+
+  // Toast flotante: reutiliza el contenedor de toasts del sistema.
+  function mostrarAvisoEjemplo() {
+    var cont = document.querySelector('.toast-container');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.className = 'toast-container';
+      document.body.appendChild(cont);
+    }
+    var t = document.createElement('div');
+    t.className = 'toast toast-warning';
+    t.innerHTML = '<span><strong>Datos de ejemplo.</strong> Informacion ficticia solo para pruebas. Revise antes de guardar.</span>';
+    cont.appendChild(t);
+    setTimeout(function () {
+      t.classList.add('toast-out');
+      setTimeout(function () { if (t.parentNode) t.remove(); }, 300);
+    }, 5000);
+  }
 
   window.limpiarEjemplo = function () {
     var form = document.querySelector('form');
@@ -184,8 +244,9 @@
       }
     });
 
-    var aviso = document.getElementById('aviso-ejemplo');
-    if (aviso) aviso.style.display = 'none';
+    // Vuelve al estado inicial: oculta de nuevo el botón "Limpiar".
+    var btnLimpiar = document.getElementById('btnLimpiarEjemplo');
+    if (btnLimpiar) btnLimpiar.style.display = 'none';
   };
 
 })();

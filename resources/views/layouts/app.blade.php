@@ -18,6 +18,10 @@
   <link rel="stylesheet" href="{{ asset('css/10-calendario.css') }}?v={{ filemtime(public_path('css/10-calendario.css')) }}">
   <link rel="stylesheet" href="{{ asset('css/11-utilities.css') }}?v={{ filemtime(public_path('css/11-utilities.css')) }}">
   <link rel="stylesheet" href="{{ asset('css/12-responsive.css') }}?v={{ filemtime(public_path('css/12-responsive.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/13-regulaciones.css') }}?v={{ filemtime(public_path('css/13-regulaciones.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/14-lector-regulacion.css') }}?v={{ filemtime(public_path('css/14-lector-regulacion.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/15-buscador.css') }}?v={{ filemtime(public_path('css/15-buscador.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/16-paginacion.css') }}?v={{ filemtime(public_path('css/16-paginacion.css')) }}">
   <style>
     .nav a { border:0; background:transparent; color:white; min-height:46px; border-radius:8px;
       display:flex; align-items:center; gap:12px; padding:0 14px; font-size:12px; line-height:1.1;
@@ -85,13 +89,16 @@
       @php
         $navItems = [
           ['label'=>'Dashboard',         'route'=>'dashboard',               'permiso'=>null],
-          ['label'=>'Trámites',           'route'=>'tramites.index',           'permiso'=>'tramites.ver'],
+          ['label'=>'Buscador',          'route'=>'buscar',                  'permiso'=>null],
+          ['label'=>'Trámites y Servicios','route'=>'tramites.index',           'permiso'=>'tramites.ver'],
           ['label'=>'Agenda SyD',         'route'=>'agenda.index',             'permiso'=>'agenda.ver'],
           ['label'=>'Agenda Regulatoria', 'route'=>'agenda-regulatoria.index', 'permiso'=>'agenda_regulatoria.ver'],
           ['label'=>'Dictámenes AIR',     'route'=>'dictamenes-air.index',     'permiso'=>'agenda_regulatoria.aprobar'],
           ['label'=>'Regulaciones',       'route'=>'regulaciones.index',       'permiso'=>'regulaciones.ver'],
+          ['label'=>'Biblioteca Digital',  'route'=>'digitalizacion.dashboard', 'permiso'=>'digitalizacion.ver'],
           ['label'=>'Calendario',         'route'=>'calendario',               'permiso'=>'calendario.ver'],
           ['label'=>'Firmas',             'route'=>'firmas.index',             'permiso'=>'firmas.firmar'],
+          ['separador' => true],
           ['label'=>'Configuración',      'route'=>'admin.configuracion',      'permiso'=>'_admin'],
           ['label'=>'Usuarios',           'route'=>'admin.usuarios.index',     'permiso'=>'_admin'],
           ['label'=>'Periodos',           'route'=>'admin.periodos',           'permiso'=>'_admin'],
@@ -99,7 +106,11 @@
         ];
       @endphp
       @foreach($navItems as $item)
-        @if($item['permiso'] === null || ($item['permiso'] === '_admin' && auth()->user()->rol === 'admin') || ($item['permiso'] !== '_admin' && auth()->user()->tienePermiso($item['permiso'])))
+        @if(!empty($item['separador']))
+          @if(auth()->user()->rol === 'admin')
+            <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:8px 14px">
+          @endif
+        @elseif($item['permiso'] === null || ($item['permiso'] === '_admin' && auth()->user()->rol === 'admin') || ($item['permiso'] !== '_admin' && auth()->user()->tienePermiso($item['permiso'])))
           <a href="{{ route($item['route']) }}"
              class="{{ request()->routeIs($item['route'].'*') ? 'active' : '' }}">
             <span class="nowrap">{{ $item['label'] }}</span>
@@ -119,12 +130,7 @@
   <div class="main">
     <header class="topbar">
       <div class="topbar-spacer"></div>
-      @php
-        // Periodo activo de cada agenda (solo puede haber uno activo por tipo).
-        $periodosActivos = \App\Models\Periodo::where('estatus', 'activo')
-            ->orderBy('tipo')
-            ->get();
-      @endphp
+      {{-- $periodosActivos viene del View::composer en AppServiceProvider --}}
       @if($periodosActivos->isNotEmpty())
         <div class="period nowrap">
           @foreach($periodosActivos as $pa)
@@ -142,11 +148,18 @@
           @endforeach
         </div>
       @endif
-      <div class="role-pill">{{ ucfirst(auth()->user()->rol) }}</div>
+      <div class="role-pill" data-rol="{{ auth()->user()->rol }}">{{ ucfirst(auth()->user()->rol) }}</div>
       <div class="top-actions">
         @include('partials.campanita')
       </div>
     </header>
+
+    {{-- Panel lateral de lectura de regulaciones: vive fuera del flujo normal
+         (position:fixed) y se abre desde cualquier pantalla con
+         window.abrirLectorRegulacion(id, nombre). Se incluye una sola vez
+         aquí para no duplicar el HTML/JS en cada pantalla que lo necesite
+         (show de regulaciones, formulario de trámites, agenda regulatoria). --}}
+    @include('components.lector-regulacion')
 
     <main class="canvas">
       @if(session('success'))
@@ -205,13 +218,36 @@
 </div>
 
 <div class="toast-container" id="toastContainer"></div>
-<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div></div>
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="punta-loader" role="status" aria-label="Cargando">
+    {{-- Papel: hoja con esquina doblada y renglones --}}
+    <svg class="pl-shape pl-papel" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M18 8 H38 L48 18 V56 H18 Z" />
+      <path d="M38 8 V18 H48" />
+      <path d="M24 30 H42 M24 38 H42 M24 46 H36" />
+    </svg>
+    {{-- Celular: cuerpo vertical con pantalla y botón --}}
+    <svg class="pl-shape pl-celular" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="20" y="8" width="24" height="48" rx="5" />
+      <path d="M20 18 H44 M20 48 H44" />
+      <path d="M29 52 H35" />
+    </svg>
+    {{-- Avioncito de papel: silueta con pliegue central --}}
+    <svg class="pl-shape pl-avion" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M8 28 L56 10 L36 54 L30 38 Z" />
+      <path d="M56 10 L30 38" />
+    </svg>
+  </div>
+</div>
 
-<script src="{{ asset('js/core/helpers.js') }}"></script>
-<script src="{{ asset('js/data/help-texts.js') }}"></script>
-<script src="{{ asset('js/core/help.js') }}"></script>
-<script src="{{ asset('js/core/ejemplo-llenado.js') }}"></script>
-<script src="{{ asset('js/carga-archivos.js') }}"></script>
+<script src="{{ asset('js/core/helpers.js') }}?v={{ filemtime(public_path('js/core/helpers.js')) }}"></script>
+<script src="{{ asset('js/data/help-texts.js') }}?v={{ filemtime(public_path('js/data/help-texts.js')) }}"></script>
+<script src="{{ asset('js/core/help.js') }}?v={{ filemtime(public_path('js/core/help.js')) }}"></script>
+<script src="{{ asset('js/core/ejemplo-llenado.js') }}?v={{ filemtime(public_path('js/core/ejemplo-llenado.js')) }}"></script>
+<script src="{{ asset('js/carga-archivos.js') }}?v={{ filemtime(public_path('js/carga-archivos.js')) }}"></script>
+{{-- Guardado de borrador en wizards: botón flotante, bloqueo de ENTER y aviso
+     al entrar. El borrador se oculta donde no aplica (trámite desde agenda). --}}
+<script src="{{ asset('js/wizard-borrador.js') }}?v={{ filemtime(public_path('js/wizard-borrador.js')) }}"></script>
 <script>
 function confirmDelete(action, title, text) {
   document.getElementById('deleteModalForm').action = action;
@@ -248,6 +284,10 @@ document.addEventListener('keydown', function(e) {
 });
 </script>
 @stack('scripts')
-  <script src="{{ asset('js/validacion-inputs.js') }}" defer></script>
+  @if(file_exists(public_path('js/test-llenado-tramite.js')))
+  <script src="{{ asset('js/test-llenado-tramite.js') }}?v={{ filemtime(public_path('js/test-llenado-tramite.js')) }}"></script>
+  @endif
+<script src="{{ asset('js/anti-duplicado.js') }}?v={{ filemtime(public_path('js/anti-duplicado.js')) }}"></script>
+  <script src="{{ asset('js/validacion-inputs.js') }}?v={{ filemtime(public_path('js/validacion-inputs.js')) }}" defer></script>
 </body>
 </html>

@@ -5,7 +5,9 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Pagination\Paginator;
 use App\Observers\AuditObserver;
+use App\Observers\ProcesoAtencionObserver;
 use App\Models\Tramite;
 use App\Models\AccionAgenda;
 use App\Models\PropuestaRegulatoria;
@@ -14,6 +16,7 @@ use App\Models\AnalisisImpactoRegulatorio;
 use App\Models\ExencionAir;
 use App\Models\User;
 use App\Models\Periodo;
+use App\Models\ProcesoAtencion;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,6 +30,26 @@ class AppServiceProvider extends ServiceProvider
         // En producción queda desactivada para no tumbar la operación real.
         Model::preventSilentlyDiscardingAttributes(! $this->app->isProduction());
 
+        // Vista de paginación propia para TODA la aplicación (cualquier
+        // ->links() del proyecto usa esta vista automáticamente).
+        //
+        // ANTES no había ninguna línea como esta, así que Laravel usaba su
+        // vista de paginación de fábrica. Esa vista de fábrica escribe el
+        // texto de los botones con __('pagination.previous') y
+        // __('pagination.next') — le pide a Laravel que traduzca esas
+        // claves. Como el proyecto no tiene ningún archivo
+        // lang/{idioma}/pagination.php (ni en español ni en inglés como
+        // respaldo), Laravel no encontraba ninguna traducción y devolvía
+        // la clave tal cual, mostrando literalmente "pagination.previous"
+        // y "pagination.next" en pantalla en vez de "Anterior" y
+        // "Siguiente".
+        //
+        // AHORA se usa resources/views/vendor/pagination/punta.blade.php,
+        // que escribe el texto en español directamente (sin depender de
+        // ningún archivo de traducción) y aplica el estilo de botones
+        // numerados con la página activa resaltada en guinda.
+        Paginator::defaultView('vendor.pagination.punta');
+
         Tramite::observe(AuditObserver::class);
         AccionAgenda::observe(AuditObserver::class);
         PropuestaRegulatoria::observe(AuditObserver::class);
@@ -35,6 +58,32 @@ class AppServiceProvider extends ServiceProvider
         ExencionAir::observe(AuditObserver::class);
         User::observe(AuditObserver::class);
         Periodo::observe(AuditObserver::class);
+
+        // Fase 6: detectar cambios en el flujo post-firma de reingeniería
+        ProcesoAtencion::observe(ProcesoAtencionObserver::class);
+
+        // A1: los periodos activos se calculan aquí para que el layout no
+        // haga queries directas a la BD. View::composer solo ejecuta la
+        // consulta cuando layouts.app se renderiza (no en responses JSON).
+        \Illuminate\Support\Facades\View::composer('layouts.app', function ($view) {
+            $view->with('periodosActivos', Periodo::where('estatus', 'activo')
+                ->orderBy('tipo')
+                ->get());
+        });
+
+        // A1.a: el partial timeline recibe $tipo e $id vía @include; el
+        // composer intercepta el partial, ejecuta la query centralizada en
+        // BitacoraService y agrega $eventos y $total. Así la vista no hace
+        // queries directas y ningún controlador necesita cambiar.
+        \Illuminate\Support\Facades\View::composer('partials.timeline', function ($view) {
+            $data = $view->getData();
+            $tipo = $data['tipo'] ?? '';
+            $id   = $data['id']   ?? 0;
+            $resultado = \App\Services\BitacoraService::eventosRecientes($tipo, (int) $id);
+            $view->with('eventos', $resultado['eventos']);
+            $view->with('total',   $resultado['total']);
+            $view->with('LIMITE',  10);
+        });
 
         // Directiva @estatus($valor): muestra la etiqueta legible de un
         // estado técnico (ej. 'en_observacion' -> 'En observación').
@@ -60,7 +109,7 @@ class AppServiceProvider extends ServiceProvider
                 if (\$__cant === null || \$__cant === '') {
                     echo '<span class=\"sin-dato\">Sin dato</span>';
                 } else {
-                    \$__mapa = ['habiles' => 'días hábiles', 'naturales' => 'días naturales', 'meses' => 'meses', 'horas' => 'horas', 'minutos' => 'minutos'];
+                    \$__mapa = ['habiles' => 'días hábiles', 'naturales' => 'días naturales', 'meses' => 'meses', 'anios' => 'años', 'horas' => 'horas', 'minutos' => 'minutos'];
                     \$__uniLegible = \$__mapa[\$__uni] ?? \$__uni;
                     echo e(\$__cant) . ' ' . e(\$__uniLegible);
                 }

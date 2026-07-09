@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\Tramite;
+use App\Models\Regulacion;
 use App\Models\AccionAgenda;
 use App\Models\PropuestaRegulatoria;
 use App\Notifications\AvisoPunta;
@@ -89,6 +90,49 @@ class NotificadorService
             'El registro "' . $this->nombre($registro) . '" fue aprobado y está esperando firma.',
             $registro
         );
+    }
+
+    /**
+     * Una regulación fue re-estructurada: avisa a los enlaces de los trámites
+     * que la citan como fundamento jurídico. El enlace recibe la alerta en la
+     * campanita (visible desde cualquier pantalla) y por correo electrónico.
+     *
+     * NO cambia el estatus de ningún trámite — solo notifica.
+     *
+     * @param  Regulacion  $regulacion  La regulación que fue re-estructurada.
+     * @param  User        $autor       Quien ejecutó la re-estructuración.
+     * @param  array       $citaciones  Resultado de $regulacion->citacionesEnTramites().
+     */
+    public function regulacionReEstructurada(Regulacion $regulacion, User $autor, array $citaciones): void
+    {
+        if ($citaciones['total'] === 0) {
+            return;
+        }
+
+        $articulosTexto = !empty($citaciones['articulos'])
+            ? ' Artículos referenciados: ' . implode(', ', $citaciones['articulos']) . '.'
+            : '';
+
+        foreach ($citaciones['tramites'] as $tramite) {
+            // Buscar al enlace del trámite (quien debe revisar) y al creador.
+            $enlace  = $tramite->enlace_id  ? User::find($tramite->enlace_id)  : null;
+            $creador = $tramite->created_by ? User::find($tramite->created_by) : null;
+
+            $destinatarios = collect([$enlace, $creador])->filter()->unique('id');
+
+            if ($destinatarios->isEmpty()) {
+                continue;
+            }
+
+            Notification::send($destinatarios, new AvisoPunta(
+                icono:   'ti-alert-triangle',
+                titulo:  'Regulación actualizada',
+                mensaje: 'La regulación "' . $regulacion->nombre . '" fue re-estructurada.'
+                       . $articulosTexto
+                       . ' Verifique que los fundamentos jurídicos de "' . ($tramite->nombre_oficial ?? 'Trámite #' . $tramite->id) . '" sigan siendo correctos.',
+                url:     route('tramites.show', $tramite->id),
+            ));
+        }
     }
 
     /* ----------------------------------------------------------------------

@@ -31,3 +31,7 @@ Thumbs.db
 /storage/framework/testing
 /storage/logs
 /storage/app/tmp
+
+# Artefactos de pruebas locales curl/PowerShell - no son parte de la app
+cookies.txt
+login.html

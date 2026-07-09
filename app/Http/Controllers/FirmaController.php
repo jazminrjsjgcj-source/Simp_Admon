@@ -133,6 +133,21 @@ class FirmaController extends Controller
             $tieneEnlace   = in_array('aceptacion_enlace', $firmasActivas);
             if ($tieneSujeto && $tieneEnlace) {
                 $modelo->update(['estatus' => AccionAgenda::ESTATUS_COMPLETADO]);
+
+                // Fase 5: si es acción de digitalización, vincular automáticamente
+                // al trámite con la biblioteca del digitalizador.
+                if ($modelo->tipo === 'digitalizacion' && $modelo->tramite_id) {
+                    try {
+                        app(\App\Services\AgendaDigitalizacionService::class)
+                            ->vincularDesdeAgenda($modelo);
+                    } catch (\Throwable $e) {
+                        // No reventar la firma si falla la vinculación
+                        \Illuminate\Support\Facades\Log::warning('Firma: error al vincular agenda con digitalizador', [
+                            'accion_id' => $modelo->id,
+                            'error'     => $e->getMessage(),
+                        ]);
+                    }
+                }
             }
         }
 
@@ -149,6 +164,20 @@ class FirmaController extends Controller
             $firmasActivas = $this->firmaService->firmasActivas($modelo)->pluck('tipo')->toArray();
             if (in_array('aprobacion_revisora', $firmasActivas)) {
                 $modelo->update(['estatus' => 'dictaminado']);
+            }
+        }
+
+        // Reingeniería: enlace + sujeto → firmada + actualizar hash y fecha
+        if ($modelo instanceof \App\Models\Reingenieria && $modelo->estado === \App\Models\Reingenieria::ESTADO_PENDIENTE_FIRMAS) {
+            $firmasActivas = $this->firmaService->firmasActivas($modelo)->pluck('tipo')->toArray();
+            $tieneSujeto   = in_array('aceptacion_sujeto', $firmasActivas);
+            $tieneEnlace   = in_array('aceptacion_enlace', $firmasActivas);
+            if ($tieneSujeto && $tieneEnlace) {
+                $modelo->update([
+                    'estado'             => \App\Models\Reingenieria::ESTADO_FIRMADA,
+                    'hash_reingenieria'  => hash('sha256', json_encode($modelo->flujo_to_be)),
+                    'firmado_en'         => now(),
+                ]);
             }
         }
 
@@ -189,10 +218,11 @@ class FirmaController extends Controller
     private function resolverModelo(string $tipo, int $id): Model
     {
         return match($tipo) {
-            'tramite'             => Tramite::findOrFail($id),
-            'agenda'              => AccionAgenda::findOrFail($id),
+            'tramite'               => Tramite::findOrFail($id),
+            'agenda'                => AccionAgenda::findOrFail($id),
             'propuesta_regulatoria' => PropuestaRegulatoria::findOrFail($id),
-            default               => abort(404, 'Tipo de registro firmable no soportado.'),
+            'reingenieria'          => \App\Models\Reingenieria::findOrFail($id),
+            default                 => abort(404, 'Tipo de registro firmable no soportado.'),
         };
     }
 

@@ -38,6 +38,43 @@
     </div>
   </div>
 
+  {{-- Actividad general: carrusel de transparencia. Va arriba del dashboard,
+       inmediatamente bajo el saludo, sin card ni encabezado — solo la cinta
+       deslizándose en bucle lento. Solo lo ven enlace, sujeto y jurídico. --}}
+  @if(in_array($rol, ['enlace','sujeto','juridico']) && isset($actividadGeneral) && $actividadGeneral->count())
+    @php
+      // Iconos SVG por tipo de módulo (trazos simples, coherentes con el sistema).
+      $iconosSvg = [
+        'tramite'   => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>',
+        'agenda'    => '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+        'propuesta' => '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+        'regulacion'=> '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+        'registro'  => '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
+      ];
+    @endphp
+    <div class="actividad-carrusel">
+      {{-- La cinta se repite dos veces para que el bucle sea continuo. --}}
+      <div class="actividad-cinta">
+        @foreach($actividadGeneral->concat($actividadGeneral) as $evento)
+          <div class="actividad-tarjeta">
+            <div class="actividad-tarjeta-head">
+              <span class="actividad-icono">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{!! $iconosSvg[$evento->icono] ?? $iconosSvg['registro'] !!}</svg>
+              </span>
+              <span class="actividad-modulo">{{ $evento->modulo_etiqueta }}</span>
+              <span class="actividad-badge actividad-badge-{{ $evento->evento }}">{{ $evento->evento === 'creado' ? 'Nuevo' : 'Completado' }}</span>
+            </div>
+            <p class="actividad-titulo"><strong>{{ $evento->prefijo }}</strong> {{ $evento->nombre }}</p>
+            <div class="actividad-meta">
+              @if($evento->dependencia)<span>{{ $evento->dependencia }}</span><span>·</span>@endif
+              <span>{{ $evento->fecha_relativa }}</span>
+            </div>
+          </div>
+        @endforeach
+      </div>
+    </div>
+  @endif
+
   {{-- KPIs — el filtro de cada tarjeta viene de $kpiTipos (definido en el controlador) --}}
   @if($rol === 'admin' && !empty($panorama))
     {{-- Barra compacta con totales del sistema --}}
@@ -107,7 +144,7 @@
     <div class="card">
       <div class="panel-head">
         <div><h3 id="dashFilterTitle" class="nowrap">Resultados</h3><p id="dashFilterSub" class="nowrap">—</p></div>
-        <button type="button" class="btn btn-soft btn-sm" onclick="dashLimpiar()">Ver todos</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="dashLimpiar()">Ver todos</button>
       </div>
       <div id="dashFilterLoading" style="padding:24px;text-align:center;color:#6b7280;display:none">Cargando…</div>
       <div class="table-wrap" id="dashFilterTable">
@@ -137,13 +174,14 @@
     desaparece hasta que desactive el filtro.
   --}}
   <div id="dashSecondaryContent">
+  @php $verDependencia = auth()->user()->veVariasDependencias(); @endphp
 
   {{-- Accesos rápidos --}}
   @if($rol === 'enlace')
     <div class="grid quick">
       <a href="{{ route('tramites.create') }}" class="card quick-card kpi-link">
-        <strong>Nuevo Trámite</strong>
-        <span>Registrar procedimiento</span>
+        <strong>Nuevo Trámite o Servicio</strong>
+        <span>Registrar trámite o servicio municipal</span>
       </a>
       <a href="{{ route('agenda.create') }}" class="card quick-card kpi-link">
         <strong>Registrar Acción</strong>
@@ -160,8 +198,8 @@
   @if($pendientesTramites->count())
   <div class="card">
     <div class="panel-head">
-      <div><h3 class="nowrap">Trámites pendientes</h3><p class="nowrap">Trámites que requieren atención.</p></div>
-      <a href="{{ route('tramites.index') }}" class="btn btn-soft btn-sm">Ver todos</a>
+      <div><h3 class="nowrap">Trámites pendientes</h3><p class="nowrap">Trámites que requieren tu atención.</p></div>
+      <a href="{{ route('tramites.index', ['naturaleza' => 'tramite']) }}" class="btn btn-outline btn-sm">Ver trámites</a>
     </div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Folio</th><th>Nombre</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
       @foreach($pendientesTramites as $t)
@@ -172,12 +210,40 @@
           <td class="table-action-cell"><div class="table-actions">
             {{-- Ver: siempre disponible para quien tenga el registro a la vista --}}
             <a href="{{ route('tramites.show',$t) }}" class="btn table-action-btn btn-outline btn-sm">Ver</a>
-            {{-- Atender: solo si el rol puede editar este trámite --}}
-            @if(auth()->user()->puedeEditarTramite($t))
+            {{-- Atender: solo si el rol puede editar este trámite Y el estatus lo permite (borrador / en_correccion) --}}
+            @if(auth()->user()->puedeEditarTramite($t) && $t->puedeSerEditado())
               <a href="{{ route('tramites.edit',$t) }}" class="btn table-action-btn btn-sm">Atender</a>
             {{-- Revisar: solo si el rol observa o aprueba (revisora, jurídico) --}}
             @elseif(auth()->user()->tienePermiso('tramites.observar') || auth()->user()->tienePermiso('tramites.aprobar'))
               <a href="{{ route('tramites.show',$t) }}" class="btn table-action-btn btn-sm">Revisar</a>
+            @endif
+          </div></td>
+        </tr>
+      @endforeach
+    </tbody></table></div>
+  </div>
+  @endif
+
+  {{-- Pendientes: Servicios --}}
+  @if(($pendientesServicios ?? collect())->count())
+  <div class="card">
+    <div class="panel-head">
+      <div><h3 class="nowrap">Servicios pendientes</h3><p class="nowrap">Servicios municipales que requieren tu atención.</p></div>
+      <a href="{{ route('tramites.index', ['naturaleza' => 'servicio']) }}" class="btn btn-outline btn-sm">Ver servicios</a>
+    </div>
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>Folio</th><th>Nombre</th><th>Tipo</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
+      @foreach($pendientesServicios as $s)
+        <tr>
+          <td>{{ $s->homoclave ?? 'Sin folio' }}</td>
+          <td><strong>{{ $s->nombre_oficial }}</strong></td>
+          <td><small>{{ $s->tipo_servicio ?? 'Sin tipo' }}</small></td>
+          <td><x-badge-estatus :estatus="$s->estatus" /></td>
+          <td class="table-action-cell"><div class="table-actions">
+            <a href="{{ route('tramites.show', $s) }}" class="btn table-action-btn btn-outline btn-sm">Ver</a>
+            @if(auth()->user()->puedeEditarTramite($s) && $s->puedeSerEditado())
+              <a href="{{ route('tramites.edit', $s) }}" class="btn table-action-btn btn-sm">Atender</a>
+            @elseif(auth()->user()->tienePermiso('tramites.observar') || auth()->user()->tienePermiso('tramites.aprobar'))
+              <a href="{{ route('tramites.show', $s) }}" class="btn table-action-btn btn-sm">Revisar</a>
             @endif
           </div></td>
         </tr>
@@ -191,7 +257,7 @@
   <div class="card">
     <div class="panel-head">
       <div><h3 class="nowrap">Agenda SyD pendiente</h3><p class="nowrap">Acciones de simplificación y digitalización.</p></div>
-      <a href="{{ route('agenda.index') }}" class="btn btn-soft btn-sm">Ver todas</a>
+      <a href="{{ route('agenda.index') }}" class="btn btn-outline btn-sm">Ver todas</a>
     </div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Folio</th><th>Descripción</th><th>Tipo</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
       @foreach($pendientesAgenda as $a)
@@ -229,7 +295,7 @@
   <div class="card">
     <div class="panel-head">
       <div><h3 class="nowrap">Agenda Regulatoria pendiente</h3><p class="nowrap">Propuestas con acciones pendientes.</p></div>
-      <a href="{{ route('agenda-regulatoria.index') }}" class="btn btn-soft btn-sm">Ver todas</a>
+      <a href="{{ route('agenda-regulatoria.index') }}" class="btn btn-outline btn-sm">Ver todas</a>
     </div>
     <div class="table-wrap"><table class="data-table"><thead><tr><th>Folio</th><th>Propuesta</th><th>Tipo</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
       @foreach($pendientesPropu as $p)
@@ -241,10 +307,10 @@
           <td class="table-action-cell"><div class="table-actions">
             {{-- Ver: siempre disponible --}}
             <a href="{{ route('propuestas.show',$p) }}" class="btn table-action-btn btn-outline btn-sm">Ver</a>
-            {{-- Atender: admin siempre; quien tiene permiso de editar y la propuesta es de su dependencia --}}
+            {{-- Atender: admin siempre; quien tiene permiso de editar, la propuesta es de su dependencia, Y está en borrador --}}
             @if(
               auth()->user()->isRol(App\Models\User::ROL_ADMIN) ||
-              (auth()->user()->tienePermiso('agenda_regulatoria.editar') && auth()->user()->esDeSuDependencia($p))
+              (auth()->user()->tienePermiso('agenda_regulatoria.editar') && auth()->user()->esDeSuDependencia($p) && $p->estatus === App\Models\PropuestaRegulatoria::ESTATUS_BORRADOR)
             )
               <a href="{{ route('propuestas.edit',$p) }}" class="btn table-action-btn btn-sm">Atender</a>
             {{-- Revisar: solo si el rol observa o aprueba (revisora, jurídico) --}}
@@ -263,13 +329,13 @@
   <div class="card">
     <div class="panel-head">
       <div><h3 class="nowrap">Dictámenes AIR pendientes</h3><p class="nowrap">Análisis de impacto esperando su dictamen.</p></div>
-      <a href="{{ route('dictamenes-air.index') }}" class="btn btn-soft btn-sm">Ver todos</a>
+      <a href="{{ route('dictamenes-air.index') }}" class="btn btn-outline btn-sm">Ver todos</a>
     </div>
-    <div class="table-wrap"><table class="data-table"><thead><tr><th>Propuesta</th><th>Dependencia</th><th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>Propuesta</th>@if($verDependencia)<th>Dependencia</th>@endif<th>Estatus</th><th class="table-action-cell">Acción</th></tr></thead><tbody>
       @foreach($pendientesAir as $air)
         <tr>
           <td><strong>{{ Str::limit($air->propuesta?->nombre ?? 'Sin propuesta', 50) }}</strong></td>
-          <td>@dato($air->propuesta?->dependencia?->nombre)</td>
+          @if($verDependencia)<td>@dato($air->propuesta?->dependencia?->nombre)</td>@endif
           <td><span class="badge info-b">Esperando dictamen</span></td>
           <td class="table-action-cell"><div class="table-actions">
             @if($air->propuesta)
@@ -302,37 +368,6 @@
         </tr>
       @endforeach
     </tbody></table></div>
-  </div>
-  @endif
-
-  {{-- Actividad general del sistema: timeline público de transparencia.
-       Todos ven TODO lo que está pasando (qué se creó, aprobó, observó, firmó).
-       Es distinto de la campana de notificaciones, que es personal y filtrada.
-       Solo se muestra si hay eventos. --}}
-  @if(isset($actividadGeneral) && $actividadGeneral->count())
-  <div class="card">
-    <div class="panel-head">
-      <div><h3 class="nowrap">Actividad general</h3><p class="nowrap">Lo que está ocurriendo en el sistema: aprobaciones, observaciones y avances.</p></div>
-    </div>
-    <div class="feed-actividad">
-      @foreach($actividadGeneral as $evento)
-        <div class="feed-item">
-          <div class="feed-modulo">{{ $evento->modulo_etiqueta }}</div>
-          <div class="feed-contenido">
-            @if($evento->url)
-              <a href="{{ $evento->url }}" class="feed-accion">{{ $evento->accion }}</a>
-            @else
-              <span class="feed-accion">{{ $evento->accion }}</span>
-            @endif
-            <div class="feed-meta">
-              <span>{{ $evento->autor }}</span>
-              @if($evento->dependencia)<span>·</span><span>{{ $evento->dependencia }}</span>@endif
-              <span>·</span><span>{{ $evento->fecha_relativa }}</span>
-            </div>
-          </div>
-        </div>
-      @endforeach
-    </div>
   </div>
   @endif
 
@@ -397,8 +432,9 @@
     var title   = document.getElementById('dashFilterTitle');
     var sub     = document.getElementById('dashFilterSub');
 
-    var labels = { tramites: 'Trámites', agenda: 'Agenda SyD', propuestas: 'Propuestas regulatorias' };
+    var labels = { tramites: 'Trámites y Servicios', agenda: 'Agenda SyD', propuestas: 'Propuestas regulatorias' };
     var labelsFiltro = { pendientes: 'Pendientes', por_revisar: 'Por revisar', por_aprobar: 'Por aprobar', completados: 'Completados', por_corregir: 'Por corregir', por_firmar: 'Por firmar', en_tramite: 'En trámite', cerrados: 'Completados', regulaciones_por_revisar: 'Regulaciones por revisar', regulaciones_vigentes: 'Regulaciones vigentes', mis_observaciones: 'Mis observaciones', en_revision: 'En revisión', en_correccion: 'Por corregir',
+      tramites_dependencia: 'Trámites de mi dependencia', servicios_dependencia: 'Servicios de mi dependencia', propuestas_dependencia: 'Propuestas de mi dependencia', agenda_dependencia: 'Acciones de mi dependencia', solo_tramites: 'Solo trámites', solo_servicios: 'Solo servicios',
       tramites_total: 'Trámites — todos', tramites_proceso: 'Trámites — en proceso', tramites_cierre: 'Trámites — completados',
       agenda_total: 'Agenda — todos', agenda_proceso: 'Agenda — en proceso', agenda_cierre: 'Agenda — completados',
       propuestas_total: 'Propuestas — todas', propuestas_proceso: 'Propuestas — en proceso', propuestas_cierre: 'Propuestas — publicadas',
@@ -461,14 +497,8 @@
     if (secundario) secundario.style.display = '';
   };
 
-  // Autoridad Revisora: "Pendientes" (tarjeta 0) seleccionada por defecto al ingresar.
-  @if($rol === 'revisora')
-    document.addEventListener('DOMContentLoaded', function () {
-      if (typeof window.dashFiltrar === 'function') {
-        window.dashFiltrar(null, 0, 'pendientes');
-      }
-    });
-  @endif
+  // El dashboard inicia SIN filtro, mostrando el panorama completo. El usuario
+  // elige una tarjeta (p. ej. "Pendientes") cuando quiere acotar la vista.
 })();
 
   window.togglePanorama = function(id) {

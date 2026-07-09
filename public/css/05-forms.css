@@ -11,3 +11,63 @@ textarea.input-invalid {
     margin-top: 4px;
     display: block;
 }
+
+/* ── Radio buttons personalizados (#58) ────────────────────────────────
+   Reemplaza la apariencia nativa del navegador con un círculo que usa
+   los tokens del sistema (--primary, --border). Consistente en todos
+   los navegadores. El label que envuelve al radio es clickeable. */
+input[type="radio"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    min-height: 0;   /* anula el min-height:40px de .field input que los volvía óvalos */
+    padding: 0;      /* anula el padding horizontal de .field input */
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    cursor: pointer;
+    position: relative;
+    vertical-align: middle;
+    margin: 0 6px 0 0;
+    flex-shrink: 0;
+    transition: border-color .15s ease, background .15s ease;
+}
+input[type="radio"]:checked {
+    border-color: var(--primary);
+    background: var(--primary);
+}
+input[type="radio"]:checked::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+}
+input[type="radio"]:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Flecha de los selects: oculta en reposo, aparece en hover/focus.
+   Todas las propiedades de fondo van en :hover para ganarle al
+   'background: white' de .field select (forma corta), que si no
+   reinicia el repeat y la flecha se repite en mosaico. */
+.field select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+.field select:hover,
+.field select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23750038' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px 12px;
+}

@@ -4,231 +4,258 @@ namespace App\Services;
 
 use App\Models\AccionAgenda;
 use Illuminate\Database\Eloquent\Collection;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as WriterXlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Exporta la Agenda SyD a Excel en los dos formatos del instrumento oficial ATDT:
+ * Exporta la Agenda SyD rellenando las PLANTILLAS OFICIALES ATDT.
  *
- *   - exportarSimp(): Art. 23 LNETB — acciones de simplificación
- *   - exportarDig():  Art. 24 LNETB — acciones de digitalización
+ * A diferencia de generar un Excel desde cero, este servicio abre la plantilla
+ * oficial (con sus 8 hojas, formato e instrucciones intactas) y solo escribe
+ * los datos en la hoja de captura, desde la fila 5, respetando las 23 columnas
+ * oficiales (A-W). Así el archivo descargado es idéntico al formato que pide la
+ * autoridad, solo que ya lleno.
  *
- * Las acciones con tipo='ambas' aparecen en ambos archivos.
- * Cada hoja tiene 23 columnas fieles al formato oficial.
+ *   - exportarSimp(): Art. 23 LNETB — plantilla de simplificación
+ *   - exportarDig():  Art. 24 LNETB — plantilla de digitalización
+ *
+ * Las plantillas base viven en resources/templates/ (parte del código fuente,
+ * versionado y empaquetado con el proyecto). Si no están, el servicio lanza una
+ * excepción clara indicando qué archivo falta.
  */
 class AgendaExportService
 {
-    /**
-     * Exporta acciones de SIMPLIFICACIÓN (Art. 23).
-     * Incluye acciones de tipo 'simplificacion' o 'ambas'.
-     */
+    /** Carpeta (dentro de resources/) donde viven las plantillas oficiales. */
+    private const DIR_PLANTILLAS = 'templates';
+
+    /** Primera fila de datos en la hoja de captura (la 4 son los encabezados). */
+    private const FILA_INICIO = 5;
+
+    /** Última fila que puede traer datos de ejemplo a limpiar antes de escribir. */
+    private const FILA_LIMITE_LIMPIEZA = 1000;
+
     public function exportarSimp(Collection $acciones): StreamedResponse
     {
         $aplican = $acciones->filter(
             fn ($a) => in_array($a->tipo, ['simplificacion', 'ambas'], true)
         );
 
-        return $this->generar(
+        return $this->generarDesdePlantilla(
             $aplican,
-            'agenda_simplificacion_' . now()->format('Y-m-d') . '.xlsx',
-            'Acciones de Simplificación (Art. 23)',
-            'simplificacion'
+            'plantilla_simplificacion.xlsx',
+            '1. Trámites a simplificar',
+            'simplificacion',
+            'Agenda_Simplificacion_' . now()->format('Y-m-d') . '.xlsx',
         );
     }
 
-    /**
-     * Exporta acciones de DIGITALIZACIÓN (Art. 24).
-     * Incluye acciones de tipo 'digitalizacion' o 'ambas'.
-     */
     public function exportarDig(Collection $acciones): StreamedResponse
     {
         $aplican = $acciones->filter(
             fn ($a) => in_array($a->tipo, ['digitalizacion', 'ambas'], true)
         );
 
-        return $this->generar(
+        return $this->generarDesdePlantilla(
             $aplican,
-            'agenda_digitalizacion_' . now()->format('Y-m-d') . '.xlsx',
-            'Acciones de Digitalización (Art. 24)',
-            'digitalizacion'
+            'plantilla_digitalizacion.xlsx',
+            '1. Trámites a digitalizar',
+            'digitalizacion',
+            'Agenda_Digitalizacion_' . now()->format('Y-m-d') . '.xlsx',
         );
     }
 
-    // ─── Generación del archivo ─────────────────────────────────────────────
+    // ─── Generación rellenando la plantilla ─────────────────────────────────
 
-    /**
-     * Construye el Spreadsheet, escribe encabezados y filas, y devuelve un
-     * StreamedResponse que dispara la descarga en el navegador.
-     */
-    private function generar(Collection $acciones, string $nombreArchivo, string $titulo, string $tipo): StreamedResponse
-    {
-        $spreadsheet = new Spreadsheet();
-        $hoja        = $spreadsheet->getActiveSheet();
-        $hoja->setTitle('Agenda');
+    private function generarDesdePlantilla(
+        Collection $acciones,
+        string $nombrePlantilla,
+        string $nombreHoja,
+        string $tipo,
+        string $nombreDescarga,
+    ): StreamedResponse {
+        $rutaPlantilla = resource_path(self::DIR_PLANTILLAS . '/' . $nombrePlantilla);
 
-        $this->escribirEncabezado($hoja, $titulo);
-        $this->escribirColumnas($hoja);
-        $this->escribirFilas($hoja, $acciones, $tipo);
-        $this->ajustarAnchos($hoja);
-
-        return $this->responderDescarga($spreadsheet, $nombreArchivo);
-    }
-
-    /** Título del documento en la fila 1 (combinada A1:W1). */
-    private function escribirEncabezado($hoja, string $titulo): void
-    {
-        $hoja->setCellValue('A1', $titulo);
-        $hoja->mergeCells('A1:W1');
-        $hoja->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $hoja->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-    }
-
-    /** Encabezados de las 23 columnas en la fila 2. */
-    private function escribirColumnas($hoja): void
-    {
-        $columnas = [
-            'A2' => 'No.',
-            'B2' => 'Folio',
-            'C2' => 'Dependencia',
-            'D2' => 'Nombre del Trámite o Servicio',
-            'E2' => 'Tipo de acción',
-            'F2' => 'Descripción de la acción',
-            'G2' => 'Meta esperada',
-            'H2' => 'Acciones (catálogo oficial)',
-            'I2' => 'Justificación / explicación',
-            'J2' => 'Indicador',
-            'K2' => 'Indicador de avance (%)',
-            'L2' => 'Nivel actual',
-            'M2' => 'Nivel meta',
-            'N2' => 'Fecha de inicio',
-            'O2' => 'Fecha compromiso',
-            'P2' => 'Responsable',
-            'Q2' => 'Estatus',
-            'R2' => 'Hitos completados',
-            'S2' => 'Total de hitos',
-            'T2' => 'Avance hitos (%)',
-            'U2' => 'Periodo',
-            'V2' => 'Creado por',
-            'W2' => 'Fecha de creación',
-        ];
-
-        foreach ($columnas as $celda => $texto) {
-            $hoja->setCellValue($celda, $texto);
+        if (!is_file($rutaPlantilla)) {
+            throw new \RuntimeException(
+                "No se encontró la plantilla oficial: {$nombrePlantilla}. " .
+                'Debe estar en resources/templates/ (viene incluida con el proyecto).'
+            );
         }
 
-        // Estilo de encabezados.
-        $hoja->getStyle('A2:W2')->getFont()->setBold(true);
-        $hoja->getStyle('A2:W2')->getFill()->setFillType(Fill::FILL_SOLID)
-            ->getStartColor()->setRGB('E8E8EA');
-        $hoja->getStyle('A2:W2')->getAlignment()
-            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
-            ->setWrapText(true);
-        $hoja->getRowDimension(2)->setRowHeight(35);
+        $spreadsheet = IOFactory::load($rutaPlantilla);
+        $hoja        = $spreadsheet->getSheetByName($nombreHoja);
+
+        if ($hoja === null) {
+            throw new \RuntimeException(
+                "La plantilla {$nombrePlantilla} no contiene la hoja '{$nombreHoja}'."
+            );
+        }
+
+        $this->limpiarFilasEjemplo($hoja);
+        $this->escribirAcciones($hoja, $acciones, $tipo);
+
+        return $this->responderDescarga($spreadsheet, $nombreDescarga);
     }
 
-    /** Una fila por acción, leyendo los datos del modelo. */
-    private function escribirFilas($hoja, Collection $acciones, string $tipo): void
+    /**
+     * Borra los datos de ejemplo que la plantilla trae de fábrica (filas 5 en
+     * adelante), conservando el formato de las celdas. No elimina filas para no
+     * romper combinaciones ni estilos: solo vacía el contenido de A:W.
+     */
+    private function limpiarFilasEjemplo($hoja): void
     {
-        $fila = 3;
+        for ($fila = self::FILA_INICIO; $fila <= self::FILA_LIMITE_LIMPIEZA; $fila++) {
+            foreach (range('A', 'W') as $col) {
+                $hoja->setCellValue("{$col}{$fila}", null);
+            }
+        }
+    }
+
+    /**
+     * Escribe una fila por acción desde la fila 5, mapeando cada acción y su
+     * trámite a las 23 columnas oficiales (A-W).
+     */
+    private function escribirAcciones($hoja, Collection $acciones, string $tipo): void
+    {
+        $fila = self::FILA_INICIO;
         $num  = 1;
 
         foreach ($acciones as $a) {
-            $folio        = $a->folio ?? 'AGD-' . str_pad($a->id, 3, '0', STR_PAD_LEFT);
-            $acc          = $this->leerAcciones($a, $tipo);
-            $totalHitos   = $a->hitos?->count() ?? 0;
-            $completos    = $a->hitos?->where('completado', true)->count() ?? 0;
-            $avanceHitos  = $totalHitos > 0 ? round(($completos / $totalHitos) * 100) : 0;
+            $t = $a->tramite;
 
             $hoja->setCellValue("A{$fila}", $num);
-            $hoja->setCellValue("B{$fila}", $folio);
-            $hoja->setCellValue("C{$fila}", $a->dependencia?->nombre ?? '—');
-            $hoja->setCellValue("D{$fila}", $a->tramite?->nombre_oficial ?? '—');
-            $hoja->setCellValue("E{$fila}", ucfirst($a->tipo));
-            $hoja->setCellValue("F{$fila}", $a->descripcion);
-            $hoja->setCellValue("G{$fila}", $a->meta);
-            $hoja->setCellValue("H{$fila}", $acc['nombres']);
-            $hoja->setCellValue("I{$fila}", $acc['explicacion']);
-            $hoja->setCellValue("J{$fila}", $a->indicador);
-            $hoja->setCellValue("K{$fila}", $a->indicador_avance);
-            $hoja->setCellValue("L{$fila}", $a->nivel_actual);
-            $hoja->setCellValue("M{$fila}", $a->nivel_meta);
-            $hoja->setCellValue("N{$fila}", $a->fecha_inicio?->format('d/m/Y'));
-            $hoja->setCellValue("O{$fila}", $a->fecha_compromiso?->format('d/m/Y'));
-            $hoja->setCellValue("P{$fila}", $a->responsable);
-            $hoja->setCellValue("Q{$fila}", ucfirst(str_replace('_', ' ', $a->estatus)));
-            $hoja->setCellValue("R{$fila}", $completos);
-            $hoja->setCellValue("S{$fila}", $totalHitos);
-            $hoja->setCellValue("T{$fila}", $avanceHitos . '%');
-            $hoja->setCellValue("U{$fila}", $a->periodo?->nombre ?? '—');
-            $hoja->setCellValue("V{$fila}", $a->creador?->name ?? '—');
-            $hoja->setCellValue("W{$fila}", $a->created_at?->format('d/m/Y H:i'));
+            $hoja->setCellValue("B{$fila}", $a->fecha_compromiso?->format('d/m/Y'));
+            $hoja->setCellValue("C{$fila}", $t?->homoclave ?? 'N/A');
+            $hoja->setCellValue("D{$fila}", $t?->nombre_oficial ?? ($a->descripcion ?? ''));
+            $hoja->setCellValue("E{$fila}", $this->fundamento($t));
+            $hoja->setCellValue("F{$fila}", $t?->volumen_anual);
+            $hoja->setCellValue("G{$fila}", $t?->frecuencia);
+            $hoja->setCellValue("H{$fila}", $this->costoBurocratico($t));
+            $hoja->setCellValue("I{$fila}", $this->gruposPrioritarios($t));
+            $hoja->setCellValue("J{$fila}", $this->siNo($t?->tiene_relacionados));
+            $hoja->setCellValue("K{$fila}", $t?->tipo_relacion ?: 'N/A');
+            $hoja->setCellValue("L{$fila}", $t?->relacionados_detalle ?: 'N/A');
+            $hoja->setCellValue("M{$fila}", $t?->num_areas);
+            $hoja->setCellValue("N{$fila}", $this->procesoPasos($t, 'atencion'));
+            $hoja->setCellValue("O{$fila}", $this->procesoPasos($t, 'resolucion'));
+            $hoja->setCellValue("P{$fila}", $this->accionesCatalogo($a, $tipo));
+            $hoja->setCellValue("Q{$fila}", $a->descripcion);
+            $hoja->setCellValue("R{$fila}", $a->meta);
+            $hoja->setCellValue("S{$fila}", $a->indicador);
+            $hoja->setCellValue("T{$fila}", $a->indicador_avance);
+            $hoja->setCellValue("U{$fila}", 'No');
+            $hoja->setCellValue("V{$fila}", 'N/A');
+            // W (Observaciones): se deja en blanco — PUNTA no captura ese dato.
 
-            $hoja->getRowDimension($fila)->setRowHeight(-1); // alto automático
             $fila++;
             $num++;
         }
+    }
 
-        // Bordes a toda la tabla.
-        $ultimaFila = $fila - 1;
-        if ($ultimaFila >= 3) {
-            $hoja->getStyle("A2:W{$ultimaFila}")->getBorders()
-                ->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-            $hoja->getStyle("A3:W{$ultimaFila}")->getAlignment()
-                ->setWrapText(true)
-                ->setVertical(Alignment::VERTICAL_TOP);
+    // ─── Helpers de mapeo por columna ───────────────────────────────────────
+
+    /** Columna E: fundamento jurídico del costo (norma + artículo). */
+    private function fundamento($tramite): string
+    {
+        if (!$tramite) {
+            return '';
         }
+
+        $partes = array_filter([
+            $tramite->fj_norma,
+            $tramite->fj_articulo ? 'Artículo: ' . $tramite->fj_articulo : null,
+        ]);
+
+        return implode("\n", $partes);
+    }
+
+    /** Columna H: costo burocrático total calculado, formateado como pesos. */
+    private function costoBurocratico($tramite): ?string
+    {
+        if (!$tramite || $tramite->cbt_total === null) {
+            return null;
+        }
+
+        return '$' . number_format((float) $tramite->cbt_total, 2);
     }
 
     /**
-     * Extrae el catálogo de acciones y su explicación para el tipo dado.
-     * Las acciones se guardan como JSON {'Nombre acción' => 'explicación...'},
-     * así que devolvemos los nombres separados por '; ' y la explicación junta.
+     * Columna I: grupo de atención prioritaria. La plantilla oficial tiene un
+     * dropdown de un solo valor, pero PUNTA permite varios (grupos_atencion es
+     * un array con los mismos valores del catálogo oficial LNETB). Tomamos el
+     * primer grupo distinto de "No Aplica"; si no hay ninguno, "No Aplica".
      */
-    private function leerAcciones(AccionAgenda $a, string $tipo): array
+    private function gruposPrioritarios($tramite): string
+    {
+        if (!$tramite) {
+            return 'No Aplica';
+        }
+
+        $grupos = $tramite->grupos_atencion;
+
+        if (is_array($grupos)) {
+            $reales = array_values(array_filter(
+                $grupos,
+                fn ($g) => $g && $g !== 'No Aplica'
+            ));
+            if (!empty($reales)) {
+                return $reales[0];
+            }
+        }
+
+        return 'No Aplica';
+    }
+
+    /** Columnas N y O: pasos del proceso (atención o resolución) numerados. */
+    private function procesoPasos($tramite, string $tipo): string
+    {
+        if (!$tramite || !$tramite->relationLoaded('procesosAtencion')) {
+            $pasos = $tramite?->procesosAtencion()->where('tipo', $tipo)->orderBy('paso')->get() ?? collect();
+        } else {
+            $pasos = $tramite->procesosAtencion->where('tipo', $tipo)->sortBy('paso');
+        }
+
+        if ($pasos->isEmpty()) {
+            return '';
+        }
+
+        return $pasos->map(function ($p) {
+            $numero = $p->subpaso ? "{$p->paso}.{$p->subpaso}" : "{$p->paso}";
+            $texto  = $p->detalle ?: $p->accion;
+            return "{$numero}. {$texto}";
+        })->implode("\n");
+    }
+
+    /**
+     * Columna P: nombres de las acciones del catálogo oficial (simplificación o
+     * digitalización), separados por salto de línea.
+     */
+    private function accionesCatalogo(AccionAgenda $a, string $tipo): string
     {
         $campo = $tipo === 'simplificacion'
             ? $a->acciones_simplificacion
             : $a->acciones_digitalizacion;
 
         if (!is_array($campo) || empty($campo)) {
-            return ['nombres' => '—', 'explicacion' => ''];
+            return '';
         }
 
-        $nombres      = [];
-        $explicaciones = [];
-        foreach ($campo as $nombre => $explicacion) {
-            $nombres[] = $nombre;
-            if (!empty($explicacion)) {
-                $explicaciones[] = $nombre . ': ' . $explicacion;
-            }
-        }
+        // El JSON puede ser {'Nombre' => 'explicación'} o una lista simple.
+        $nombres = array_is_list($campo) ? $campo : array_keys($campo);
 
-        return [
-            'nombres'     => implode('; ', $nombres),
-            'explicacion' => implode("\n", $explicaciones),
-        ];
+        return implode("\n", $nombres);
     }
 
-    /** Anchos de columna razonables para que el archivo se lea sin scroll constante. */
-    private function ajustarAnchos($hoja): void
+    /** Convierte un booleano/valor a "Sí"/"No" para las columnas de relación. */
+    private function siNo($valor): string
     {
-        $anchos = [
-            'A' => 5,  'B' => 14, 'C' => 22, 'D' => 30, 'E' => 14,
-            'F' => 35, 'G' => 25, 'H' => 30, 'I' => 40, 'J' => 25,
-            'K' => 12, 'L' => 10, 'M' => 10, 'N' => 12, 'O' => 14,
-            'P' => 22, 'Q' => 14, 'R' => 10, 'S' => 10, 'T' => 12,
-            'U' => 16, 'V' => 20, 'W' => 18,
-        ];
-        foreach ($anchos as $col => $ancho) {
-            $hoja->getColumnDimension($col)->setWidth($ancho);
-        }
+        return $valor ? 'Sí' : 'No';
     }
 
-    /** Streamed response con headers de descarga XLSX. */
+    // ─── Descarga ───────────────────────────────────────────────────────────
+
     private function responderDescarga(Spreadsheet $spreadsheet, string $nombreArchivo): StreamedResponse
     {
         return new StreamedResponse(function () use ($spreadsheet) {

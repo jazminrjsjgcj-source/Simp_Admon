@@ -86,7 +86,7 @@
                 <input type="checkbox" name="fracciones[]" value="{{ $num }}"
                   {{ in_array($num, old('fracciones', $exencion?->fracciones ?? [])) ? 'checked' : '' }}
                   style="margin-top:3px;flex-shrink:0">
-                <span><strong>Fracción {{ $num }}:</strong> {{ $texto }}</span>
+                <span style="flex:1;min-width:0;overflow-wrap:anywhere"><strong>Fracción {{ $num }}:</strong> {{ $texto }}</span>
               </label>
             </div>
           @endforeach

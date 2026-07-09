@@ -28,6 +28,10 @@ class CalendarioController extends Controller
      */
     public function actualizarAvance(\Illuminate\Http\Request $request, \App\Models\CalendarioEvento $evento): \Illuminate\Http\RedirectResponse
     {
+        if (!$request->user()->tienePermiso('calendario.ver')) {
+            abort(403, 'No tiene permiso para actualizar avances.');
+        }
+
         $avance = intval($request->input('avance', 0));
         $avance = max(0, min(100, $avance));
 

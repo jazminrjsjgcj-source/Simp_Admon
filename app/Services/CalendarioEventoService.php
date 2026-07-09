@@ -18,8 +18,10 @@ class CalendarioEventoService
         }
 
         DB::table('calendario_eventos')->insert([
-            'tipo'             => $datos['tipo']           ?? 'simplificacion',
-            'titulo'           => $datos['titulo']         ?? '',
+            'tipo'             => in_array($datos['tipo'] ?? '', ['simplificacion', 'digitalizacion', 'regulatoria', 'ambas'])
+                                    ? $datos['tipo']
+                                    : 'simplificacion',
+            'titulo'           => mb_substr($datos['titulo'] ?? '', 0, 2000),
             'fecha'            => $datos['fecha'],
             'estatus'          => $datos['estatus']        ?? 'pendiente',
             'avance'           => $datos['avance']         ?? 0,
@@ -53,16 +55,46 @@ class CalendarioEventoService
     }
 
     /**
+     * Mapa de clase Eloquent → nombre de ruta para construir URLs de detalle.
+     * Se usa para hacer clickeables los eventos del calendario (#24).
+     */
+    private const RUTAS_DETALLE = [
+        'App\\Models\\AccionAgenda'          => 'agenda.show',
+        'App\\Models\\PropuestaRegulatoria'  => 'propuestas.show',
+        'App\\Models\\Tramite'               => 'tramites.show',
+        'App\\Models\\Regulacion'            => 'regulaciones.show',
+    ];
+
+    /**
      * Devuelve los eventos del mes filtrados por tipo opcional.
+     * Cada evento incluye una propiedad `url` con el enlace al detalle
+     * del registro asociado (acción de agenda, propuesta, trámite, etc.).
      */
     public function eventosDelMes(int $anio, int $mes, ?string $tipo = null)
     {
-        return DB::table('calendario_eventos')
-            ->when($tipo && $tipo !== 'todos', fn ($q) => $q->where('tipo', $tipo))
+        $eventos = DB::table('calendario_eventos')
+            ->when($tipo && $tipo !== 'todos', function ($q) use ($tipo) {
+                // Una acción 'ambas' es de simplificación y de digitalización a la
+                // vez, así que aparece en los dos filtros. Regulatoria queda exacta.
+                if ($tipo === 'simplificacion' || $tipo === 'digitalizacion') {
+                    $q->whereIn('tipo', [$tipo, 'ambas']);
+                } else {
+                    $q->where('tipo', $tipo);
+                }
+            })
             ->whereYear('fecha',  $anio)
             ->whereMonth('fecha', $mes)
             ->orderBy('fecha')
             ->get();
+
+        // Agregar URL de detalle a cada evento, basada en su tipo polimórfico.
+        $eventos->transform(function ($ev) {
+            $ruta = self::RUTAS_DETALLE[$ev->eventable_type] ?? null;
+            $ev->url = $ruta ? route($ruta, $ev->eventable_id) : null;
+            return $ev;
+        });
+
+        return $eventos;
     }
 
     /**
@@ -75,8 +107,9 @@ class CalendarioEventoService
             ->whereMonth('fecha', $mes);
 
         return [
-            'sim'       => $baseQuery()->where('tipo',    'simplificacion')->count(),
-            'dig'       => $baseQuery()->where('tipo',    'digitalizacion')->count(),
+            // 'ambas' suma en ambos contadores, igual que en el filtro del calendario.
+            'sim'       => $baseQuery()->whereIn('tipo', ['simplificacion', 'ambas'])->count(),
+            'dig'       => $baseQuery()->whereIn('tipo', ['digitalizacion', 'ambas'])->count(),
             'reg'       => $baseQuery()->where('tipo',    'regulatoria')->count(),
             'cumplidos' => $baseQuery()->where('estatus', 'cumplido')->count(),
         ];

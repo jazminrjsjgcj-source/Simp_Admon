@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\GeneraFolio;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class PropuestaRegulatoria extends Model
 {
+    use GeneraFolio, SoftDeletes;
     protected $table   = 'propuestas_regulatorias';
 
     /**
@@ -76,26 +79,8 @@ class PropuestaRegulatoria extends Model
      * Formato: PROP-{SIGLAS_DEPENDENCIA}-{AÑO}-{consecutivo de 3 dígitos}.
      * El consecutivo se reinicia por dependencia y por año.
      */
-    public function generarFolio(): string
-    {
-        $siglas = $this->dependencia->siglas
-            ?? strtoupper(substr($this->dependencia->nombre ?? 'DEP', 0, 4));
-        $anio = now()->year;
-        $prefijo = "PROP-{$siglas}-{$anio}-";
-
-        // Busca el último consecutivo usado con este prefijo.
-        $ultimo = static::where('folio', 'like', $prefijo . '%')
-            ->orderByDesc('folio')
-            ->value('folio');
-
-        $siguiente = 1;
-        if ($ultimo) {
-            $numero = (int) substr($ultimo, strlen($prefijo));
-            $siguiente = $numero + 1;
-        }
-
-        return $prefijo . str_pad((string) $siguiente, 3, '0', STR_PAD_LEFT);
-    }
+    /** Prefijo de tipo del folio: LPZ-PROP-... (usa el trait GeneraFolio). */
+    protected function folioTipo(): string { return 'PROP'; }
 
     // ========== Relaciones ==========
 
@@ -108,6 +93,19 @@ class PropuestaRegulatoria extends Model
     public function air()           { return $this->hasOne(AnalisisImpactoRegulatorio::class, 'propuesta_id'); }
     /** #7: trámites y requisitos que esta propuesta declaró que va a modificar. */
     public function impactos()      { return $this->hasMany(PropuestaTramiteImpacto::class, 'propuesta_id'); }
+
+    /**
+     * B18 — Rubros 13 y 14: acciones de Agenda SyD (simplificación/digitalización)
+     * vinculadas a esta propuesta, a través de la pivote propuesta_accion_syd.
+     * El campo 'tipo' del pivote distingue si la acción es de simplificación o
+     * de digitalización en el contexto de esta propuesta.
+     */
+    public function accionesSyd()
+    {
+        return $this->belongsToMany(AccionAgenda::class, 'propuesta_accion_syd', 'propuesta_id', 'accion_agenda_id')
+            ->withPivot('tipo')
+            ->withTimestamps();
+    }
     public function exencion()      { return $this->hasOne(ExencionAir::class, 'propuesta_id'); }
 
     // ========== Helpers de determinación AIR ==========

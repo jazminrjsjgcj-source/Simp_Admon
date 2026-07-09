@@ -48,9 +48,11 @@ a.btn,
   box-shadow: none;
 }
 .btn-outline,
+a.btn-outline,
+button.btn-outline,
 .btn.outline {
   color: var(--primary-container);
-  background: var(--surface);
+  background: var(--primary-fixed);
   border-color: var(--primary-container);
   box-shadow: none;
 }
@@ -266,6 +268,9 @@ a.btn,
   background: var(--accent, #7c3aed);
   color: var(--surface);
 }
+/* NUEVO: el campo se vuelve el ancla del popover de ayuda. */
+.field { position: relative; }
+
 .field-help-box {
   display: none;
   margin-top: 6px;
@@ -280,6 +285,19 @@ a.btn,
 }
 .field-help-box.visible {
   display: block;
+}
+
+/* NUEVO: solo la ayuda que es hija directa de .field flota sobre el formulario.
+   Sale del flujo (position:absolute), así ya no empuja ni redimensiona nada.
+   z-index:30 la pone sobre los campos vecinos pero debajo de los modales (100+). */
+.field > .field-help-box.visible {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin-top: 4px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
 }
 @keyframes helpFadeIn {
   from { opacity: 0; transform: translateY(-4px); }

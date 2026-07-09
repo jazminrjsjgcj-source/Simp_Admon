@@ -18,12 +18,17 @@
 #tramites table.data-table th:nth-child(4), #tramites table.data-table td:nth-child(4) { width: 135px; }
 #tramites table.data-table th:nth-child(5), #tramites table.data-table td:nth-child(5) { width: 185px; }
 #tramites table.data-table th:nth-child(6), #tramites table.data-table td:nth-child(6) { width: 180px; }
-#agenda .data-table { min-width: 1060px; }
-#agenda .data-table th:nth-child(1), #agenda .data-table td:nth-child(1) { width: 140px; }
-#agenda .data-table th:nth-child(2), #agenda .data-table td:nth-child(2) { width: 260px; }
-#agenda .data-table th:nth-child(3), #agenda .data-table td:nth-child(3) { width: 170px; }
-#agenda .data-table th:nth-child(4), #agenda .data-table td:nth-child(4) { width: 190px; }
-#agenda .data-table th:nth-child(5), #agenda .data-table td:nth-child(5) { width: 150px; }
+/* Tabla de Agenda SyD: 8 columnas (Folio, Descripción, Tipo, Dirección,
+   Unidad, Fecha compromiso, Estatus, Acciones). El min-width fuerza el scroll
+   horizontal del table-wrap cuando no caben, en vez de cortarse. */
+#agenda .data-table { min-width: 1180px; }
+#agenda .data-table th:nth-child(1), #agenda .data-table td:nth-child(1) { width: 150px; }
+#agenda .data-table th:nth-child(2), #agenda .data-table td:nth-child(2) { width: 240px; }
+#agenda .data-table th:nth-child(3), #agenda .data-table td:nth-child(3) { width: 110px; }
+#agenda .data-table th:nth-child(4), #agenda .data-table td:nth-child(4) { width: 160px; }
+#agenda .data-table th:nth-child(5), #agenda .data-table td:nth-child(5) { width: 180px; }
+#agenda .data-table th:nth-child(6), #agenda .data-table td:nth-child(6) { width: 130px; }
+#agenda .data-table th:nth-child(7), #agenda .data-table td:nth-child(7) { width: 120px; }
 #agendaRegulatoria .table-wrap { overflow-x: auto; overflow-y: hidden; }
 #agendaRegulatoria .data-table {
   min-width: 1180px;
@@ -92,6 +97,18 @@ td.table-action-cell {
   flex-wrap: wrap;
   gap: 8px;
   width: 100%;
+}
+/* Los botones de acción en tabla (Ver, Revisar) usan btn-outline pero con
+   borde más sutil que el outline estándar — no compiten visualmente con
+   el botón primario "Atender" que está al lado. */
+.table-action-btn.btn-outline,
+a.table-action-btn.btn-outline,
+button.table-action-btn.btn-outline,
+/* "Ver todos / Ver todas" en las cabeceras de sección del dashboard */
+.panel-head .btn-outline,
+.panel-head a.btn-outline,
+.panel-head button.btn-outline {
+  border-color: rgba(117, 0, 56, .25);
 }
 .table-actions .btn {
   width: auto;

@@ -21,6 +21,7 @@ class PropuestaTramiteImpacto extends Model
     protected $fillable = [
         'propuesta_id',
         'tramite_id',
+        'accion',
         'requisito_id',
         'articulo_fraccion',
         'descripcion',

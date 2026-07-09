@@ -8,6 +8,31 @@
 .step-add-button { min-width: 148px; }
 
 .wizard-shell { display: grid; gap: 20px; }
+
+/* #20: Botón flotante "Guardar como borrador", visible en cualquier paso
+   del wizard sin tener que llegar al final. Sticky en la parte superior
+   para que quede a la vista al hacer scroll dentro de un paso largo. */
+.wizard-borrador-flotante {
+  position: sticky;
+  top: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .06);
+}
+.wizard-borrador-flotante small {
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 640px) {
+  .wizard-borrador-flotante { flex-direction: column; align-items: flex-start; gap: 6px; }
+}
 .wizard-stepper { background: transparent; border: 0; box-shadow: none; padding: 10px 0 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px; align-items: center; }
 .wizard-sidebar { display: grid; gap: 10px; align-items: start; padding: 4px 4px 18px; }
 #propuestaWizard .wizard-sidebar {
@@ -96,7 +121,7 @@
 
 /* Bug #B9: sub-tarjetas dentro de un panel del wizard para agrupar campos por tema.
    Cada .wizard-section es una tarjeta con encabezado y un .wizard-fields propio dentro. */
-.wizard-section { border: 1px solid var(--surface-high); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; background: var(--surface-low); }
+.wizard-section { border: 1px solid var(--surface-high); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; background: var(--surface-dim); }
 .wizard-section:last-child { margin-bottom: 0; }
 .wizard-section-head { margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px dashed var(--surface-high); }
 .wizard-section-head h4 { font-size: 14px; font-weight: 700; color: var(--text); margin: 0; display: flex; align-items: center; gap: 8px; }
@@ -569,4 +594,179 @@
 }
 .wizard-step:not(.active):not(.done):not(.completed) small {
   color: #c4c9d4;
+}
+/* ============================================================
+   Wizard de pasos (wz-*) — fuente única de verdad.
+   Antes estos estilos estaban duplicados inline en 3 vistas:
+   agenda/create, agenda-regulatoria/create y agenda-regulatoria/edit.
+   Centralizados aquí para reutilizar (no copiar-pegar).
+   ============================================================ */
+
+/* Tarjeta y cabecera de cada paso */
+.wz-card { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 24px; }
+.wz-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 20px; }
+.wz-head-ic { width: 44px; height: 44px; border-radius: var(--radius-pill); background: var(--secondary-container); flex: 0 0 auto; }
+.wz-head h3 { margin: 0 0 2px; font-size: 20px; color: var(--text); }
+.wz-head p { margin: 0; font-size: 14px; color: var(--muted); }
+
+/* Paneles: solo el activo se muestra */
+.wz-panel { display: none; }
+.wz-panel.activo { display: block; }
+
+/* Pie de navegación */
+.wz-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.wz-foot-right { display: flex; gap: 8px; }
+
+/* Opciones de bifurcación (camino existente/nuevo en SyD) */
+.wz-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 8px; }
+.wz-opt { padding: 22px 18px; border: 1.5px solid var(--surface-high); border-radius: var(--radius); background: var(--surface); cursor: pointer; text-align: center; font-weight: 600; color: var(--text); transition: border-color .15s, background .15s; }
+.wz-opt:hover { border-color: var(--primary); }
+.wz-opt.sel { border-color: var(--primary-container); background: var(--primary-container); color: #fff; }
+.wz-opt small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.wz-opt.sel small { color: #fff; }
+
+/* Sub-bloques con título dentro de un paso */
+.wz-bloque { border: 1px solid var(--surface-high); border-radius: var(--radius); margin-bottom: 16px; }
+.wz-bloque-head { padding: 12px 16px; border-bottom: 1px solid var(--surface-high); }
+.wz-bloque-head strong { color: var(--text); font-size: 15px; }
+.wz-bloque-head small { display: block; color: var(--muted); font-size: 12px; }
+.wz-bloque-body { padding: 16px; }
+
+/* Sub-bloque genérico (SyD) */
+.wz-sub { border: 1px solid var(--surface-high); border-radius: var(--radius); padding: 18px; margin-top: 4px; }
+.wz-sub-tit { color: var(--primary); font-weight: 600; font-size: 15px; margin: 0 0 14px; }
+
+/* Resultados de buscador (las tarjetas grises) */
+.wz-result { padding: 10px 12px; border: 1px solid var(--surface-high); border-radius: var(--radius); margin-bottom: 6px; cursor: pointer; min-width: 0; }
+.wz-result:hover { border-color: var(--primary); }
+.wz-result strong { display: block; color: var(--text); font-size: 14px; overflow-wrap: anywhere; word-break: break-word; }
+.wz-result span { display: block; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; word-break: break-word; }
+.wz-buscando { font-size: 13px; color: var(--muted); padding: 8px 0; }
+
+/* Pregunta Sí/No con detalle condicional */
+.wz-sino { display: flex; gap: 20px; align-items: center; margin: 6px 0; }
+.wz-sino label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; color: var(--text); }
+.wz-sino input[type="radio"] { width: 16px; height: 16px; margin: 0; accent-color: var(--primary-container); }
+.wz-detalle { display: none; margin-top: 8px; }
+.wz-detalle.visible { display: block; }
+.wz-sublabel { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+
+/* Catálogo de acciones con explicación individual (rubros SyD 13/14) */
+.acciones-catalogo { border: 1px solid var(--surface-high); border-radius: var(--radius); padding: 14px; }
+.acciones-titulo { display: block; color: var(--text); font-size: 14px; margin-bottom: 10px; }
+.acciones-titulo small { color: var(--muted); font-weight: normal; }
+.accion-item { border-bottom: 1px solid var(--surface-high); padding: 8px 0; }
+.accion-item:last-child { border-bottom: none; }
+.accion-check { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text); }
+.accion-check input { margin-top: 3px; }
+.accion-exp { margin-top: 8px; padding-left: 24px; }
+.accion-exp textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 14px; color: var(--text); background: var(--surface); resize: vertical; min-height: 60px; }
+.accion-exp textarea:focus { outline: none; border-color: var(--primary); }
+
+/* Lista de trámites impactados (rubro 12 de propuesta) */
+.impacto-lista { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.impacto-fila { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface-low); border-radius: var(--radius-sm); }
+.impacto-nombre { flex: 1; font-size: 14px; color: var(--text); }
+.impacto-accion { width: auto; }
+.impacto-vacio { font-size: 13px; color: var(--muted); padding: 8px 0; margin: 0; }
+
+/* Radio en línea genérico */
+.radio-inline { display: flex; gap: 20px; align-items: center; }
+.radio-inline label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; color: var(--text); }
+
+/* Buscador, lista de trámites y acciones del EDIT de propuesta (pr-*).
+   Equivalentes a wz-result/impacto-fila; centralizadas aquí desde el
+   <style> inline del edit. (A futuro conviene unificar pr-* y wz-* en
+   un solo set de clases compartidas por create y edit.) */
+.pr-tramite-fila { display: grid; grid-template-columns: 1fr 160px 40px; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--surface-high); border-radius: var(--radius); margin-bottom: 8px; }
+.pr-tramite-fila .pr-nombre { font-size: 13px; color: var(--text); }
+.pr-quitar { border: 1px solid var(--primary); background: transparent; color: var(--primary); border-radius: var(--radius-sm); padding: 4px 8px; cursor: pointer; font-weight: 500; }
+.pr-quitar:hover { background: var(--surface-tint); }
+.pr-buscar-result { padding: 8px 10px; border: 1px solid var(--surface-high); border-radius: var(--radius); margin-bottom: 6px; cursor: pointer; }
+.pr-buscar-result:hover { border-color: var(--primary); }
+.pr-buscar-result strong { display: block; font-size: 13px; color: var(--text); }
+.pr-buscar-result span { font-size: 12px; color: var(--muted); }
+.pr-accion-syd { display: flex; gap: 8px; padding: 10px 12px; border: 1px solid var(--surface-high); border-radius: var(--radius); margin-bottom: 6px; cursor: pointer; }
+.pr-accion-syd input { margin-top: 3px; }
+.pr-accion-syd strong { display: block; font-size: 13px; color: var(--text); }
+.pr-accion-syd small { font-size: 12px; color: var(--muted); }
+
+/* Grid de acciones SyD seleccionables (rubros 13/14 del create de propuesta).
+   NOTA: B18.4 rehará estos rubros como catálogo de tipos; estas clases
+   podrían retirarse entonces. Por ahora se mantienen para no romper la vista. */
+.acciones-syd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+.accion-syd-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--surface-high); border-radius: var(--radius); cursor: pointer; font-size: 13px; }
+.accion-syd-item:hover { border-color: var(--primary); }
+.accion-syd-folio { font-weight: 700; color: var(--primary); white-space: nowrap; }
+.accion-syd-desc { color: var(--text); }
+
+/* Buscador de resultados del create (contenedor) */
+.buscador-resultados { margin-top: 6px; }
+
+/* ── QA: overflow en wizards (#5 #8) ───────────────────────────── */
+
+/* #5: Botón QUITAR en propuesta regulatoria paso 4 con nombres largos */
+.tramite-seleccionado,
+.propuesta-tramite-card { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tramite-seleccionado span,
+.propuesta-tramite-card span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.tramite-seleccionado .btn,
+.propuesta-tramite-card .btn { flex-shrink: 0; white-space: nowrap; }
+
+/* #8: Nombre de archivo largo en evidencias de agenda */
+.evidencia-nombre,
+.upload-filename,
+.file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; display: inline-block; vertical-align: middle; }
+
+/* Bug #44: checkboxes de tipo de presentación */
+.tipo-pres-checks { display: flex; gap: 14px; flex-wrap: wrap; padding: 6px 0; }
+.tipo-pres-checks label { display: inline-flex; align-items: center; gap: 5px; font-weight: 400; cursor: pointer; }
+
+/* Botón flotante "Guardar borrador", visible en cualquier paso del wizard.
+   Reemplaza los estilos en línea del script; usa el guinda de tema. */
+.wizard-borrador-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9999;
+  padding: 11px 18px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, .28);
+}
+.wizard-borrador-fab:hover { background: var(--primary-container); }
+
+/* Aviso emergente que aparece una vez al entrar al wizard. */
+.wizard-borrador-aviso {
+  position: fixed;
+  right: 18px;
+  bottom: 72px;                    /* justo encima del botón flotante */
+  z-index: 9999;
+  max-width: 280px;
+  padding: 12px 34px 12px 16px;
+  background: #fff;
+  border: 1px solid #eadfe4;
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .16);
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.45;
+  animation: helpFadeIn .2s ease;  /* reusa el keyframe ya definido en 04-components.css */
+}
+.wizard-borrador-aviso-x {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: #9ca3af;
+  cursor: pointer;
 }

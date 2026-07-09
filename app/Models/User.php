@@ -3,26 +3,29 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Cache;
 
 use App\Models\Permiso;
+use App\Models\Regulacion;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, SoftDeletes;
 
     /**
      * Roles del sistema. Usar estas constantes en vez de strings sueltos
      * evita typos silenciosos (un 'enalce' mal escrito no falla en compilación
      * pero rompe la verificación de permisos sin avisar).
      */
-    public const ROL_ADMIN    = 'admin';
-    public const ROL_ENLACE   = 'enlace';
-    public const ROL_JURIDICO = 'juridico';
-    public const ROL_REVISORA = 'revisora';
-    public const ROL_SUJETO   = 'sujeto';
+    public const ROL_ADMIN         = 'admin';
+    public const ROL_ENLACE        = 'enlace';
+    public const ROL_JURIDICO      = 'juridico';
+    public const ROL_REVISORA      = 'revisora';
+    public const ROL_SUJETO        = 'sujeto';
+    public const ROL_DIGITALIZADOR = 'digitalizador';
 
     /** Todos los roles válidos del sistema. */
     public const ROLES_TODOS = [
@@ -31,6 +34,7 @@ class User extends Authenticatable
         self::ROL_JURIDICO,
         self::ROL_REVISORA,
         self::ROL_SUJETO,
+        self::ROL_DIGITALIZADOR,
     ];
 
     /** Tiempo de cache para los permisos de un usuario (segundos). */
@@ -81,6 +85,29 @@ class User extends Authenticatable
         return $this->belongsToMany(Permiso::class, 'user_permiso')
             ->withPivot('asignado_por')
             ->withTimestamps();
+    }
+
+    /**
+     * Regulaciones que este usuario marcó como favoritas (tabla pivot
+     * regulacion_favorita). Permite listar sus favoritas y consultar el estado.
+     */
+    public function regulacionesFavoritas()
+    {
+        return $this->belongsToMany(Regulacion::class, 'regulacion_favorita')
+            ->withTimestamps();
+    }
+
+    /**
+     * ¿Este usuario tiene marcada como favorita la regulación dada?
+     * Acepta un modelo Regulacion o su id.
+     */
+    public function tieneFavorita($regulacion): bool
+    {
+        $id = $regulacion instanceof Regulacion ? $regulacion->id : (int) $regulacion;
+
+        return $this->regulacionesFavoritas()
+            ->where('regulaciones.id', $id)
+            ->exists();
     }
 
     // ========== Helpers de rol (compatibilidad con código existente) ==========
@@ -292,11 +319,13 @@ class User extends Authenticatable
      */
     public function puedeEditarRegulacion($regulacion): bool
     {
+        if (!$this->tienePermiso('regulaciones.editar')) return false;
+
+        // Admin puede editar cualquiera
         if ($this->isRol(self::ROL_ADMIN)) return true;
-        if ($this->isRol(self::ROL_JURIDICO)) {
-            return ($regulacion->dependencia_id ?? null) === $this->dependencia_id;
-        }
-        return false;
+
+        // Los demás roles con permiso solo pueden editar las de su dependencia
+        return ($regulacion->dependencia_id ?? null) === $this->dependencia_id;
     }
 
     /**
@@ -305,7 +334,7 @@ class User extends Authenticatable
      */
     public function puedeSubirRegulacion(): bool
     {
-        return $this->isAnyRol([self::ROL_JURIDICO, self::ROL_ADMIN]);
+        return $this->tienePermiso('regulaciones.crear');
     }
 
     /**
@@ -333,6 +362,20 @@ class User extends Authenticatable
     }
 
     /**
+     * ¿El usuario consulta registros de varias dependencias a la vez?
+     *
+     * Solo admin y revisora ven trámites, regulaciones y agendas de todas
+     * las dependencias. Los demás roles (enlace, sujeto, jurídico) solo ven
+     * los de su propia dependencia, así que en sus listados todas las filas
+     * tendrían la misma dependencia. Se usa para decidir si la columna
+     * "Dependencia" aporta información o es ruido redundante para ese usuario.
+     */
+    public function veVariasDependencias(): bool
+    {
+        return $this->isAnyRol([self::ROL_ADMIN, self::ROL_REVISORA]);
+    }
+
+    /**
      * ¿Este usuario puede ver un registro de un módulo?
      *
      * Regla (C2 — evita que una dependencia ajena vea el registro copiando el
@@ -345,6 +388,15 @@ class User extends Authenticatable
      */
     public function puedeVerRegistro($registro, string $modulo): bool
     {
+        // Regla de BORRADOR (#32): un borrador es trabajo en proceso, privado de
+        // quien lo creó. No es visible para nadie más —ni siquiera para quien ve
+        // todo el módulo (revisora)— salvo el admin. Esto cubre el acceso por URL
+        // directa al detalle, complementando el filtrado de los listados.
+        $esBorrador = ($registro->estatus ?? null) === 'borrador';
+        if ($esBorrador && !$this->isRol(self::ROL_ADMIN)) {
+            return ($registro->created_by ?? null) === $this->id;
+        }
+
         return $this->veTodoElModulo($modulo)
             || $this->esDeSuDependencia($registro);
     }

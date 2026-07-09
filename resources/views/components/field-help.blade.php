@@ -9,7 +9,7 @@
         ?? null;
 @endphp
 
-<div class="field {{ $attributes->get('class') }}">
+<div {{ $attributes->filter(fn ($v, $k) => str_starts_with($k, 'data-'))->merge(['class' => 'field ' . $attributes->get('class', '')]) }}>
     <label>
         {{ $label }}{{ $required ? ' *' : '' }}
         @if($helpText)

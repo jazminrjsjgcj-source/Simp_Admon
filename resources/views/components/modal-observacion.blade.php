@@ -33,8 +33,10 @@
       <div class="modal-body">
         <div class="field">
           <label for="obsCampo">Campo observado</label>
-          <select name="campo" id="obsCampo" required>
-            {{-- Se llena por JS según la sección --}}
+          <select name="campo" id="obsCampo">
+            {{-- Se llena por JS según la sección. "Toda la sección" es una opción
+                 válida (campo vacío = observación general); por eso el select NO
+                 lleva required: el backend acepta `campo` como nullable. --}}
           </select>
         </div>
 

@@ -8,11 +8,15 @@ use App\Models\Tramite;
 use App\Models\Dependencia;
 use App\Models\FichaPortal;
 use App\Models\TipoTramite;
+use App\Models\SujetoObligado;
 use Illuminate\Http\Request;
 use App\Http\Requests\TramiteRequest;
+use App\Http\Controllers\Concerns\ExtraeFichaPortal;
 
 class TramiteController extends Controller
 {
+    use ExtraeFichaPortal;
+
     public function __construct(
         private \App\Services\CostoBurocraticoService $costoService,
         private \App\Services\NotificadorService $notificador,
@@ -21,34 +25,102 @@ class TramiteController extends Controller
 
     public function index(Request $request)
     {
-        $user  = $request->user();
-        $query = Tramite::with('dependencia')
-            // Visibilidad por rol (C2): admin y revisora ven todas las dependencias;
-            // jurídico, enlace y sujeto solo ven los trámites de su propia dependencia.
-            ->when(!$user->veTodoElModulo('tramites'),
-                fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
-            ->when($request->estatus,      fn ($q, $v) => $q->where('estatus', $v))
-            ->when($request->dependencia,  fn ($q, $v) => $q->where('dependencia_id', $v))
-            ->when($request->q, fn ($q, $v) => $q->where(function ($sub) use ($v) {
-                $sub->where('nombre_oficial', 'like', '%' . $v . '%')
-                    ->orWhere('homoclave', 'like', '%' . $v . '%');
-            }))
-            // Alias: ?costo= se mapea a costo_unitario para compatibilidad con URLs viejas
-            ->when($request->filled('costo') && !$request->filled('costo_unitario'),
-                fn ($q) => $request->merge(['costo_unitario' => $request->costo]) && $q)
-            // Filtro por costo unitario (CBU): cuánto cuesta hacerlo una vez
-            ->when($request->costo_unitario === 'bajo',  fn ($q) => $q->where('cbu_unitario', '<',  Tramite::CBU_UMBRAL_BAJO))
-            ->when($request->costo_unitario === 'medio', fn ($q) => $q->whereBetween('cbu_unitario', [Tramite::CBU_UMBRAL_BAJO, Tramite::CBU_UMBRAL_ALTO]))
-            ->when($request->costo_unitario === 'alto',  fn ($q) => $q->where('cbu_unitario', '>',  Tramite::CBU_UMBRAL_ALTO))
-            // Filtro por impacto: clasificación contra umbral configurado
-            ->when($request->impacto, fn ($q, $v) => $q->where('impacto', $v))
-            ->latest();
+        $user = $request->user();
+
+        // Alias de URL vieja: ?costo= equivale a ?costo_unitario=.
+        if ($request->filled('costo') && !$request->filled('costo_unitario')) {
+            $request->merge(['costo_unitario' => $request->input('costo')]);
+        }
+
+        $query = Tramite::with('dependencia');
+        $this->aplicaVisibilidad($query, $user);
+        $this->aplicaFiltros($query, $request);
+        $this->aplicaOrden($query, $request->input('orden'));
+        $this->contarObservacionesPorAtender($query);
 
         $tramites     = $query->paginate(20)->withQueryString();
         $dependencias = Dependencia::activas()->orderBy('nombre')->get();
         $estatuses    = Tramite::ESTATUS_TODOS;
 
         return view('screens.tramites.index', compact('tramites', 'dependencias', 'estatuses'));
+    }
+
+    /**
+     * Visibilidad del listado según el rol: admin y revisora ven todas las
+     * dependencias (C2); los demás, solo la suya; y un borrador solo lo ve su
+     * creador o el admin (#32).
+     */
+    private function aplicaVisibilidad(\Illuminate\Database\Eloquent\Builder $query, User $user): void
+    {
+        $query
+            ->when(!$user->veTodoElModulo('tramites'),
+                fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
+            ->when(!$user->isRol(User::ROL_ADMIN), function ($q) use ($user) {
+                $q->where(function ($sub) use ($user) {
+                    $sub->where('estatus', '!=', Tramite::ESTATUS_BORRADOR)
+                        ->orWhere('created_by', $user->id);
+                });
+            });
+    }
+
+    /** Filtros que el usuario elige en la barra del listado. */
+    private function aplicaFiltros(\Illuminate\Database\Eloquent\Builder $query, Request $request): void
+    {
+        $query
+            ->when($request->estatus,     fn ($q, $v) => $q->where('estatus', $v))
+            ->when($request->dependencia, fn ($q, $v) => $q->where('dependencia_id', $v))
+            ->when($request->naturaleza,  fn ($q, $v) => $q->where('naturaleza', $v))
+            ->when($request->q, fn ($q, $v) => $q->where(function ($sub) use ($v) {
+                $sub->where('nombre_oficial', 'like', '%' . $v . '%')
+                    ->orWhere('homoclave', 'like', '%' . $v . '%');
+            }))
+            ->when($request->costo_unitario === 'bajo',  fn ($q) => $q->where('cbu_unitario', '<',  Tramite::CBU_UMBRAL_BAJO))
+            ->when($request->costo_unitario === 'medio', fn ($q) => $q->whereBetween('cbu_unitario', [Tramite::CBU_UMBRAL_BAJO, Tramite::CBU_UMBRAL_ALTO]))
+            ->when($request->costo_unitario === 'alto',  fn ($q) => $q->where('cbu_unitario', '>',  Tramite::CBU_UMBRAL_ALTO))
+            ->when($request->impacto, fn ($q, $v) => $q->where('impacto', $v));
+    }
+
+    /**
+     * Cuenta las observaciones por atender (pendientes o reabiertas) de cada
+     * trámite en la misma consulta, para evitar una consulta por fila (N+1).
+     * Va después de aplicaOrden para no chocar con su select('tramites.*').
+     */
+    private function contarObservacionesPorAtender(\Illuminate\Database\Eloquent\Builder $query): void
+    {
+        $query->withCount(['observaciones as observaciones_por_atender_count' => function ($q) {
+            $q->whereIn('estatus', [
+                \App\Models\Observacion::ESTATUS_PENDIENTE,
+                \App\Models\Observacion::ESTATUS_REABIERTA,
+            ]);
+        }]);
+    }
+
+    /**
+     * Aplica el orden elegido por el usuario al listado de trámites.
+     *
+     * Si no se elige nada (o llega un valor desconocido) se conserva el
+     * comportamiento por defecto: más recientes primero. La opción "tipo"
+     * ordena por el NOMBRE del tipo de trámite, que vive en la tabla
+     * tipos_tramite; por eso se une con leftJoin y se reseleccionan solo las
+     * columnas de tramites, para no contaminar los datos que se hidratan.
+     *
+     * @param  string|null  $orden  reciente | antiguo | az | tipo | dependencia
+     */
+    private function aplicaOrden(\Illuminate\Database\Eloquent\Builder $query, ?string $orden): void
+    {
+        match ($orden) {
+            'antiguo'      => $query->oldest(),
+            'az'           => $query->orderBy('nombre_oficial'),
+            'tipo'         => $query
+                ->leftJoin('tipos_tramite', 'tramites.tipo_tramite_id', '=', 'tipos_tramite.id')
+                ->orderBy('tipos_tramite.nombre')
+                ->select('tramites.*'),
+            'dependencia'  => $query
+                ->leftJoin('dependencias', 'tramites.dependencia_id', '=', 'dependencias.id')
+                ->orderBy('dependencias.nombre')
+                ->select('tramites.*'),
+            default        => $query->latest(),
+        };
     }
 
     /**
@@ -142,6 +214,10 @@ class TramiteController extends Controller
 
     public function create()
     {
+        if (!auth()->user()->tienePermiso('tramites.crear')) {
+            abort(403, 'No tiene permiso para crear trámites.');
+        }
+
         // Solo dependencias activas (en la práctica, la unificada del Ayuntamiento)
         $dependencias = Dependencia::activas()->with('unidades')->orderBy('nombre')->get();
         $tramites     = Tramite::orderBy('nombre_oficial')->select('id', 'nombre_oficial', 'homoclave')->get();
@@ -158,39 +234,31 @@ class TramiteController extends Controller
 
         $unidadAutoId = $misUnidades->count() === 1 ? $misUnidades->first()->id : null;
 
-        return view('screens.tramites.create', compact('dependencias', 'tramites', 'misUnidades', 'unidadAutoId'));
+        $tiposServicio = config('punta.tipos_servicio', []);
+
+        return view('screens.tramites.create', compact('dependencias', 'tramites', 'misUnidades', 'unidadAutoId', 'tiposServicio'));
     }
 
     public function store(TramiteRequest $request)
     {
+        if (!$request->user()->tienePermiso('tramites.crear')) {
+            abort(403, 'No tiene permiso para crear trámites.');
+        }
+
         $esEnvio   = $request->input('accion') === 'enviar';
+
+        // Si el trámite se crea desde el flujo de Agenda SyD, siempre va
+        // directo a revisión (en_observacion). La agenda es la que se queda
+        // en borrador hasta que el enlace la complete por separado.
+        if ($request->input('retorno') === 'agenda') {
+            $esEnvio = true;
+        }
         $validated = $request->validated();
 
-        $validated['tipo_tramite_id'] = $request->input('tipo_tramite_id') ?: null;
+        // Campos comunes con update(), más los exclusivos del alta.
+        $validated = array_merge($validated, $this->camposComunesDesde($request));
         $validated['created_by'] = $request->user()->id;
         $validated['dirigido_a'] = $validated['dirigido_a'] ?? 'ambas';
-        $validated['tipo_relacion'] = $request->input('tipo_relacion') ?: null;
-        $validated['relacionados_detalle'] = $request->input('relacionados_detalle') ?: null;
-        // Ítem E: pago de derechos variable (ej. predial). El monto capturado se
-        // usa como estimación; la referencia explica la base de cálculo.
-        $validated['monto_derechos_variable']   = $request->boolean('monto_derechos_variable');
-        $validated['monto_derechos_referencia'] = $request->input('monto_derechos_referencia') ?: null;
-        // Ítem F: catálogos oficiales (selección múltiple + etapa de operación).
-        $validated['acciones_simplificacion'] = $request->input('acciones_simplificacion', []);
-        $validated['grupos_atencion']         = $request->input('grupos_atencion', []);
-        $validated['etapa_operacion']          = $request->input('etapa_operacion') ?: null;
-
-        // Fundamento jurídico: varias citas del catálogo y/o captura manual.
-        $validated['citas']                = $request->input('citas', []);
-        $validated['fundamento_normativa'] = $request->input('fundamento_normativa');
-        $validated['fundamento_tipo']      = $request->input('fundamento_tipo');
-        $validated['fundamento_articulo']  = $request->input('fundamento_articulo');
-        $validated['fundamento_resumen']   = $request->input('fundamento_resumen');
-
-        // Fundamento jurídico opcional del costo del trámite.
-        $validated['fj_norma']    = $request->input('costo_fj_norma');
-        $validated['fj_capitulo'] = $request->input('costo_fj_capitulo');
-        $validated['fj_articulo'] = $request->input('costo_fj_articulo');
 
         // El controlador extrae del request; el servicio recibe datos limpios.
         $tramite = $this->tramiteService->crear(
@@ -202,9 +270,19 @@ class TramiteController extends Controller
             esEnvio:     $esEnvio,
         );
 
+        $this->sincronizarRelacionados($tramite, $request);
+
         $mensaje = $esEnvio
             ? 'Trámite guardado y enviado a revisión correctamente.'
             : 'Trámite guardado como borrador. Podrá editarlo y enviarlo a revisión posteriormente.';
+
+        // Si el usuario llegó desde el wizard de Agenda SyD (retorno=agenda),
+        // volver a la agenda con el trámite recién creado pre-seleccionado.
+        if ($request->input('retorno') === 'agenda') {
+            return redirect()
+                ->route('agenda.create', ['tramite_id' => $tramite->id])
+                ->with('success', $mensaje . ' Continúe con la agenda.');
+        }
 
         return redirect()->route('tramites.index')->with('success', $mensaje);
     }
@@ -220,20 +298,24 @@ class TramiteController extends Controller
             abort(403, 'No tiene permiso para ver este trámite.');
         }
 
-        $tramite->load(['dependencia', 'unidad', 'requisitos', 'fundamentos', 'fichaPortal', 'observaciones.realizadaPor', 'firmas.firmante', 'derechos']);
+        $tramite->load(['dependencia', 'unidad', 'requisitos', 'fundamentos', 'fichaPortal', 'observaciones.realizadaPor', 'firmas.firmante', 'derechos', 'relacionados.dependencia', 'acciones']);
         $snapshotCosto = $this->costoService->ultimoSnapshot($tramite);
 
         // Corrección #18: si el usuario puede observar, preparamos los datos
         // del modal de observación por campo. Los destinatarios son los
         // usuarios activos de la dependencia del trámite (los enlaces que
         // corregirán), igual que en el módulo de revisión.
-        $puedeObservar = request()->user()->tienePermiso('tramites.observar');
+        $puedeObservar = request()->user()->tienePermiso('tramites.observar')
+            && $tramite->estaEnObservacion();
         $revisores = collect();
         if ($puedeObservar) {
+            // Bug 53: excluir al propio usuario — no puede dirigirse
+            // observaciones a sí mismo (ej. jurídico observándose).
             $revisores = \App\Models\User::where('activo', true)
                 ->where('dependencia_id', $tramite->dependencia_id)
+                ->where('id', '!=', auth()->id())
                 ->orderBy('name')
-                ->get(['id', 'name', 'cargo']);
+                ->get(['id', 'name', 'cargo', 'rol']);
         }
 
         // Observaciones agrupadas por sección, para el checklist lateral y los
@@ -264,7 +346,7 @@ class TramiteController extends Controller
         // (aviso por sección) y en el checklist lateral. Se cargan TODAS (no
         // solo pendientes) para que el checklist muestre el progreso. Las
         // secciones coinciden con las que usa el modal de observación.
-        $tramite->load(['requisitos', 'fundamentos', 'observaciones.realizadaPor', 'derechos', 'procesosAtencion' => function ($q) {
+        $tramite->load(['requisitos', 'fundamentos', 'fichaPortal', 'observaciones.realizadaPor', 'derechos', 'relacionados.dependencia', 'procesosAtencion' => function ($q) {
             $q->orderBy('paso')->orderBy('subpaso');
         }]);
         $observacionesPorSeccion = $tramite->observaciones
@@ -279,8 +361,24 @@ class TramiteController extends Controller
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'codigo']);
 
+        // A1: datos del sujeto obligado y enlace. Antes se calculaban dentro
+        // de la vista con queries directas (::find, ::vigenteDe, ::activos),
+        // violando la separación de capas. Ahora viven aquí en el controlador.
+        $sujetoActual = $tramite->sujeto_obligado_id
+            ? SujetoObligado::find($tramite->sujeto_obligado_id)
+            : SujetoObligado::vigenteDe($tramite->dependencia_id);
+        $sujetosDisponibles = SujetoObligado::activos()
+            ->where('dependencia_id', $tramite->dependencia_id)
+            ->orderBy('nombre')
+            ->get();
+        $enlaceTramite = $tramite->enlace_id ? User::find($tramite->enlace_id) : null;
+        $tiposServicio = config('punta.tipos_servicio', []);
+        $ficha = $tramite->fichaPortal;
+
         return view('screens.tramites.edit', compact(
-            'tramite', 'dependencias', 'observacionesPorSeccion', 'unidadesDependencia', 'camposObservables'
+            'tramite', 'dependencias', 'observacionesPorSeccion', 'unidadesDependencia',
+            'camposObservables', 'sujetoActual', 'sujetosDisponibles', 'enlaceTramite', 'tiposServicio',
+            'ficha'
         ));
     }
 
@@ -298,7 +396,7 @@ class TramiteController extends Controller
         // La validación se ejecutó automáticamente en TramiteRequest antes de
         // entrar al método. El controlador solo extrae lo que necesita con only().
         $data = $request->only([
-            'nombre_oficial', 'tipo_tramite_id', 'dependencia_id', 'unidad_id',
+            'nombre_oficial', 'naturaleza', 'tipo_tramite_id', 'tipo_servicio', 'dependencia_id', 'unidad_id',
             'sector_id', 'subsector_id',
             'servidor_publico', 'homoclave', 'sujeto_obligado_id', 'enlace_id',
             'objetivo', 'dirigido_a', 'frecuencia', 'volumen_anual', 'plazo_resolucion_cantidad',
@@ -309,28 +407,8 @@ class TramiteController extends Controller
             'copias_cantidad', 'copias_precio', 'salario_hora_w', 'nivel_digitalizacion',
         ]);
 
-        $data['tipo_tramite_id'] = $request->input('tipo_tramite_id') ?: null;
-        $data['tipo_relacion']   = $request->input('tipo_relacion') ?: null;
-        $data['relacionados_detalle'] = $request->input('relacionados_detalle') ?: null;
-        // Ítem E: pago de derechos variable (ej. predial).
-        $data['monto_derechos_variable']   = $request->boolean('monto_derechos_variable');
-        $data['monto_derechos_referencia'] = $request->input('monto_derechos_referencia') ?: null;
-        // Ítem F: catálogos oficiales (selección múltiple + etapa de operación).
-        $data['acciones_simplificacion'] = $request->input('acciones_simplificacion', []);
-        $data['grupos_atencion']         = $request->input('grupos_atencion', []);
-        $data['etapa_operacion']          = $request->input('etapa_operacion') ?: null;
-
-        // Fundamento jurídico opcional del costo del trámite (columnas fj_*).
-        $data['fj_norma']    = $request->input('costo_fj_norma');
-        $data['fj_capitulo'] = $request->input('costo_fj_capitulo');
-        $data['fj_articulo'] = $request->input('costo_fj_articulo');
-
-        // Fundamento jurídico del trámite (citas del catálogo + captura manual).
-        $data['citas']                = $request->input('citas', []);
-        $data['fundamento_normativa'] = $request->input('fundamento_normativa');
-        $data['fundamento_tipo']      = $request->input('fundamento_tipo');
-        $data['fundamento_articulo']  = $request->input('fundamento_articulo');
-        $data['fundamento_resumen']   = $request->input('fundamento_resumen');
+        // Campos comunes con store() (fundamento, fj_*, catálogos, derechos var.).
+        $data = array_merge($data, $this->camposComunesDesde($request));
 
         $this->tramiteService->actualizar(
             tramite:     $tramite,
@@ -341,12 +419,18 @@ class TramiteController extends Controller
             procesos:    $this->extraerProcesos($request),
         );
 
+        $this->sincronizarRelacionados($tramite, $request);
+
         return redirect()->route('tramites.show', $tramite)
             ->with('success', 'Trámite actualizado exitosamente.');
     }
 
     public function destroy(Tramite $tramite)
     {
+        if (!auth()->user()->tienePermiso('tramites.eliminar')) {
+            abort(403, 'No tiene permiso para eliminar trámites.');
+        }
+
         if (!request()->user()->puedeEliminarTramite($tramite)) {
             return back()->with('error', 'No tiene permiso para eliminar este trámite.');
         }
@@ -362,66 +446,163 @@ class TramiteController extends Controller
         return view('screens.tramites.acuse', compact('tramite'));
     }
 
+    /**
+     * Despacha el cambio de estatus según la acción recibida. Cada acción vive
+     * en su propio método (una transición por método), con sus guardas y su
+     * mensaje. Así se lee de un vistazo qué acciones existen y a dónde llevan.
+     */
     public function actualizarEstatus(Request $request, Tramite $tramite)
     {
-        $accion = $request->input('accion');
         $user = $request->user();
 
-        switch ($accion) {
-            case 'publicar':
-                if (!$tramite->puedeSerPublicado()) {
-                    return back()->with('error', 'Solo se puede publicar un trámite en borrador.');
-                }
-                if (!$user->puedeEditarTramite($tramite)) {
-                    return back()->with('error', 'No tiene permiso para publicar este trámite.');
-                }
-                $tramite->update(['estatus' => Tramite::ESTATUS_EN_OBSERVACION]);
-                return back()->with('success', 'Trámite publicado. Inicia el periodo de observaciones.');
+        return match ($request->input('accion')) {
+            'publicar'              => $this->publicarTramite($tramite, $user),
+            'republicar'            => $this->republicarTramite($tramite, $user),
+            'atender_observaciones' => $this->atenderObservaciones($tramite, $user),
+            'enviar_firma'          => $this->enviarAFirma($tramite, $user),
+            'completar'             => $this->completarTramite($tramite),
+            default                 => back()->with('error', 'Acción no válida.'),
+        };
+    }
 
-            case 'republicar':
-                if (!$tramite->puedeSerRepublicado()) {
-                    return back()->with('error', 'Solo se puede republicar un trámite en corrección.');
-                }
-                if (!$user->puedeEditarTramite($tramite)) {
-                    return back()->with('error', 'No tiene permiso.');
-                }
-                $tramite->update(['estatus' => Tramite::ESTATUS_EN_OBSERVACION]);
-                $this->notificador->reenviado($tramite, $user);
-                return back()->with('success', 'Trámite republicado para nueva revisión.');
-
-            case 'atender_observaciones':
-                if ($tramite->estatus !== Tramite::ESTATUS_EN_OBSERVACION) {
-                    return back()->with('error', 'Solo se puede atender observaciones de un trámite en periodo de observación.');
-                }
-                if (!$user->puedeEditarTramite($tramite)) {
-                    return back()->with('error', 'No tiene permiso.');
-                }
-                if (!$tramite->tieneObservacionesPendientes()) {
-                    return back()->with('error', 'No hay observaciones pendientes que atender.');
-                }
-                $tramite->update(['estatus' => Tramite::ESTATUS_EN_CORRECCION]);
-                return back()->with('success', 'Periodo de observaciones cerrado. Atienda las observaciones y republique cuando esté listo.');
-
-            case 'enviar_firma':
-                if (!$tramite->puedeAvanzarAFirma()) {
-                    return back()->with('error', 'No se puede enviar a firma: hay observaciones pendientes o el trámite no está en observación.');
-                }
-                if (!$user->isAnyRol([User::ROL_ADMIN, User::ROL_REVISORA])) {
-                    return back()->with('error', 'Solo la revisora o el admin pueden enviar a firma.');
-                }
-                $tramite->update(['estatus' => Tramite::ESTATUS_EN_FIRMA]);
-                return back()->with('success', 'Trámite enviado a firma.');
-
-            case 'completar':
-                if ($tramite->estatus !== Tramite::ESTATUS_EN_FIRMA) {
-                    return back()->with('error', 'El trámite debe estar en firma para completarse.');
-                }
-                $tramite->update(['estatus' => Tramite::ESTATUS_COMPLETADO]);
-                return back()->with('success', 'Trámite completado. Acuse final generado.');
-
-            default:
-                return back()->with('error', 'Acción no válida.');
+    /** Publicar: borrador → en observación. */
+    private function publicarTramite(Tramite $tramite, User $user)
+    {
+        if (!$tramite->puedeSerPublicado()) {
+            return back()->with('error', 'Solo se puede publicar un trámite en borrador.');
         }
+        if (!$user->puedeEditarTramite($tramite)) {
+            return back()->with('error', 'No tiene permiso para publicar este trámite.');
+        }
+        $tramite->update(['estatus' => Tramite::ESTATUS_EN_OBSERVACION]);
+        return back()->with('success', 'Trámite publicado. Inicia el periodo de observaciones.');
+    }
+
+    /** Republicar: corrección → en observación (cierra observaciones ya corregidas). */
+    private function republicarTramite(Tramite $tramite, User $user)
+    {
+        if (!$tramite->puedeSerRepublicado()) {
+            return back()->with('error', 'Solo se puede republicar un trámite en corrección.');
+        }
+        if (!$user->puedeEditarTramite($tramite)) {
+            return back()->with('error', 'No tiene permiso.');
+        }
+        // Bug 64: al republicar, las observaciones que el enlace ya corrigió
+        // pasan a 'atendida'. Si la revisora quiere reabrir alguna, lo hace en
+        // el nuevo ciclo de observaciones.
+        $tramite->observaciones()
+            ->whereIn('estatus', ['pendiente', 'en_atencion', 'reabierta'])
+            ->update(['estatus' => 'atendida']);
+        $tramite->update(['estatus' => Tramite::ESTATUS_EN_OBSERVACION]);
+        $this->notificador->reenviado($tramite, $user);
+        return back()->with('success', 'Trámite republicado para nueva revisión.');
+    }
+
+    /** Atender observaciones: en observación → en corrección. */
+    private function atenderObservaciones(Tramite $tramite, User $user)
+    {
+        if ($tramite->estatus !== Tramite::ESTATUS_EN_OBSERVACION) {
+            return back()->with('error', 'Solo se puede atender observaciones de un trámite en periodo de observación.');
+        }
+        if (!$user->puedeEditarTramite($tramite)) {
+            return back()->with('error', 'No tiene permiso.');
+        }
+        if (!$tramite->tieneObservacionesPendientes()) {
+            return back()->with('error', 'No hay observaciones pendientes que atender.');
+        }
+        $tramite->update(['estatus' => Tramite::ESTATUS_EN_CORRECCION]);
+        return redirect()->route('tramites.edit', $tramite)
+            ->with('success', 'Periodo de observaciones cerrado. Corrija lo señalado y republique cuando esté listo.');
+    }
+
+    /** Enviar a firma: en observación → en firma (solo revisora o admin). */
+    private function enviarAFirma(Tramite $tramite, User $user)
+    {
+        if (!$tramite->puedeAvanzarAFirma()) {
+            return back()->with('error', 'No se puede enviar a firma: hay observaciones pendientes o el trámite no está en observación.');
+        }
+        if (!$user->isAnyRol([User::ROL_ADMIN, User::ROL_REVISORA])) {
+            return back()->with('error', 'Solo la revisora o el admin pueden enviar a firma.');
+        }
+        $tramite->update(['estatus' => Tramite::ESTATUS_EN_FIRMA]);
+        return back()->with('success', 'Trámite enviado a firma.');
+    }
+
+    /** Completar: en firma → completado. */
+    private function completarTramite(Tramite $tramite)
+    {
+        if ($tramite->estatus !== Tramite::ESTATUS_EN_FIRMA) {
+            return back()->with('error', 'El trámite debe estar en firma para completarse.');
+        }
+        $tramite->update(['estatus' => Tramite::ESTATUS_COMPLETADO]);
+        return back()->with('success', 'Trámite completado. Acuse final generado.');
+    }
+
+    /**
+     * Campos del formulario de trámite que store() y update() arman igual:
+     * fundamento jurídico, fundamento del costo (fj_*), catálogos oficiales,
+     * derechos variables y datos de relación. Se centraliza aquí para no
+     * duplicar la extracción en ambos métodos. Los campos exclusivos de alta
+     * (created_by, dirigido_a) los añade store() por su cuenta.
+     */
+    private function camposComunesDesde(TramiteRequest $request): array
+    {
+        return [
+            'tipo_tramite_id'      => $request->input('tipo_tramite_id') ?: null,
+            'tipo_relacion'        => $request->input('tipo_relacion') ?: null,
+            'relacionados_detalle' => $request->input('relacionados_detalle') ?: null,
+
+            // Ítem E: pago de derechos variable (ej. predial). El monto capturado se
+            // usa como estimación; la referencia explica la base de cálculo.
+            'monto_derechos_variable'   => $request->boolean('monto_derechos_variable'),
+            'monto_derechos_referencia' => $request->input('monto_derechos_referencia') ?: null,
+
+            // Ítem F: catálogos oficiales (selección múltiple + etapa de operación).
+            'acciones_simplificacion' => $request->input('acciones_simplificacion', []),
+            'grupos_atencion'         => $request->input('grupos_atencion', []),
+            'etapa_operacion'         => $request->input('etapa_operacion') ?: null,
+
+            // Sujeto obligado y enlace: el formulario los manda como ocultos
+            // derivados (sujeto obligado de la dependencia; enlace = usuario que
+            // crea). Faltaba capturarlos en el alta — solo el update los tomaba.
+            'sujeto_obligado_id'   => $request->input('sujeto_obligado_id') ?: null,
+            'enlace_id'            => $request->input('enlace_id') ?: null,
+            'poblacion_objetivo'   => $request->input('poblacion_objetivo'),
+
+            // Fundamento jurídico: varias citas del catálogo y/o captura manual.
+            'fundamento_modo'      => $request->input('fundamento_modo', 'catalogo'),
+            'citas'                => $request->input('citas', []),
+            'fundamento_normativa' => $request->input('fundamento_normativa'),
+            'fundamento_tipo'      => $request->input('fundamento_tipo'),
+            'fundamento_articulo'  => $request->input('fundamento_articulo'),
+            'fundamento_resumen'   => $request->input('fundamento_resumen'),
+
+            // Fundamento jurídico opcional del costo del trámite (columnas fj_*).
+            'fj_norma'    => $request->input('costo_fj_norma'),
+            'fj_capitulo' => $request->input('costo_fj_capitulo'),
+            'fj_articulo' => $request->input('costo_fj_articulo'),
+        ];
+    }
+
+    /**
+     * Sincroniza los trámites relacionados (rubro 10.2). El componente
+     * x-citar-tramite envía relacionados[i][id]; extraemos los IDs válidos,
+     * descartamos el propio trámite (nunca se relaciona consigo mismo) y
+     * sincronizamos la tabla pivot tramite_relacionados: sync() elimina los
+     * que ya no están y agrega los nuevos, sin duplicar los existentes.
+     */
+    private function sincronizarRelacionados(Tramite $tramite, TramiteRequest $request): void
+    {
+        $idsRelacionados = collect($request->input('relacionados', []))
+            ->pluck('id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->reject(fn ($id) => $id === $tramite->id)
+            ->values()
+            ->toArray();
+
+        $tramite->relacionados()->sync($idsRelacionados);
     }
 
     /**
@@ -469,39 +650,4 @@ class TramiteController extends Controller
 
         return ['atencion' => $pasos, 'resolucion' => []];
     }
-
-    private function extraerFichaPortal(Request $request): array
-    {
-        $camposPortal = [
-            'nombre_ciudadano', 'tipo', 'descripcion', 'casos_realizarse',
-            'modalidad', 'canal_principal', 'costo_publico', 'forma_pago',
-            'resultado', 'doc_resultado', 'medio_entrega', 'vigencia',
-            'oficina', 'telefono', 'correo', 'enlace_cita',
-            'direccion', 'url',
-        ];
-
-        $datos = [];
-        foreach ($camposPortal as $campo) {
-            $valor = $request->input('portal_' . $campo) ?? $request->input($campo);
-            if ($valor !== null) {
-                $datos[$campo] = $valor;
-            }
-        }
-
-        if ($request->filled('portal_horario')) {
-            $datos['horario'] = $request->input('portal_horario');
-        }
-
-        if ($request->filled('horarios_json')) {
-            $decoded = json_decode($request->input('horarios_json'), true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $datos['horarios_json'] = $decoded;
-            }
-        }
-
-        $datos['requiere_cita'] = $request->boolean('requiere_cita');
-
-        return $datos;
-    }
-
 }

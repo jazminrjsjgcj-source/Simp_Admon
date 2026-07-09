@@ -6,12 +6,27 @@ use App\Models\User;
 use App\Models\Permiso;
 use App\Models\Periodo;
 use App\Models\Dependencia;
+use App\Services\PeriodoService;
+use App\Services\UsuarioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
+/**
+ * Panel de administración: usuarios, periodos y bitácora.
+ *
+ * El controlador coordina las peticiones HTTP y delega la lógica de negocio
+ * en servicios dedicados:
+ *   - UsuarioService: sincronización de permisos y catálogo de roles.
+ *   - PeriodoService: regla "un periodo activo por tipo" y sus transacciones.
+ */
 class AdminController extends Controller
 {
+    public function __construct(
+        private UsuarioService $usuarios,
+        private PeriodoService $periodos,
+    ) {}
+
     // ========== USUARIOS ==========
 
     public function index()
@@ -22,10 +37,11 @@ class AdminController extends Controller
 
     public function create()
     {
-        $dependencias = Dependencia::orderBy('nombre')->get();
-        $roles = ['enlace', 'sujeto', 'juridico', 'revisora', 'admin'];
-        $permisos = Permiso::whereNotIn('modulo', ['acl', 'bitacora', 'parametros', 'umbrales', 'unidades_valor', 'usuarios'])
-         ->orderBy('modulo')->orderBy('accion')->get()->groupBy('modulo');        $rolesConPermisos = $this->obtenerPermisosDeRoles();
+        $dependencias     = Dependencia::orderBy('nombre')->get();
+        $roles            = User::ROLES_TODOS;
+        $permisos         = $this->permisosAsignables();
+        $rolesConPermisos = $this->usuarios->permisosPorRol();
+
         return view('screens.admin.nuevo-usuario', compact('dependencias', 'roles', 'permisos', 'rolesConPermisos'));
     }
 
@@ -35,7 +51,7 @@ class AdminController extends Controller
             'name'           => 'required|string|max:255',
             'email'          => 'required|email|unique:users',
             'password'       => 'required|string|min:8|confirmed',
-            'rol'            => 'required|in:enlace,sujeto,juridico,revisora,admin',
+            'rol'            => 'required|in:' . UsuarioService::rolesValidacion(),
             'cargo'          => 'nullable|string|max:255',
             'dependencia_id' => 'nullable|exists:dependencias,id',
         ]);
@@ -44,12 +60,7 @@ class AdminController extends Controller
         $validated['activo']   = true;
         $usuario = User::create($validated);
 
-        // Asignar permisos directos (checkboxes)
-        if ($request->has('permisos') && $usuario) {
-            $usuario->permisosDirectos()->sync(
-                collect($request->permisos)->mapWithKeys(fn ($id) => [$id => ['asignado_por' => auth()->id()]])->toArray()
-            );
-        }
+        $this->usuarios->sincronizarPermisos($usuario, $request->input('permisos'));
 
         return redirect()->route('admin.usuarios.index')
             ->with('success', 'Usuario creado correctamente.');
@@ -57,11 +68,12 @@ class AdminController extends Controller
 
     public function edit(User $usuario)
     {
-        $dependencias = Dependencia::orderBy('nombre')->get();
-        $roles = ['enlace', 'sujeto', 'juridico', 'revisora', 'admin'];
-        $permisos = Permiso::whereNotIn('modulo', ['acl', 'bitacora', 'parametros', 'umbrales', 'unidades_valor', 'usuarios'])
-        ->orderBy('modulo')->orderBy('accion')->get()->groupBy('modulo');        $rolesConPermisos = $this->obtenerPermisosDeRoles();
-        $permisosUsuario = $usuario->permisosDirectos()->pluck('permisos.id')->toArray();
+        $dependencias     = Dependencia::orderBy('nombre')->get();
+        $roles            = User::ROLES_TODOS;
+        $permisos         = $this->permisosAsignables();
+        $rolesConPermisos = $this->usuarios->permisosPorRol();
+        $permisosUsuario  = $usuario->permisosDirectos()->pluck('permisos.id')->toArray();
+
         return view('screens.admin.editar-usuario', compact('usuario', 'dependencias', 'roles', 'permisos', 'rolesConPermisos', 'permisosUsuario'));
     }
 
@@ -70,7 +82,7 @@ class AdminController extends Controller
         $validated = $request->validate([
             'name'           => 'required|string|max:255',
             'email'          => 'required|email|unique:users,email,' . $usuario->id,
-            'rol'            => 'required|in:enlace,sujeto,juridico,revisora,admin',
+            'rol'            => 'required|in:' . UsuarioService::rolesValidacion(),
             'cargo'          => 'nullable|string|max:255',
             'dependencia_id' => 'nullable|exists:dependencias,id',
         ]);
@@ -82,24 +94,13 @@ class AdminController extends Controller
 
         $validated['activo'] = $request->boolean('activo', true);
         $usuario->update($validated);
-         $permisoIds = $request->has('permisos') ? $request->permisos : [];
-        $usuario->permisosDirectos()->sync(
-            collect($permisoIds)->mapWithKeys(fn ($id) => [$id => ['asignado_por' => auth()->id()]])->toArray()
-        );
-        cache()->forget('user_permisos_' . $usuario->id);
+
+        $this->usuarios->sincronizarPermisos($usuario, $request->input('permisos'));
+
         return redirect()->route('admin.usuarios.index')
             ->with('success', 'Usuario actualizado exitosamente.');
     }
-    private function obtenerPermisosDeRoles(): array
-    {
-        $catalogo = config('acl.roles_iniciales');
-        $todosPermisos = array_keys(config('acl.permisos'));
-        $resultado = [];
-        foreach ($catalogo as $codigo => $datos) {
-            $resultado[$codigo] = $datos['permisos'] === '*' ? $todosPermisos : $datos['permisos'];
-        }
-        return $resultado;
-    }
+
     public function destroy(User $usuario)
     {
         if ($usuario->id === auth()->id()) {
@@ -110,7 +111,21 @@ class AdminController extends Controller
         $usuario->delete();
 
         return redirect()->route('admin.usuarios.index')
-            ->with('success', 'Usuario eliminado correctamente.');
+            ->with('success', 'Usuario movido a papelera.');
+    }
+
+    /**
+     * Permisos que el admin puede asignar directamente, agrupados por módulo.
+     * Se excluyen los módulos internos (acl, bitácora y configuración del
+     * sistema) que no se otorgan por checkbox.
+     */
+    private function permisosAsignables()
+    {
+        return Permiso::whereNotIn('modulo', ['acl', 'bitacora', 'parametros', 'umbrales', 'unidades_valor', 'usuarios'])
+            ->orderBy('modulo')
+            ->orderBy('accion')
+            ->get()
+            ->groupBy('modulo');
     }
 
     // ========== PERIODOS ==========
@@ -133,32 +148,17 @@ class AdminController extends Controller
 
     public function guardarPeriodo(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'nombre'       => 'required|string|max:255',
             'fecha_inicio' => 'required|date',
             'fecha_fin'    => 'required|date|after:fecha_inicio',
         ]);
 
-        $tipo = $request->tipo ?? 'agenda_syd';
+        $validated['estatus']     = $request->estatus;
+        $validated['descripcion'] = $request->descripcion;
+        $tipo                     = $request->tipo ?? 'agenda_syd';
 
-        \DB::transaction(function () use ($request, $tipo) {
-            // Solo 1 activo por tipo: cerrar los del mismo tipo
-            if ($request->estatus === 'activo') {
-                Periodo::where('estatus', 'activo')
-                    ->where('tipo', $tipo)
-                    ->update(['estatus' => 'cerrado']);
-            }
-
-            Periodo::create([
-                'nombre'       => $request->nombre,
-                'tipo'         => $tipo,
-                'fecha_inicio' => $request->fecha_inicio,
-                'fecha_fin'    => $request->fecha_fin,
-                'estatus'      => $request->estatus ?? 'proximo',
-                'descripcion'  => $request->descripcion,
-                'created_by'   => auth()->id(),
-            ]);
-        });
+        $this->periodos->crear($validated, $tipo);
 
         return redirect()->route('admin.periodos')
             ->with('success', 'Periodo creado exitosamente.');
@@ -171,29 +171,16 @@ class AdminController extends Controller
 
     public function actualizarPeriodo(Request $request, Periodo $periodo)
     {
-        $request->validate([
+        $validated = $request->validate([
             'nombre'       => 'required|string|max:255',
             'fecha_inicio' => 'required|date',
             'fecha_fin'    => 'required|date|after:fecha_inicio',
         ]);
 
-        \DB::transaction(function () use ($request, $periodo) {
-            // Solo 1 activo por tipo: cerrar los del mismo tipo
-            if ($request->estatus === 'activo') {
-                Periodo::where('estatus', 'activo')
-                    ->where('tipo', $periodo->tipo)
-                    ->where('id', '!=', $periodo->id)
-                    ->update(['estatus' => 'cerrado']);
-            }
+        $validated['estatus']     = $request->estatus;
+        $validated['descripcion'] = $request->descripcion;
 
-            $periodo->update([
-                'nombre'       => $request->nombre,
-                'fecha_inicio' => $request->fecha_inicio,
-                'fecha_fin'    => $request->fecha_fin,
-                'estatus'      => $request->estatus ?? 'proximo',
-                'descripcion'  => $request->descripcion,
-            ]);
-        });
+        $this->periodos->actualizar($periodo, $validated);
 
         return redirect()->route('admin.periodos')
             ->with('success', 'Periodo actualizado.');
@@ -213,15 +200,7 @@ class AdminController extends Controller
 
     public function activarPeriodo(Periodo $periodo)
     {
-        \DB::transaction(function () use ($periodo) {
-            // Cerrar solo los activos DEL MISMO TIPO
-            Periodo::where('estatus', 'activo')
-                ->where('tipo', $periodo->tipo)
-                ->where('id', '!=', $periodo->id)
-                ->update(['estatus' => 'cerrado']);
-
-            $periodo->update(['estatus' => 'activo']);
-        });
+        $this->periodos->activar($periodo);
 
         return back()->with('success', "Periodo \"{$periodo->nombre}\" activado. Los demás periodos activos fueron cerrados automáticamente.");
     }
@@ -243,5 +222,4 @@ class AdminController extends Controller
 
         return view('screens.admin.bitacora', compact('movimientos', 'modulos', 'tipos'));
     }
-
 }

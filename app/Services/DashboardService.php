@@ -32,28 +32,6 @@ class DashboardService
      */
     public function datosVista(User $user, string $rol): array
     {
-        // Contadores de categorías de la revisora (leídos de config/flujos.php).
-        $cPorRevisar  = $this->contarCategoria('por_revisar');
-        $cPorAprobar  = $this->contarCategoria('por_aprobar');
-        $cCompletados = $this->contarCategoria('completados');
-        $cPendientes  = collect(config('flujos.pendientes_incluye'))
-            ->sum(fn ($cat) => $this->contarCategoria($cat));
-
-        // Contadores del sujeto obligado: solo su dependencia.
-        $dep          = $user->dependencia_id;
-        $cPorCorregir = $this->contarCategoria('por_corregir', $dep);
-        $cPorFirmar   = $this->contarCategoria('por_firmar', $dep);
-        $cEnTramite   = $this->contarCategoria('en_tramite', $dep);
-        $cCerrados    = $this->contarCategoria('cerrados', $dep);
-
-        // Contadores del rol jurídico.
-        $cRegRevisar   = $this->contarCategoria('regulaciones_por_revisar', $dep);
-        $cRegVigentes  = $this->contarCategoria('regulaciones_vigentes', $dep);
-        $cJurPorFirmar = $this->contarCategoria('por_firmar', $dep);
-        $cMisObs = Observacion::where('realizada_por', $user->id)
-            ->whereIn('estatus', config('flujos.observaciones_vivas'))
-            ->count();
-
         // Panorama del admin (solo se calcula para ese rol).
         $panorama       = [];
         $sistemaTotales = [];
@@ -79,35 +57,24 @@ class DashboardService
         // KPIs y rutas por rol.
         $kpis = match ($rol) {
             'enlace' => [
-                ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->count(),                                       'label' => 'Trámites de mi dependencia'],
-                ['value' => PropuestaRegulatoria::where('dependencia_id', $user->dependencia_id)->count(),                          'label' => 'Propuestas regulatorias'],
-                ['value' => AccionAgenda::where('dependencia_id', $user->dependencia_id)->count(),                                  'label' => 'Acciones de agenda'],
-                ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->where('estatus', 'en_correccion')->count(),    'label' => 'Observaciones pendientes'],
+                ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->where('naturaleza', 'tramite')->count(),   'label' => 'Trámites'],
+                ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->where('naturaleza', 'servicio')->count(),  'label' => 'Servicios'],
+                ['value' => PropuestaRegulatoria::where('dependencia_id', $user->dependencia_id)->count(),                      'label' => 'Propuestas regulatorias'],
+                ['value' => AccionAgenda::where('dependencia_id', $user->dependencia_id)->count(),                              'label' => 'Acciones de agenda'],
+                // Bug #37 (sesión anterior): contar en_observacion además de en_correccion.
+                ['value' => Tramite::where('dependencia_id', $user->dependencia_id)
+                    ->whereIn('estatus', ['en_observacion', 'en_correccion'])->count(),    'label' => 'Observaciones pendientes'],
             ],
             'admin' => [
-                ['value' => DB::table('users')->count(),    'label' => 'Usuarios'],
-                ['value' => DB::table('periodos')->count(), 'label' => 'Periodos'],
-                ['value' => Tramite::count(),               'label' => 'Trámites totales'],
+                ['value' => DB::table('users')->count(),                                    'label' => 'Usuarios'],
+                ['value' => DB::table('periodos')->count(),                                 'label' => 'Periodos'],
+                ['value' => Tramite::where('naturaleza', 'tramite')->count(),               'label' => 'Trámites'],
+                ['value' => Tramite::where('naturaleza', 'servicio')->count(),              'label' => 'Servicios'],
                 ['value' => DB::table('bitacora')->whereDate('created_at', today())->count(), 'label' => 'Movimientos hoy'],
             ],
-            'revisora' => [
-                ['value' => $cPendientes,  'label' => 'Pendientes'],
-                ['value' => $cPorRevisar,  'label' => 'Por revisar'],
-                ['value' => $cPorAprobar,  'label' => 'Por aprobar'],
-                ['value' => $cCompletados, 'label' => 'Completados'],
-            ],
-            'juridico' => [
-                ['value' => $cRegRevisar,   'label' => 'Regulaciones por revisar'],
-                ['value' => $cJurPorFirmar, 'label' => 'Por firmar'],
-                ['value' => $cMisObs,       'label' => 'Mis observaciones'],
-                ['value' => $cRegVigentes,  'label' => 'Regulaciones vigentes'],
-            ],
-            'sujeto' => [
-                ['value' => $cPorCorregir, 'label' => 'Por corregir'],
-                ['value' => $cPorFirmar,   'label' => 'Por firmar'],
-                ['value' => $cEnTramite,   'label' => 'En trámite'],
-                ['value' => $cCerrados,    'label' => 'Completados'],
-            ],
+            'revisora' => $this->kpisRevisora(),
+            'juridico' => $this->kpisJuridico($user),
+            'sujeto'   => $this->kpisSujeto($user->dependencia_id),
             default => [
                 ['value' => 0, 'label' => '—'], ['value' => 0, 'label' => '—'],
                 ['value' => 0, 'label' => '—'], ['value' => 0, 'label' => '—'],
@@ -115,8 +82,8 @@ class DashboardService
         };
 
         $kpiRoutes = match ($rol) {
-            'enlace'   => ['tramites.index', 'agenda-regulatoria.index', 'agenda.index', 'tramites.index'],
-            'admin'    => ['admin.usuarios.index', 'admin.periodos', 'tramites.index', 'admin.bitacora'],
+            'enlace'   => ['tramites.index', 'tramites.index', 'agenda-regulatoria.index', 'agenda.index', 'tramites.index'],
+            'admin'    => ['admin.usuarios.index', 'admin.periodos', 'tramites.index', 'tramites.index', 'admin.bitacora'],
             'revisora' => ['tramites.index', 'agenda.index', 'tramites.index', 'dashboard'],
             'juridico' => ['regulaciones.index', 'agenda-regulatoria.index', 'dashboard', 'dashboard'],
             'sujeto'   => ['tramites.index', 'agenda.index', 'agenda-regulatoria.index', 'firmas.index'],
@@ -124,19 +91,20 @@ class DashboardService
         };
 
         $kpiTipos = match ($rol) {
-            'enlace'   => [['tramites', 'mios'], ['propuestas', 'mias'], ['agenda', 'mias'], ['tramites', 'en_correccion']],
+            'enlace'   => [['tramites', 'tramites_dependencia'], ['tramites', 'servicios_dependencia'], ['propuestas', 'propuestas_dependencia'], ['agenda', 'agenda_dependencia'], ['tramites', 'en_correccion']],
             'revisora' => [[null, 'pendientes'], [null, 'por_revisar'], [null, 'por_aprobar'], [null, 'completados']],
             'juridico' => [[null, 'regulaciones_por_revisar'], [null, 'por_firmar'], [null, 'mis_observaciones'], [null, 'regulaciones_vigentes']],
             'sujeto'   => [[null, 'por_corregir'], [null, 'por_firmar'], [null, 'en_tramite'], [null, 'cerrados']],
-            'admin'    => [[null, null], [null, null], ['tramites', 'todos'], [null, null]],
+            'admin'    => [[null, null], [null, null], ['tramites', 'solo_tramites'], ['tramites', 'solo_servicios'], [null, null]],
             default    => [[null, null], [null, null], [null, null], [null, null]],
         };
 
         // Listas de pendientes (todos los roles).
-        $pendientesTramites = collect();
-        $pendientesAgenda   = collect();
-        $pendientesPropu    = collect();
-        $pendientesAir      = collect();
+        $pendientesTramites  = collect();
+        $pendientesServicios = collect();
+        $pendientesAgenda    = collect();
+        $pendientesPropu     = collect();
+        $pendientesAir       = collect();
 
         if (in_array($rol, User::ROLES_TODOS)) {
             // admin y revisora ven todo; el resto (enlace, jurídico, sujeto) solo su dependencia.
@@ -144,13 +112,36 @@ class DashboardService
             $filtrarDep  = !$veTodoPend && $user->dependencia_id;
             $depUsuario  = $user->dependencia_id;
 
+            // Visibilidad de BORRADORES (#32): un borrador es privado de quien lo
+            // creó. En las listas de pendientes, solo su creador (o el admin) lo
+            // ve; así la revisora no encuentra borradores ajenos —que aún no le
+            // han enviado— mezclados con lo que sí debe atender.
+            $soloBorradoresPropios = function ($q) use ($user) {
+                if ($user->isRol(User::ROL_ADMIN)) {
+                    return;
+                }
+                $q->where(function ($sub) use ($user) {
+                    $sub->where('estatus', '!=', 'borrador')
+                        ->orWhere('created_by', $user->id);
+                });
+            };
+
             $pendientesTramites = Tramite::when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
+                ->where($soloBorradoresPropios)
+                ->where('naturaleza', 'tramite')
+                ->whereIn('estatus', ['en_correccion', 'en_observacion', 'borrador'])->latest()->take(5)->get();
+
+            $pendientesServicios = Tramite::when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
+                ->where($soloBorradoresPropios)
+                ->where('naturaleza', 'servicio')
                 ->whereIn('estatus', ['en_correccion', 'en_observacion', 'borrador'])->latest()->take(5)->get();
 
             $pendientesAgenda = AccionAgenda::when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
+                ->where($soloBorradoresPropios)
                 ->whereIn('estatus', ['en_correccion', 'en_observacion', 'borrador'])->latest()->take(5)->get();
 
             $pendientesPropu = PropuestaRegulatoria::when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
+                ->where($soloBorradoresPropios)
                 ->whereIn('estatus', ['en_correccion', 'en_observacion', 'borrador'])->latest()->take(5)->get();
         }
 
@@ -196,13 +187,13 @@ class DashboardService
             }
         }
 
-        // Bug #B17: feed de actividad reciente del sistema (alternativa a notificaciones push).
-        $feedActividad = $this->cargarFeedActividad($user, $rol);
+        // Feed de actividad reciente para el carrusel de transparencia del dashboard.
+        $actividadGeneral = $this->cargarActividadGeneral();
 
         return compact(
             'rol', 'kpis', 'kpiRoutes', 'kpiTipos',
-            'pendientesTramites', 'pendientesAgenda', 'pendientesPropu', 'pendientesAir',
-            'panorama', 'sistemaTotales', 'pendientesFirma', 'feedActividad'
+            'pendientesTramites', 'pendientesServicios', 'pendientesAgenda', 'pendientesPropu', 'pendientesAir',
+            'panorama', 'sistemaTotales', 'pendientesFirma', 'actividadGeneral'
         );
     }
 
@@ -242,14 +233,14 @@ class DashboardService
             'url'     => route('agenda.show', $a->id),
         ];
         $filaPropuesta = fn ($p) => [
-            'folio'   => 'REG-' . str_pad($p->id, 3, '0', STR_PAD_LEFT),
+            'folio'   => $p->folio ?? 'Sin folio',
             'nombre'  => $p->nombre,
             'estatus' => $p->estatus ?? 'borrador',
             'fecha'   => $p->updated_at?->format('d/m/Y') ?? '—',
             'url'     => route('propuestas.show', $p->id),
         ];
         $filaRegulacion = fn ($r) => [
-            'folio'   => 'REG-' . str_pad($r->id, 3, '0', STR_PAD_LEFT),
+            'folio'   => $r->folio ?? 'Sin folio',
             'nombre'  => $r->nombre,
             'estatus' => $r->estatus,
             'fecha'   => $r->updated_at?->format('d/m/Y') ?? '—',
@@ -338,7 +329,7 @@ class DashboardService
                 if ($qr) {
                     $regulaciones = $regulaciones->concat(
                         $alcance($qr)->latest()->take(20)
-                            ->get(['id', 'nombre', 'estatus', 'updated_at'])->map($filaRegulacion)
+                            ->get(['id', 'folio', 'nombre', 'estatus', 'updated_at'])->map($filaRegulacion)
                     );
                 }
             }
@@ -348,10 +339,21 @@ class DashboardService
         }
 
         // Filtros simples por módulo (estatus directo).
+        //
+        // Devuelve la lista de estatus por la que se filtra, o null si el
+        // filtro no impone estatus (solo aplica el alcance por dependencia).
+        //
+        // Los filtros '*_dependencia' provienen de los KPIs del rol enlace y
+        // significan "registros de mi dependencia". El recorte por dependencia
+        // ya lo hace $alcance dentro de $aplicarModulo, por eso devuelven null:
+        // no añaden ningún estatus, solo se apoyan en el alcance.
         $estatusDe = fn (string $modulo): ?array => match ($filtro) {
             'en_revision'   => ['en_observacion', 'en_correccion'],
             'en_correccion' => ['en_correccion'],
-            default         => null,
+            'tramites_dependencia',
+            'propuestas_dependencia',
+            'agenda_dependencia' => null,
+            default              => null,
         };
 
         $aplicarModulo = function ($query, string $modulo) use ($alcance, $estatusDe) {
@@ -369,7 +371,7 @@ class DashboardService
             'agenda'     => $aplicarModulo(AccionAgenda::query(), 'agenda')
                 ->latest()->take(20)->get(['id', 'descripcion', 'estatus', 'updated_at'])->map($filaAgenda),
             'propuestas' => $aplicarModulo(PropuestaRegulatoria::query(), 'propuestas')
-                ->latest()->take(20)->get(['id', 'nombre', 'estatus', 'updated_at'])->map($filaPropuesta),
+                ->latest()->take(20)->get(['id', 'folio', 'nombre', 'estatus', 'updated_at'])->map($filaPropuesta),
             default      => collect(),
         };
 
@@ -377,6 +379,62 @@ class DashboardService
     }
 
     // ─── Helpers privados ─────────────────────────────────────────────────────
+
+    /**
+     * KPIs del rol revisora. Son contadores transversales (toda la institución,
+     * sin filtro de dependencia) de categorías definidas en config/flujos.php.
+     * Se calcula aquí, dentro del brazo del match, para no ejecutar estas
+     * consultas cuando el dashboard lo abre otro rol.
+     */
+    private function kpisRevisora(): array
+    {
+        $cPendientes = collect(config('flujos.pendientes_incluye'))
+            ->sum(fn ($cat) => $this->contarCategoria($cat));
+
+        return [
+            ['value' => $cPendientes,                                'label' => 'Pendientes'],
+            ['value' => $this->contarCategoria('por_revisar'),       'label' => 'Por revisar'],
+            ['value' => $this->contarCategoria('por_aprobar'),       'label' => 'Por aprobar'],
+            ['value' => $this->contarCategoria('completados'),       'label' => 'Completados'],
+        ];
+    }
+
+    /**
+     * KPIs del rol jurídico. Tres contadores se acotan a la dependencia del
+     * usuario; "Mis observaciones" cuenta las que ese usuario realizó y siguen
+     * vivas. Se calcula dentro del brazo del match para no correr estas
+     * consultas en los demás roles.
+     */
+    private function kpisJuridico(User $user): array
+    {
+        $dep = $user->dependencia_id;
+
+        $cMisObs = Observacion::where('realizada_por', $user->id)
+            ->whereIn('estatus', config('flujos.observaciones_vivas'))
+            ->count();
+
+        return [
+            ['value' => $this->contarCategoria('regulaciones_por_revisar', $dep), 'label' => 'Regulaciones por revisar'],
+            ['value' => $this->contarCategoria('por_firmar', $dep),               'label' => 'Por firmar'],
+            ['value' => $cMisObs,                                                 'label' => 'Mis observaciones'],
+            ['value' => $this->contarCategoria('regulaciones_vigentes', $dep),    'label' => 'Regulaciones vigentes'],
+        ];
+    }
+
+    /**
+     * KPIs del sujeto obligado. Todos los contadores se acotan a su dependencia.
+     * Se calcula dentro del brazo del match para no correr estas consultas en
+     * los demás roles.
+     */
+    private function kpisSujeto(?int $dep): array
+    {
+        return [
+            ['value' => $this->contarCategoria('por_corregir', $dep), 'label' => 'Por corregir'],
+            ['value' => $this->contarCategoria('por_firmar', $dep),   'label' => 'Por firmar'],
+            ['value' => $this->contarCategoria('en_tramite', $dep),   'label' => 'En trámite'],
+            ['value' => $this->contarCategoria('cerrados', $dep),     'label' => 'Completados'],
+        ];
+    }
 
     /**
      * Mapea la clave de módulo a su clase de modelo Eloquent.
@@ -455,101 +513,137 @@ class DashboardService
     }
 
     /**
-     * Bug #B17: feed de actividad reciente del sistema.
-     *
-     * Lee los últimos eventos de la tabla `bitacora` (que ya se llena
-     * automáticamente vía AuditObserver + BitacoraService) y los formatea
-     * como noticias mostrables en el dashboard.
-     *
-     * Es la alternativa a recibir notificaciones push de TODO: el usuario
-     * que quiera enterarse de lo que pasa entra al feed; quien necesita
-     * actuar recibe notificaciones puntuales (sistema actual).
-     *
-     * Reglas de visibilidad:
-     *  - admin / revisora: ven actividad de todas las dependencias
-     *  - jurídico / enlace / sujeto: ven solo actividad de su dependencia
-     *
-     * Filtros aplicados:
-     *  - Se excluyen eventos 'updated' del AuditObserver porque son ruido
-     *    (cada edit de formulario dispara uno). Sí se muestran 'created',
-     *    'deleted' y los eventos custom (hito, observacion, etc.).
-     *  - Se traen los 10 más recientes para que el dashboard cargue rápido.
+     * Actividad general del sistema para el apartado de transparencia del
+     * dashboard. Lee la bitácora y devuelve los últimos eventos significativos,
+     * visibles para TODOS los roles sin filtro de dependencia (transparencia
+     * total). Se excluyen los 'updated' porque son ruido (cada guardado dispara
+     * uno); se muestran creaciones, aprobaciones, observaciones, firmas, etc.
      */
-    private function cargarFeedActividad(User $user, string $rol): \Illuminate\Support\Collection
+    private function cargarActividadGeneral(): \Illuminate\Support\Collection
     {
-        $veTodo = in_array($rol, [User::ROL_ADMIN, User::ROL_REVISORA], true);
+        // Para el carrusel de transparencia: solo dos clases de evento, sin
+        // ruido. (1) Creaciones de registros, leídas de la bitácora (tipo
+        // 'created'). (2) Registros que llegaron a su estatus final
+        // (completado/publicada), consultados directamente porque "completar"
+        // no deja un evento limpio en la bitácora (queda como 'updated').
+        // No se incluyen borradores, ediciones ni observaciones.
 
-        // Mapa de modulo → ruta para construir el link al detalle
-        $rutaPorModulo = [
-            'tramites'           => 'tramites.show',
-            'agenda'             => 'agenda.show',
-            'agenda_regulatoria' => 'propuestas.show',
-            'regulaciones'       => 'regulaciones.show',
+        // Ventana de tiempo: solo actividad de los últimos 3 meses. Las
+        // creaciones y completados más antiguos se consideran "noticias
+        // viejas" y dejan de aparecer en el carrusel. Si no hay actividad
+        // reciente en ningún módulo, el bloque entero se oculta (la vista
+        // ya verifica $actividadGeneral->count() antes de renderizar).
+        $desde = now()->subMonths(3);
+
+        $iconoModulo = [
+            'tramites'           => 'tramite',
+            'agenda'             => 'agenda',
+            'agenda_regulatoria' => 'propuesta',
+            'regulaciones'       => 'regulacion',
+        ];
+        $etiquetaModulo = [
+            'tramites'           => 'Trámite',
+            'agenda'             => 'Agenda SyD',
+            'agenda_regulatoria' => 'Propuesta',
+            'regulaciones'       => 'Regulación',
         ];
 
-        $query = DB::table('bitacora')
+        // (1) Creaciones recientes desde la bitácora.
+        $creaciones = DB::table('bitacora')
             ->leftJoin('users', 'bitacora.usuario_id', '=', 'users.id')
             ->leftJoin('dependencias', 'bitacora.dependencia_id', '=', 'dependencias.id')
-            ->whereNotIn('bitacora.tipo', ['updated'])   // filtrar el ruido de updates
-            ->select(
-                'bitacora.id',
-                'bitacora.auditable_type',
-                'bitacora.auditable_id',
+            ->where('bitacora.tipo', 'created')
+            ->whereIn('bitacora.modulo', ['tramites', 'agenda', 'agenda_regulatoria', 'regulaciones'])
+            ->where('bitacora.created_at', '>=', $desde)
+            ->orderByDesc('bitacora.created_at')
+            ->limit(20)
+            ->get([
                 'bitacora.modulo',
-                'bitacora.tipo',
                 'bitacora.accion',
                 'bitacora.created_at',
-                'users.name as autor_nombre',
-                'dependencias.nombre as dependencia_nombre'
-            )
-            ->orderByDesc('bitacora.created_at')
-            ->limit(10);
+                'users.name as autor',
+                'dependencias.nombre as dependencia',
+            ])
+            ->map(function ($e) use ($iconoModulo, $etiquetaModulo) {
+                $fecha = $e->created_at ? \Carbon\Carbon::parse($e->created_at) : null;
+                // La acción viene como "Registro creado: NOMBRE". Separo el
+                // prefijo (para mostrarlo en negritas) del nombre (peso normal).
+                $partes  = explode(': ', $e->accion, 2);
+                $prefijo = count($partes) === 2 ? $partes[0] . ':' : $e->accion;
+                $nombre  = count($partes) === 2 ? $partes[1] : '';
+                return (object) [
+                    'evento'          => 'creado',
+                    'icono'           => $iconoModulo[$e->modulo] ?? 'registro',
+                    'modulo_etiqueta' => $etiquetaModulo[$e->modulo] ?? ucfirst($e->modulo),
+                    'prefijo'         => $prefijo,
+                    'nombre'          => $nombre,
+                    'autor'           => $e->autor ?? 'Sistema',
+                    'dependencia'     => $e->dependencia,
+                    'fecha'           => $fecha,
+                    'fecha_relativa'  => $fecha ? $fecha->diffForHumans() : '—',
+                ];
+            });
 
-        // Scope por rol: si no ve todo, filtrar por su dependencia
-        if (!$veTodo && $user->dependencia_id) {
-            $query->where('bitacora.dependencia_id', $user->dependencia_id);
+        // (2) Registros que llegaron a su estatus final.
+        $completados = collect();
+
+        $tramitesComp = Tramite::where('estatus', Tramite::ESTATUS_COMPLETADO)
+            ->where('updated_at', '>=', $desde)
+            ->with('dependencia')->latest('updated_at')->limit(20)->get();
+        foreach ($tramitesComp as $t) {
+            $completados->push((object) [
+                'evento'          => 'completado',
+                'icono'           => 'tramite',
+                'modulo_etiqueta' => 'Trámite',
+                'prefijo'         => 'Trámite completado:',
+                'nombre'          => $t->nombre_oficial ?? 'ID #' . $t->id,
+                'autor'           => null,
+                'dependencia'     => $t->dependencia->nombre ?? null,
+                'fecha'           => $t->updated_at,
+                'fecha_relativa'  => $t->updated_at ? $t->updated_at->diffForHumans() : '—',
+            ]);
         }
 
-        return $query->get()->map(function ($evento) use ($rutaPorModulo) {
-            // Intento construir URL al detalle del registro auditado
-            $ruta = $rutaPorModulo[$evento->modulo] ?? null;
-            $url  = ($ruta && $evento->auditable_id) ? route($ruta, $evento->auditable_id) : null;
+        $agendaComp = AccionAgenda::where('estatus', AccionAgenda::ESTATUS_COMPLETADO)
+            ->where('updated_at', '>=', $desde)
+            ->with('dependencia')->latest('updated_at')->limit(20)->get();
+        foreach ($agendaComp as $a) {
+            $completados->push((object) [
+                'evento'          => 'completado',
+                'icono'           => 'agenda',
+                'modulo_etiqueta' => 'Agenda SyD',
+                'prefijo'         => 'Acción completada:',
+                'nombre'          => $a->descripcion ?? 'ID #' . $a->id,
+                'autor'           => null,
+                'dependencia'     => $a->dependencia->nombre ?? null,
+                'fecha'           => $a->updated_at,
+                'fecha_relativa'  => $a->updated_at ? $a->updated_at->diffForHumans() : '—',
+            ]);
+        }
 
-            $fecha = $evento->created_at ? \Carbon\Carbon::parse($evento->created_at) : null;
-            $fechaRelativa = $fecha ? $fecha->diffForHumans() : '—';
+        // Para propuestas, el estatus final es "publicada".
+        $propComp = PropuestaRegulatoria::where('estatus', PropuestaRegulatoria::ESTATUS_PUBLICADA)
+            ->where('updated_at', '>=', $desde)
+            ->with('dependencia')->latest('updated_at')->limit(20)->get();
+        foreach ($propComp as $p) {
+            $completados->push((object) [
+                'evento'          => 'completado',
+                'icono'           => 'propuesta',
+                'modulo_etiqueta' => 'Propuesta',
+                'prefijo'         => 'Propuesta publicada:',
+                'nombre'          => $p->nombre ?? 'ID #' . $p->id,
+                'autor'           => null,
+                'dependencia'     => $p->dependencia->nombre ?? null,
+                'fecha'           => $p->updated_at,
+                'fecha_relativa'  => $p->updated_at ? $p->updated_at->diffForHumans() : '—',
+            ]);
+        }
 
-            // Etiqueta legible del módulo para el chip de identificación
-            $etiquetasModulo = [
-                'tramites'           => 'Trámite',
-                'agenda'             => 'Agenda SyD',
-                'agenda_regulatoria' => 'Propuesta',
-                'regulaciones'       => 'Regulación',
-                'air'                => 'AIR',
-                'usuarios'           => 'Usuarios',
-                'periodos'           => 'Periodo',
-            ];
-
-            // Agrupador "Hoy", "Ayer" o fecha
-            if ($fecha?->isToday()) {
-                $grupo = 'Hoy';
-            } elseif ($fecha?->isYesterday()) {
-                $grupo = 'Ayer';
-            } else {
-                $grupo = $fecha?->translatedFormat('d \d\e F') ?? 'Sin fecha';
-            }
-
-            return (object) [
-                'id'                => $evento->id,
-                'modulo_etiqueta'   => $etiquetasModulo[$evento->modulo] ?? ucfirst($evento->modulo),
-                'modulo'            => $evento->modulo,
-                'tipo'              => $evento->tipo,
-                'accion'            => $evento->accion,
-                'autor'             => $evento->autor_nombre ?? 'Sistema',
-                'dependencia'       => $evento->dependencia_nombre,
-                'fecha_relativa'    => $fechaRelativa,
-                'grupo'             => $grupo,
-                'url'               => $url,
-            ];
-        });
+        // Mezclar creaciones + completados, ordenar por fecha y tomar los 15
+        // más recientes para el carrusel.
+        return $creaciones->concat($completados)
+            ->sortByDesc(fn ($e) => $e->fecha)
+            ->take(15)
+            ->values();
     }
 }

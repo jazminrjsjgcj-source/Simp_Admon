@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Tramite;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -36,7 +37,7 @@ class TramiteSeeder extends Seeder
                 'cbi_indirecto'            => 5456.00,
                 'cbu_unitario'             => 6310.50,
                 'cbt_total'                => 7888125.00,
-                'estatus'                  => 'en_revision',
+                'estatus'                  => Tramite::ESTATUS_EN_OBSERVACION,
                 'created_by'               => $enlaceId,
                 'created_at'               => now()->subDays(15),
                 'updated_at'               => now()->subDays(2),
@@ -61,7 +62,7 @@ class TramiteSeeder extends Seeder
                 'cbi_indirecto'            => 10912.00,
                 'cbu_unitario'             => 12119.50,
                 'cbt_total'                => 9695600.00,
-                'estatus'                  => 'borrador',
+                'estatus'                  => Tramite::ESTATUS_BORRADOR,
                 'created_by'               => $enlaceId,
                 'created_at'               => now()->subDays(8),
                 'updated_at'               => now()->subDays(8),
@@ -86,7 +87,7 @@ class TramiteSeeder extends Seeder
                 'cbi_indirecto'            => 2728.00,
                 'cbu_unitario'             => 3231.00,
                 'cbt_total'                => 1453950.00,
-                'estatus'                  => 'observado',
+                'estatus'                  => Tramite::ESTATUS_EN_CORRECCION,
                 'created_by'               => $enlaceId,
                 'created_at'               => now()->subDays(30),
                 'updated_at'               => now()->subDays(5),
@@ -111,7 +112,7 @@ class TramiteSeeder extends Seeder
                 'cbi_indirecto'            => 1636.80,
                 'cbu_unitario'             => 1758.30,
                 'cbt_total'                => 5626560.00,
-                'estatus'                  => 'aprobado',
+                'estatus'                  => Tramite::ESTATUS_COMPLETADO,
                 'created_by'               => $enlaceId,
                 'created_at'               => now()->subDays(45),
                 'updated_at'               => now()->subDays(1),
@@ -136,7 +137,7 @@ class TramiteSeeder extends Seeder
                 'cbi_indirecto'            => 8184.00,
                 'cbu_unitario'             => 10690.00,
                 'cbt_total'                => 1924200.00,
-                'estatus'                  => 'firmado',
+                'estatus'                  => Tramite::ESTATUS_COMPLETADO,
                 'created_by'               => $enlaceId,
                 'created_at'               => now()->subDays(60),
                 'updated_at'               => now()->subDays(10),

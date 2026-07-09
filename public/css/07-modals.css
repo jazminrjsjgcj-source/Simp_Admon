@@ -104,6 +104,16 @@
   font-size: 14px;
 }
 
+/* #18: los totales de costo (CBD, CBI, CBU, CBT) tienen fondo tenue
+   para distinguirse de los ítems individuales. Se activa con la clase
+   .cost-total en el modal-data-item. */
+.modal-data-item.cost-total {
+  background: var(--surface-tint);
+  border-left: 3px solid var(--primary);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+}
+
 .modal-field input,
 .modal-field select,
 .modal-field textarea {

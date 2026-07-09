@@ -1,0 +1,547 @@
+/* ===========================================
+   Buscador global de PUNTA
+   =========================================== */
+
+/* ── Campo de búsqueda ──────────────────────────────────────────────── */
+
+.buscar-input-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.buscar-icono {
+  position: absolute;
+  left: 14px;
+  font-size: 18px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.buscar-input {
+  width: 100%;
+  padding: 14px 40px 14px 44px;
+  border: 2px solid var(--surface-high);
+  border-radius: var(--radius-lg);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.buscar-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(157, 11, 79, .1);
+}
+.buscar-input::placeholder {
+  color: var(--muted);
+  font-size: 13px;
+}
+.buscar-limpiar {
+  position: absolute;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-high);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background .15s ease;
+}
+.buscar-limpiar:hover {
+  background: var(--primary);
+  color: var(--surface);
+}
+
+/* ── Panel de ayuda del buscador ─────────────────────────────────────── */
+.buscar-ayuda {
+  display: none;
+  margin-bottom: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+}
+.buscar-ayuda.open { display: block; }
+.buscar-ayuda-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+.buscar-ayuda-bloque strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--primary);
+  margin-bottom: 6px;
+}
+.buscar-ayuda-bloque strong > i { font-size: 16px; }
+.buscar-ayuda-bloque p {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0;
+}
+.buscar-ayuda-bloque code {
+  background: var(--surface-low);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+.buscar-ayuda-bloque em { color: var(--muted); }
+
+/* ── Form wrap (campo + filtro) ──────────────────────────────────────── */
+.buscar-form-wrap {
+  margin-bottom: 20px;
+}
+.buscar-fila-principal {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* ── Selector de regulaciones (chips + dropdown flotante) ────────────── */
+
+/* Chips de regulaciones seleccionadas */
+.buscar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.buscar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 4px 10px;
+  background: var(--surface-tint);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.buscar-chip > i { font-size: 13px; }
+.buscar-chip-tipo {
+  font-size: 10px;
+  background: var(--primary-fixed);
+  color: var(--primary-container);
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  font-weight: 400;
+}
+.buscar-chip-x {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color .1s ease;
+}
+.buscar-chip-x:hover { color: var(--primary); }
+
+/* Input de búsqueda de regulación */
+.buscar-reg-wrap {
+  position: relative;
+  margin-top: 8px;
+}
+.buscar-reg-icono {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.buscar-reg-input {
+  width: 100%;
+  padding: 7px 12px 7px 32px;
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  box-sizing: border-box;
+}
+.buscar-reg-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+.buscar-reg-input::placeholder { color: var(--muted); }
+
+/* Dropdown flotante */
+.buscar-reg-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.buscar-reg-dropdown:empty { display: none; }
+.buscar-reg-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--surface-high);
+  color: var(--text);
+}
+.buscar-reg-item:last-child { border-bottom: none; }
+.buscar-reg-item:hover { background: var(--surface-low); }
+.buscar-reg-vacio { color: var(--muted); cursor: default; }
+.buscar-reg-tipo {
+  font-size: 10px;
+  background: var(--primary-fixed);
+  color: var(--primary-container);
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  font-weight: 400;
+  white-space: nowrap;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Filtro por tipo de fuente (toggle chips) ────────────────────────── */
+.buscar-tipos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.buscar-tipo-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  transition: all .15s ease;
+  background: var(--surface);
+  font-family: inherit;
+  line-height: inherit;
+}
+.buscar-tipo-toggle:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+.buscar-tipo-toggle.activo {
+  background: var(--surface-tint);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+.buscar-tipo-toggle > i {
+  font-size: 14px;
+}
+
+/* ── Metadata de resultados ─────────────────────────────────────────── */
+.buscar-meta {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  padding: 0 4px;
+}
+.buscar-tiempo {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: .7;
+}
+
+/* ── Lista de resultados ────────────────────────────────────────────── */
+.buscar-resultados {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.buscar-resultado-card {
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.buscar-resultado-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(157, 11, 79, .08);
+}
+.buscar-resultado {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px 12px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+/* Ícono del tipo de resultado */
+.buscar-resultado-icono {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border-radius: var(--radius);
+  background: var(--surface-tint);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+/* Contenido principal del resultado */
+.buscar-resultado-contenido {
+  flex: 1;
+  min-width: 0;
+}
+.buscar-resultado-titulo {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.buscar-resultado-subtitulo {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.buscar-resultado-fragmento {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Feedback (¿Te sirvió?) ──────────────────────────────────────────── */
+.buscar-feedback {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 18px 10px;
+}
+.buscar-feedback-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.buscar-fb-btn {
+  border: 1px solid var(--surface-high);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: var(--radius-pill);
+  padding: 2px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s ease;
+  line-height: 1.6;
+  font-family: inherit;
+}
+.buscar-fb-si:hover {
+  border-color: #065f46;
+  color: #065f46;
+  background: #d1fae5;
+}
+.buscar-fb-no:hover {
+  border-color: #991b1b;
+  color: #991b1b;
+  background: #fee2e2;
+}
+.buscar-feedback-gracias {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Tags de metadata (plazo, costo, estatus) */
+.buscar-tag {
+  display: inline-block;
+  margin-top: 6px;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-low, #f3f4f6);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* Badge del tipo de resultado (columna derecha) */
+.buscar-resultado-tipo {
+  flex: 0 0 auto;
+  align-self: center;
+}
+.buscar-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.buscar-badge-articulo   { background: #ede9fe; color: #6d28d9; }
+.buscar-badge-regulacion { background: #dbeafe; color: #1d4ed8; }
+.buscar-badge-tramite    { background: var(--surface-tint); color: var(--primary); }
+.buscar-badge-requisito  { background: #fef3c7; color: #92400e; }
+.buscar-badge-fundamento { background: #d1fae5; color: #065f46; }
+.buscar-badge-agenda     { background: #f0fdf4; color: #166534; }
+
+/* Modo explorar / aviso */
+.buscar-modo-aviso {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+.buscar-modo-aviso a { color: var(--primary); }
+
+/* ── Estado vacío ───────────────────────────────────────────────────── */
+.buscar-vacio {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text);
+}
+.buscar-vacio strong {
+  display: block;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.buscar-vacio p {
+  max-width: 500px;
+  margin: 0 auto 8px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ── Sugerencias (estado inicial, sin consulta) ─────────────────────── */
+.buscar-sugerencias {
+  padding: 24px 0;
+}
+.buscar-sugerencias > p {
+  margin: 0 0 16px 4px;
+  font-size: 14px;
+  color: var(--text);
+}
+.buscar-sugerencias-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.buscar-sugerencia {
+  padding: 18px 16px;
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.buscar-sugerencia i {
+  font-size: 22px;
+  color: var(--primary);
+  display: block;
+  margin-bottom: 8px;
+}
+.buscar-sugerencia strong {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.buscar-sugerencia small {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* ── Modal de lectura del articulado ──────────────────────────────────── */
+
+/* Variante ancha de .modal (07-modals.css), en sentido contrario a
+   .modal-compact: un artículo legal necesita más espacio de lectura que
+   un formulario corto. */
+.modal-articulado {
+  width: min(760px, 96vw);
+}
+
+/* Cada párrafo del artículo o de sus fracciones/incisos. white-space:
+   pre-line respeta los saltos de línea reales del texto (el mismo
+   criterio ya usado en nodo-lectura.blade.php para el editor de
+   articulado), en vez de mostrar todo corrido en una sola línea. */
+.articulo-parrafo {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-line;
+}
+
+/* Fracciones e incisos del artículo: se separan visualmente del párrafo
+   introductorio del artículo con un borde superior sutil. */
+.articulo-hijo {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.articulo-hijo strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+/* ── Modal de detalle — campos ────────────────────────────────────────── */
+.detalle-campo {
+  margin-bottom: 14px;
+}
+.detalle-campo:last-child { margin-bottom: 0; }
+.detalle-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  margin-bottom: 2px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .buscar-form { flex-direction: column; }
+  .buscar-input { font-size: 14px; padding: 12px 36px 12px 40px; }
+  .buscar-resultado { flex-direction: column; gap: 8px; }
+  .buscar-resultado-tipo { align-self: flex-start; }
+  .buscar-resultado-titulo { white-space: normal; }
+  .buscar-sugerencias-grid { grid-template-columns: 1fr; }
+  .buscar-chip { font-size: 11px; }
+}

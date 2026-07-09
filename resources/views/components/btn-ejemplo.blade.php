@@ -1,16 +1,17 @@
 {{--
   Componente: <x-btn-ejemplo tipo="tramite" />
 
-  Muestra dos botones (Ejemplo de llenado + Limpiar) y un aviso
-  de que los datos son ficticios. El JS llena todos los campos
-  del formulario sin guardar ni enviar.
+  Botón "Ejemplo de llenado" y "Limpiar" (este último oculto hasta que se usa
+  el ejemplo). Toda la lógica vive en public/js/core/ejemplo-llenado.js:
+  llenarEjemplo() llena los campos, muestra "Limpiar" y un toast de aviso;
+  limpiarEjemplo() vacía el formulario y vuelve a ocultar "Limpiar".
 
   Atributos:
     tipo → 'tramite' | 'agenda_regulatoria' | 'regulacion' | 'agenda_syd'
 --}}
 @props(['tipo'])
 
-<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
   <button type="button" class="btn btn-outline btn-sm"
     onclick="llenarEjemplo('{{ $tipo }}')"
     title="Llena todos los campos con datos ficticios para pruebas">
@@ -24,20 +25,3 @@
     Limpiar
   </button>
 </div>
-
-<div id="aviso-ejemplo" class="assist-box" style="display:none;margin-top:8px;background:#FEF9C3;border-color:#F59E0B">
-  <strong>Datos de ejemplo.</strong> Esta información es ficticia y solo sirve para pruebas. Revise y modifique antes de guardar.
-</div>
-
-<script>
-// Mostrar botón Limpiar cuando se llena el ejemplo
-(function () {
-  var _origLlenar = window.llenarEjemplo;
-  if (!_origLlenar) return;
-  window.llenarEjemplo = function (tipo) {
-    _origLlenar(tipo);
-    var btn = document.getElementById('btnLimpiarEjemplo');
-    if (btn) btn.style.display = '';
-  };
-})();
-</script>

@@ -2,6 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\AccionAgenda;
+use App\Models\Observacion;
+use App\Models\PropuestaRegulatoria;
+use App\Models\Regulacion;
+use App\Models\Tramite;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -89,6 +94,7 @@ class DemoSeeder extends Seeder
             $unidad = DB::table('unidades_administrativas')
                 ->where('dependencia_id', $dependencia->id)->first();
 
+            $this->crearSujetoObligado($dependencia);
             $idsTramites     = $this->crearTramites($usuario, $dependencia, $unidad, $periodoId);
             $idsRegulaciones = $this->crearRegulaciones($usuario, $dependencia);
             $this->crearHijosTramite($idsTramites, $idsRegulaciones);
@@ -147,11 +153,28 @@ class DemoSeeder extends Seeder
             ->where('descripcion', 'like', self::PREFIJO . '%')->delete();
         DB::table('regulaciones')
             ->where('nombre', 'like', self::PREFIJO . '%')->delete();
+        DB::table('sujetos_obligados')
+            ->where('nombre', 'like', self::PREFIJO . '%')->delete();
     }
 
     // =========================================================
     // Trámites — todos los campos del instrumento ATDT
     // =========================================================
+
+    private function crearSujetoObligado($dependencia): void
+    {
+        // Titular (sujeto obligado) de la dependencia. Se muestra como dato
+        // informativo en el wizard de propuesta regulatoria.
+        DB::table('sujetos_obligados')->updateOrInsert(
+            ['dependencia_id' => $dependencia->id, 'nombre' => self::PREFIJO . 'Titular de ' . $dependencia->nombre],
+            [
+                'cargo'      => 'Titular de la Dependencia',
+                'activo'     => true,
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
+    }
 
     private function crearTramites($usuario, $dependencia, $unidad, ?int $periodoId): array
     {
@@ -198,7 +221,7 @@ class DemoSeeder extends Seeder
                 'cbu_unitario'               => 8418.50,
                 'cbt_total'                  => 15574225.00,
                 'periodo_id'                 => $periodoId,
-                'estatus'                    => 'en_observacion',
+                'estatus'                    => Tramite::ESTATUS_EN_OBSERVACION,
                 'created_by'                 => $usuario->id,
                 'created_at'                 => now()->subDays(15),
                 'updated_at'                 => now()->subDays(2),
@@ -245,7 +268,7 @@ class DemoSeeder extends Seeder
                 'cbu_unitario'               => 4264.50,
                 'cbt_total'                  => 2643990.00,
                 'periodo_id'                 => $periodoId,
-                'estatus'                    => 'borrador',
+                'estatus'                    => Tramite::ESTATUS_BORRADOR,
                 'created_by'                 => $usuario->id,
                 'created_at'                 => now()->subDays(8),
                 'updated_at'                 => now()->subDays(8),
@@ -296,7 +319,7 @@ class DemoSeeder extends Seeder
                 'cbu_unitario'               => 2169.00,
                 'cbt_total'                  => 9109800.00,
                 'periodo_id'                 => $periodoId,
-                'estatus'                    => 'completado',
+                'estatus'                    => Tramite::ESTATUS_COMPLETADO,
                 'created_by'                 => $usuario->id,
                 'created_at'                 => now()->subDays(45),
                 'updated_at'                 => now()->subDays(1),
@@ -419,7 +442,7 @@ class DemoSeeder extends Seeder
                 'acciones_digitalizacion' => null,
                 'nivel_actual'            => null,
                 'nivel_meta'              => null,
-                'estatus'                 => 'borrador',
+                'estatus'                 => AccionAgenda::ESTATUS_BORRADOR,
             ],
             [
                 'tramite_id'              => $idsTramites[0] ?? null,
@@ -435,7 +458,7 @@ class DemoSeeder extends Seeder
                 'acciones_digitalizacion' => json_encode(self::ACCIONES_DIG),
                 'nivel_actual'            => 2,
                 'nivel_meta'              => 3,
-                'estatus'                 => 'en_observacion',
+                'estatus'                 => AccionAgenda::ESTATUS_EN_OBSERVACION,
             ],
             [
                 'tramite_id'              => $idsTramites[2] ?? null,
@@ -456,7 +479,7 @@ class DemoSeeder extends Seeder
                 ]),
                 'nivel_actual'            => 4,
                 'nivel_meta'              => 4,
-                'estatus'                 => 'completado',
+                'estatus'                 => AccionAgenda::ESTATUS_COMPLETADO,
             ],
         ];
 
@@ -489,7 +512,7 @@ class DemoSeeder extends Seeder
             app(\App\Services\HitoAgendaService::class)->sembrarHitos($accion);
 
             // Acción completada → todos los hitos aprobados con evidencia demo
-            if ($datos['estatus'] === 'completado') {
+            if ($datos['estatus'] === AccionAgenda::ESTATUS_COMPLETADO) {
                 $accion->hitos()->where('estado_aprobacion', '!=', 'aprobado')->each(function ($hito) use ($usuario) {
                     $hito->update([
                         'evidencia_archivo' => 'evidencias-hitos/demo_' . $hito->id . '.pdf',
@@ -505,7 +528,7 @@ class DemoSeeder extends Seeder
             }
 
             // Acción en observación → segundo hito con evidencia pendiente de visto bueno
-            if ($datos['estatus'] === 'en_observacion') {
+            if ($datos['estatus'] === AccionAgenda::ESTATUS_EN_OBSERVACION) {
                 $hito = $accion->hitos()
                     ->where('estado_aprobacion', 'sin_evidencia')
                     ->orderBy('orden')->skip(1)->first();
@@ -530,9 +553,9 @@ class DemoSeeder extends Seeder
     private function crearRegulaciones($usuario, $dependencia): array
     {
         $regs = [
-            ['Reglamento de Comercio del Municipio de La Paz', 'vigente',      '2022-01-15'],
-            ['Reglamento de Construcción y Zonificación',      'vigente',      '2020-03-10'],
-            ['Bando de Policía y Buen Gobierno (2019)',        'en_revision',  '2019-01-05'],
+            ['Reglamento de Comercio del Municipio de La Paz', Regulacion::ESTATUS_VIGENTE,     '2022-01-15'],
+            ['Reglamento de Construcción y Zonificación',      Regulacion::ESTATUS_VIGENTE,     '2020-03-10'],
+            ['Bando de Policía y Buen Gobierno (2019)',        Regulacion::ESTATUS_EN_REVISION, '2019-01-05'],
         ];
         $ids = [];
         foreach ($regs as [$nombre, $estatus, $fecha]) {
@@ -544,7 +567,7 @@ class DemoSeeder extends Seeder
                 'fecha_vigencia'     => now()->subYears(3)->toDateString(),
                 'estatus'            => $estatus,
                 'resumen'            => 'Regulación municipal vigente en el Municipio de La Paz, B.C.S.',
-                'conversion_estatus' => 'pendiente',
+                'conversion_estatus' => Regulacion::CONVERSION_PENDIENTE,
                 'created_by'         => $usuario->id,
                 'created_at'         => now()->subDays(30),
                 'updated_at'         => now()->subDays(30),
@@ -571,7 +594,7 @@ class DemoSeeder extends Seeder
                 'impacta_comercio_inversion'  => true,
                 'impacta_tramites_existentes' => true,
                 'determinacion_air'           => 'requiere_air',
-                'estatus'                     => 'consulta',
+                'estatus'                     => PropuestaRegulatoria::ESTATUS_CONSULTA,
             ],
             [
                 'folio'                       => 'PROP-DEMO-' . $dependencia->id . '-002',
@@ -584,7 +607,7 @@ class DemoSeeder extends Seeder
                 'impacta_comercio_inversion'  => true,
                 'impacta_tramites_existentes' => true,
                 'determinacion_air'           => 'exento',
-                'estatus'                     => 'borrador',
+                'estatus'                     => PropuestaRegulatoria::ESTATUS_BORRADOR,
             ],
         ];
 
@@ -618,7 +641,7 @@ class DemoSeeder extends Seeder
             'impacta_tramites'      => true,
             'ambito_aplicacion'     => 'Municipal',
             'consulta_publica'      => 'Consulta pública realizada del 15 al 30 de abril 2026 mediante plataforma digital y presencial. Se recibieron 43 comentarios ciudadanos y 7 de cámaras empresariales (CANACO, COPARMEX). El 78% apoya la reforma.',
-            'estatus'               => 'borrador',
+            'estatus'               => \App\Models\AnalisisImpactoRegulatorio::ESTATUS_BORRADOR,
             'created_by'            => $usuario->id,
             'created_at'            => now()->subDays(15),
             'updated_at'            => now()->subDays(5),
@@ -641,7 +664,7 @@ class DemoSeeder extends Seeder
             'texto'           => self::PREFIJO . 'El volumen anual debe validarse contra el registro del padrón fiscal. Se reportan 1,850 trámites pero el padrón activo refleja 1,620 establecimientos vigentes al cierre del ejercicio anterior.',
             'realizada_por'   => $usuario->id,
             'atendida'        => false,
-            'estatus'         => 'pendiente',
+            'estatus'         => Observacion::ESTATUS_PENDIENTE,
             'created_at'      => now()->subDays(3),
             'updated_at'      => now()->subDays(3),
         ]);

@@ -63,9 +63,7 @@ return new class extends Migration
             $table->string('nombre', 500);
             $table->boolean('original')->default(false);
             $table->boolean('copia')->default(false);
-            $table->enum('tipo_presentacion', ['documento', 'formato', 'comprobante', 'producto_tramite', 'digital'])->nullable();
-            $table->unsignedInteger('dias_estimados')->nullable()->default(0);
-            $table->unsignedInteger('horas_estimadas')->nullable()->default(0);
+            $table->enum('tipo_presentacion', ['original', 'copia', 'digital', 'documento', 'formato', 'comprobante', 'producto_tramite'])->nullable();            $table->unsignedInteger('horas_estimadas')->nullable()->default(0);
             $table->unsignedInteger('minutos_estimados')->nullable()->default(0);
             $table->decimal('tiempo_homologado_hrs', 10, 2)->nullable();
             $table->decimal('costo_requisito', 12, 2)->nullable();

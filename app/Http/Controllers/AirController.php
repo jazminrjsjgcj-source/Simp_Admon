@@ -1,4 +1,4 @@
-<?php
+<<?php
 
 namespace App\Http\Controllers;
 
@@ -45,6 +45,10 @@ class AirController extends Controller
      */
     public function guardar(Request $request, PropuestaRegulatoria $propuesta)
     {
+        if (!$request->user()->tienePermiso('agenda_regulatoria.crear')) {
+            abort(403, 'No tiene permiso para gestionar análisis de impacto regulatorio.');
+        }
+
         $user = $request->user();
         $this->autorizarAccesoAir($propuesta, $user);
 
@@ -164,6 +168,10 @@ class AirController extends Controller
      */
     public function guardarExencion(Request $request, PropuestaRegulatoria $propuesta)
     {
+        if (!$request->user()->tienePermiso('agenda_regulatoria.crear')) {
+            abort(403, 'No tiene permiso para gestionar exenciones de AIR.');
+        }
+
         $user = $request->user();
         $this->autorizarAccesoAir($propuesta, $user);
 
@@ -245,7 +253,12 @@ class AirController extends Controller
 
     private function autorizarAccesoAir(PropuestaRegulatoria $propuesta, $user): void
     {
-        if (!$user->isRol(User::ROL_ADMIN) && !$user->esDeSuDependencia($propuesta)) {
+        // Bug 60: la revisora tiene rol transversal — revisa AIR de TODAS
+        // las dependencias, no solo la suya. Antes solo pasaba admin.
+        if ($user->isAnyRol([User::ROL_ADMIN, User::ROL_REVISORA])) {
+            return;
+        }
+        if (!$user->esDeSuDependencia($propuesta)) {
             abort(403, 'Solo puede gestionar el AIR de su propia dependencia.');
         }
     }

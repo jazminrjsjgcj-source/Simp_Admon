@@ -10,9 +10,12 @@ use App\Models\Tramite;
 use App\Services\CalendarioEventoService;
 use App\Services\AgendaExportService;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Concerns\ExtraeFichaPortal;
 
 class AgendaController extends Controller
 {
+    use ExtraeFichaPortal;
+
     public function __construct(
         private CalendarioEventoService $calendario,
         private \App\Services\AgendaService $agendaService,
@@ -31,16 +34,50 @@ class AgendaController extends Controller
             // listar acciones que el show bloquearía con 403.
             ->when(!$user->veTodoElModulo('agenda'),
                 fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
+            // Visibilidad de BORRADORES (#32): un borrador es trabajo en proceso
+            // del enlace que lo creó. Nadie más debe verlo en el listado —ni la
+            // revisora, ni otros enlaces— hasta que se envíe a revisión. El admin
+            // sí los ve (supervisión). Los registros ya enviados (no borrador) se
+            // rigen solo por la visibilidad de dependencia de arriba.
+            ->when(!$user->isRol(\App\Models\User::ROL_ADMIN), function ($q) use ($user) {
+                $q->where(function ($sub) use ($user) {
+                    $sub->where('estatus', '!=', AccionAgenda::ESTATUS_BORRADOR)
+                        ->orWhere('created_by', $user->id);
+                });
+            })
             ->when($request->tipo,          fn ($q, $v) => $q->where('tipo', $v))
             ->when($request->estatus,       fn ($q, $v) => $q->where('estatus', $v))
+            // Búsqueda libre: folio, descripción o nombre del trámite asociado.
+            ->when($request->buscar, function ($q, $v) {
+                $q->where(function ($sub) use ($v) {
+                    $sub->where('folio', 'like', "%{$v}%")
+                        ->orWhere('descripcion', 'like', "%{$v}%")
+                        ->orWhereHas('tramite', fn ($t) => $t->where('nombre_oficial', 'like', "%{$v}%"));
+                });
+            })
+            ->when($request->unidad, fn ($q, $v) => $q->where('unidad_id', $v))
             ->latest()
-            ->paginate(20);
+            ->paginate(20)
+            ->withQueryString(); // conserva los filtros al cambiar de página
 
-        return view('screens.agenda.index', compact('acciones'));
+        // Unidades de la dependencia del usuario para el filtro.
+        // Admin/revisora ven todas las unidades; los demás solo las de su dependencia.
+        $unidades = \App\Models\UnidadAdministrativa::query()
+            ->when(!$user->veTodoElModulo('agenda'),
+                fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
+            ->where('activo', true)
+            ->orderBy('nombre')
+            ->get(['id', 'nombre']);
+
+        return view('screens.agenda.index', compact('acciones', 'unidades'));
     }
 
     public function create()
     {
+        if (!auth()->user()->tienePermiso('agenda.crear')) {
+            abort(403, 'No tiene permiso para crear acciones de agenda.');
+        }
+
         $dependencias = Dependencia::orderBy('nombre')->get();
         $tramites     = Tramite::orderBy('nombre_oficial')->select('id', 'nombre_oficial', 'homoclave')->get();
 
@@ -59,6 +96,10 @@ class AgendaController extends Controller
 
     public function store(Request $request)
     {
+        if (!$request->user()->tienePermiso('agenda.crear')) {
+            abort(403, 'No tiene permiso para crear acciones de agenda.');
+        }
+
         $request->validate([
             'alcance'          => 'nullable|in:simplificacion,digitalizacion,ambas',
             'tipo'             => 'nullable|in:simplificacion,digitalizacion,ambas',
@@ -156,7 +197,7 @@ class AgendaController extends Controller
         // Derechos, requisitos y ficha portal (mismos nombres que el form de trámite).
         $derechos    = $this->leerDerechosWizard($request);
         $requisitos  = $request->input('requisitos', []);
-        $fichaPortal = []; // En el wizard la ficha portal se completa luego al editar.
+        $fichaPortal = $this->extraerFichaPortal($request); // B24: ficha del portal capturada en el wizard.
 
         return $this->agendaService->crearConTramiteNuevo(
             datosTramite: $datosTramite,
@@ -172,19 +213,24 @@ class AgendaController extends Controller
     /** Arma el arreglo de datos de la acción desde el request. */
     private function datosAccionDesde(Request $request): array
     {
+        // Se lee todo con $request->input('campo') de forma uniforme. Antes se
+        // mezclaba con $request->campo (propiedad dinámica), que además de ser
+        // inconsistente también mira parámetros de ruta, no solo del formulario.
+        $tramiteId = $request->input('tramite_id') ?: null;
+
         return [
             // El alcance (simplificacion/digitalizacion/ambas) viaja en la columna
             // tipo. Si el wizard manda 'alcance', tiene prioridad; si no, usa 'tipo'.
             'tipo'             => $request->input('alcance') ?: $request->input('tipo'),
-            'descripcion'      => $request->descripcion,
-            'meta'             => $request->meta,
-            'fecha_inicio'     => $request->fecha_inicio,
-            'fecha_compromiso' => $request->fecha_compromiso,
-            'responsable'      => $request->responsable,
-            'dependencia_id'   => $request->dependencia_id,
-            'indicador'        => $request->indicador,
-            'indicador_avance' => $request->indicador_avance,
-            'tramite_id'       => $request->tramite_id ?: null,
+            'descripcion'      => $request->input('descripcion'),
+            'meta'             => $request->input('meta'),
+            'fecha_inicio'     => $request->input('fecha_inicio'),
+            'fecha_compromiso' => $request->input('fecha_compromiso'),
+            'responsable'      => $request->input('responsable'),
+            'dependencia_id'   => $request->input('dependencia_id'),
+            'indicador'        => $request->input('indicador'),
+            'indicador_avance' => $request->input('indicador_avance'),
+            'tramite_id'       => $tramiteId,
             // Paquete 3: catálogos oficiales con explicación por acción. El form
             // envía las explicaciones en acciones_*[acción] (solo las marcadas, por
             // el disabled). Se filtran vacíos por si llega alguno sin texto.
@@ -194,7 +240,7 @@ class AgendaController extends Controller
             // precarga dejó el select deshabilitado (no se envía), lo tomamos del
             // trámite vinculado para que siempre quede registrado en la acción.
             'nivel_actual'            => $request->input('nivel_actual') ?? optional(
-                $request->tramite_id ? \App\Models\Tramite::find($request->tramite_id) : null
+                $tramiteId ? \App\Models\Tramite::find($tramiteId) : null
             )->nivel_digitalizacion,
             'nivel_meta'              => $request->input('nivel_meta'),
         ];
@@ -225,8 +271,11 @@ class AgendaController extends Controller
         $puedeObservar = request()->user()->tienePermiso('agenda.observar');
         $revisores = collect();
         if ($puedeObservar) {
+            // Bug #51: excluir al propio usuario — no puede dirigirse
+            // observaciones a sí mismo (misma protección que TramiteController).
             $revisores = \App\Models\User::where('activo', true)
                 ->where('dependencia_id', $agenda->dependencia_id)
+                ->where('id', '!=', request()->user()->id)
                 ->orderBy('name')
                 ->get(['id', 'name', 'cargo']);
         }
@@ -447,13 +496,10 @@ class AgendaController extends Controller
 
         $agenda->update($data);
 
-        if (!empty($data['fecha_compromiso'])) {
-            $this->calendario->actualizar($agenda, [
-                'fecha'       => $data['fecha_compromiso'],
-                'titulo'      => $data['descripcion'] ?? $agenda->descripcion,
-                'responsable' => $data['responsable'] ?? $agenda->responsable,
-            ]);
-        }
+        // Mantener el evento de calendario en sync con la acción ya guardada.
+        // La normalización (título corto, tipo válido) vive en AgendaService,
+        // en un solo lugar compartido con la creación.
+        $this->agendaService->sincronizarEvento($agenda);
 
         return redirect()->route('agenda.show', $agenda)
             ->with('success', 'Acción actualizada.');
@@ -469,12 +515,41 @@ class AgendaController extends Controller
         $agenda->delete();
 
         return redirect()->route('agenda.index')
-            ->with('success', 'Acción eliminada.');
+            ->with('success', 'Acción movida a papelera.');
     }
 
     public function actualizarEstatus(Request $request, AccionAgenda $agenda)
     {
-        $request->validate(['estatus' => 'required|in:borrador,en_observacion,en_firma']);
+        if (!$request->user()->tienePermiso('agenda.editar')) {
+            abort(403, 'No tiene permiso para cambiar el estatus de acciones de agenda.');
+        }
+
+        // Solo estos tres destinos son válidos desde este endpoint. Se expresan
+        // con las constantes del modelo (fuente única de verdad), no con texto
+        // suelto: si un estatus se renombra, esto se entera en vez de romperse callado.
+        $estatusPermitidos = [
+            AccionAgenda::ESTATUS_BORRADOR,
+            AccionAgenda::ESTATUS_EN_OBSERVACION,
+            AccionAgenda::ESTATUS_EN_FIRMA,
+        ];
+        $request->validate([
+            'estatus' => ['required', \Illuminate\Validation\Rule::in($estatusPermitidos)],
+        ]);
+
+        // Aprobación dependiente: la agenda no puede avanzar a firma si el
+        // trámite vinculado no está completado. El trámite es la fuente de
+        // verdad regulatoria — sin él aprobado, la agenda no tiene sustento.
+        if ($request->estatus === AccionAgenda::ESTATUS_EN_FIRMA && $agenda->tramite_id) {
+            $tramite = $agenda->tramite;
+            if (!$tramite || $tramite->estatus !== \App\Models\Tramite::ESTATUS_COMPLETADO) {
+                return back()->with('error',
+                    'No se puede enviar a firma: el trámite vinculado "'
+                    . ($tramite->nombre_oficial ?? '—')
+                    . '" aún no está completado (estatus actual: '
+                    . str_replace('_', ' ', $tramite->estatus ?? 'desconocido') . ').');
+            }
+        }
+
         $agenda->update(['estatus' => $request->estatus]);
 
         return redirect()->route('agenda.show', $agenda)
@@ -488,7 +563,7 @@ class AgendaController extends Controller
      */
     public function exportarSimp()
     {
-        $acciones = AccionAgenda::with(['dependencia', 'tramite', 'hitos', 'periodo', 'creador'])
+        $acciones = AccionAgenda::with(['dependencia', 'tramite.procesosAtencion', 'hitos', 'periodo', 'creador'])
             ->whereIn('tipo', ['simplificacion', 'ambas'])
             ->latest()
             ->get();
@@ -502,7 +577,7 @@ class AgendaController extends Controller
      */
     public function exportarDig()
     {
-        $acciones = AccionAgenda::with(['dependencia', 'tramite', 'hitos', 'periodo', 'creador'])
+        $acciones = AccionAgenda::with(['dependencia', 'tramite.procesosAtencion', 'hitos', 'periodo', 'creador'])
             ->whereIn('tipo', ['digitalizacion', 'ambas'])
             ->latest()
             ->get();

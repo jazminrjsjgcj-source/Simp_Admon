@@ -1,11 +1,12 @@
 <?php
 namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Concerns\GeneraFolio;
 
 class AccionAgenda extends Model
 {
-    use GeneraFolio;
+    use GeneraFolio, SoftDeletes;
 
     // Estatus del flujo de una acción de agenda.
     // Homologados con Tramite: ambos módulos comparten vocabulario.
@@ -23,6 +24,26 @@ class AccionAgenda extends Model
         self::ESTATUS_COMPLETADO,
     ];
 
+    /**
+     * Transiciones de estatus permitidas DESDE EL ENDPOINT MANUAL
+     * (AgendaController::actualizarEstatus). Los flujos automáticos —creación,
+     * revisión y firma— no pasan por aquí: son transiciones internas de confianza
+     * que cambian el estatus directamente.
+     */
+    public const TRANSICIONES = [
+        self::ESTATUS_BORRADOR       => [self::ESTATUS_EN_OBSERVACION],
+        self::ESTATUS_EN_CORRECCION  => [self::ESTATUS_EN_OBSERVACION],
+        self::ESTATUS_EN_OBSERVACION => [self::ESTATUS_EN_FIRMA],
+        self::ESTATUS_EN_FIRMA       => [],
+        self::ESTATUS_COMPLETADO     => [],
+    ];
+
+    /** ¿Se puede pasar de mi estatus actual a $destino desde el endpoint manual? */
+    public function puedeTransicionarA(string $destino): bool
+    {
+        $permitidos = self::TRANSICIONES[$this->estatus] ?? [];
+        return in_array($destino, $permitidos, true);
+    }
     protected $table   = 'acciones_agenda';
 
     /**
@@ -56,6 +77,8 @@ class AccionAgenda extends Model
     protected $casts = [
         'acciones_simplificacion' => 'array',
         'acciones_digitalizacion' => 'array',
+        'fecha_inicio'            => 'date',
+        'fecha_compromiso'        => 'date',
     ];
 
     /**
@@ -69,13 +92,40 @@ class AccionAgenda extends Model
                 $accion->periodo_id = Periodo::activo()->syd()->value('id');
             }
         });
+
+        // #29: genera el folio automáticamente cuando la acción deja de ser
+        // borrador (se envía a revisión) y aún no tiene uno. Mismo patrón
+        // que PropuestaRegulatoria::booted(). Al vivir en el modelo, funciona
+        // sin importar quién cambie el estatus (controlador, servicio, tinker).
+        static::updating(function (AccionAgenda $accion) {
+            $dejaBorrador = $accion->isDirty('estatus')
+                && $accion->getOriginal('estatus') === self::ESTATUS_BORRADOR
+                && $accion->estatus !== self::ESTATUS_BORRADOR;
+
+            if ($dejaBorrador && empty($accion->folio)) {
+                $accion->load('dependencia');
+                $accion->folio = $accion->generarFolio();
+            }
+        });
     }
 
     /** #12: periodo (Agenda SyD) al que pertenece la acción. */
     public function periodo() { return $this->belongsTo(Periodo::class); }
 
-    /** Prefijo de tipo para el folio: LPZ-AGD-... */
-    protected function folioTipo(): string { return 'AGD'; }
+    /**
+     * Prefijo de tipo del folio según el alcance de la acción:
+     * simplificación → SIM, digitalización → DIG, ambas → SYD.
+     * Así el folio dice qué es (LPZ-SYD-DGGD-2026-001) en vez de un AGD genérico.
+     */
+    protected function folioTipo(): string
+    {
+        return match ($this->tipo) {
+            'simplificacion' => 'SIM',
+            'digitalizacion' => 'DIG',
+            'ambas'          => 'SYD',
+            default          => 'SYD',
+        };
+    }
 
     public function dependencia() { return $this->belongsTo(Dependencia::class); }
 
@@ -91,13 +141,4 @@ class AccionAgenda extends Model
 
     public function hitos() { return $this->hasMany(HitoAgenda::class, 'accion_agenda_id')->orderBy('orden'); }
 
-    /** Porcentaje de avance según hitos completados (0-100). */
-    public function porcentajeAvance(): int
-    {
-        $total = $this->hitos()->count();
-        if ($total === 0) {
-            return 0;
-        }
-        return (int) round($this->hitos()->where('completado', true)->count() / $total * 100);
-    }
 }

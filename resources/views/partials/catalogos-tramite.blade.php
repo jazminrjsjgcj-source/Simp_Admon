@@ -30,7 +30,7 @@
 @endphp
 
 <x-field-help label="Grupos de atención prioritaria" class="span-2">
-  <div class="check-grid-compact">
+  <div class="check-grid-compact" id="gruposAtencionGrid">
     @foreach($catGrupos as $opcion)
       <label class="check-chip">
         <input type="checkbox" name="grupos_atencion[]" value="{{ $opcion }}"
@@ -40,3 +40,34 @@
     @endforeach
   </div>
 </x-field-help>
+
+<script>
+{{-- #43: "No Aplica" debe ser excluyente — no tiene sentido marcarlo junto
+     con grupos reales. Este script se auto-ejecuta cada vez que el partial
+     se incluye (create y edit), y usa un guard por id de grid para no
+     duplicar el listener si el partial se renderiza más de una vez en la
+     misma página. --}}
+(function () {
+  var grid = document.getElementById('gruposAtencionGrid');
+  if (!grid || grid.dataset.exclusividadNoAplica) return;
+  grid.dataset.exclusividadNoAplica = '1';
+
+  var checks = grid.querySelectorAll('input[type="checkbox"]');
+  var noAplica = Array.from(checks).find(function (c) { return c.value === 'No Aplica'; });
+  if (!noAplica) return;
+
+  grid.addEventListener('change', function (e) {
+    if (e.target.type !== 'checkbox') return;
+
+    if (e.target === noAplica) {
+      // Marcar "No Aplica" desmarca todos los demás.
+      if (noAplica.checked) {
+        checks.forEach(function (c) { if (c !== noAplica) c.checked = false; });
+      }
+    } else if (e.target.checked) {
+      // Marcar cualquier otro grupo desmarca "No Aplica".
+      noAplica.checked = false;
+    }
+  });
+})();
+</script>

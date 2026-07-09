@@ -259,4 +259,22 @@ return [
     'Sujeto Obligado' => 'Persona servidora pública titular de la dependencia (Art. 7 LNETB). Es quien firma electrónicamente como autoridad responsable del trámite. Si cambia la titularidad, actualiza la selección — el catálogo lo mantiene el administrador en Catálogos → Sujetos obligados.',
     '¿Guarda relación con otros trámites?' => 'Rubro 10.1 ATDT. Marque Sí cuando este trámite se conecta con otros: porque comparten la misma materia, porque uno debe realizarse antes que el otro, o porque el resultado de uno habilita al otro. Si marca Sí, describa en el campo siguiente cuáles trámites son y de qué manera se relacionan. Marque No si el trámite es independiente.',
     'Etapa de operación' => 'Solo para personas morales. Indique la etapa del ciclo de vida de la empresa en que se realiza el trámite: Apertura, Operación o Cierre.',
+
+    // ─── Agenda Regulatoria — los 17 rubros del Anexo (LNETB arts. 26-32) ───
+    // Textos tomados del instructivo oficial (columna "Interpretación").
+    'Nombre completo del responsable' => 'Corresponde al nombre de la persona que brindará seguimiento a la regulación hasta su publicación y su implementación.',
+    'Cargo del responsable' => 'Corresponde al cargo de la persona que brindará seguimiento a la regulación hasta su publicación y su implementación.',
+    'Sujeto obligado (titular)' => 'Persona servidora pública titular de la dependencia (Art. 7 LNETB). Se muestra como referencia; el catálogo de titulares lo mantiene el administrador en Catálogos → Sujetos obligados.',
+    'Nombre preliminar de la Propuesta Regulatoria' => 'Señale el título descriptivo de la propuesta (ejemplo: «Lineamientos para la implementación del modelo nacional para eliminar trámites burocráticos»).',
+    'Tipo de Regulación' => 'Disposiciones normativas de carácter general emitidas por cualquier Sujeto Obligado. Seleccione del catálogo o, en su caso, la opción «Otro». Cuando elija «Otro», precise el tipo de regulación.',
+    'Materia sobre la cual versará la Propuesta' => 'Tema central o materia específica que será abordada por la propuesta (ejemplo: salud, educación, transporte, medio ambiente).',
+    'Sectores o grupos potencialmente impactados' => 'Especifique qué áreas de la sociedad, economía o instituciones, y qué colectivos de personas u organizaciones, podrían verse afectados por la propuesta. Seleccione del catálogo o, en su caso, la opción «Otro» para precisar.',
+    'Fecha tentativa de presentación' => 'Mes y año en el que se pretende presentar la Propuesta Regulatoria.',
+    'Justificación para emitir la propuesta' => 'Explique por qué es necesaria la regulación: problema identificado, vacío normativo, mejora de procesos, protección de derechos, etc.',
+    'Problemática que se pretende resolver' => 'Descripción de la situación actual que requiere atención, incluyendo datos o ejemplos que sustenten la necesidad.',
+    'Alternativas consideradas' => 'Exponga las opciones de solución analizadas, explicando cuáles se descartaron y cuál se adoptó, con sus razones.',
+    'Posibles beneficios que generará' => 'Indique impactos positivos de la propuesta: reducción de tiempos, simplificación, digitalización, seguridad jurídica, eficiencia operativa, etc.',
+    'Posibles costos burocráticos que generará' => 'Detalle los costos administrativos directos (monetarios) e indirectos (no monetarios) a cargo de la ciudadanía, empresas o instituciones (tiempo, recursos, trámites adicionales, etc.).',
+    'Fundamento jurídico (texto)' => 'Normativa que establezca la facultad para emitir, modificar, derogar o abrogar la Propuesta Regulatoria.',
+    'Describa el impacto comercial/de inversión' => 'Indique si la propuesta afecta la competitividad, costos, requisitos o procesos relacionados con actividades comerciales o de inversión.',
 ];

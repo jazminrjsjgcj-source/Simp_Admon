@@ -57,16 +57,36 @@
 
           <div class="wizard-fields">
 
+            {{-- Selector de naturaleza pre-poblado --}}
+            @php $natActual = old('naturaleza', $tramite->naturaleza ?? 'tramite'); @endphp
+            <input type="hidden" name="naturaleza" id="naturalezaHidden" value="{{ $natActual }}">
+
             <div class="field span-2">
-              <label for="nombre_oficial">Nombre oficial *</label>
+              <label>¿Qué tipo de registro es? *</label>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px">
+                <div class="wz-opt {{ $natActual === 'tramite' ? 'sel' : '' }}"
+                     onclick="elegirNaturaleza('tramite')" id="optTramite" data-nat-fijo style="cursor:pointer">
+                  Trámite
+                  <small>Solicitud o entrega de información que la persona realiza ante la autoridad.</small>
+                </div>
+                <div class="wz-opt {{ $natActual === 'servicio' ? 'sel' : '' }}"
+                     onclick="elegirNaturaleza('servicio')" id="optServicio" data-nat-fijo style="cursor:pointer">
+                  Servicio
+                  <small>Beneficio, programa o actividad que la autoridad brinda a las personas.</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="field span-2">
+              <label for="nombre_oficial" id="labelNombreOficial">Nombre oficial {{ $natActual === 'servicio' ? 'del servicio' : 'del trámite' }} *</label>
               <input id="nombre_oficial" required name="nombre_oficial" type="text"
                      maxlength="500"
                      value="{{ old('nombre_oficial', $tramite->nombre_oficial) }}"
-                     placeholder="Nombre oficial del trámite">
+                     placeholder="Nombre oficial">
             </div>
 
-            {{-- Tipo de trámite desde catálogo --}}
-            <div class="field">
+            {{-- Tipo de trámite (visible solo cuando naturaleza=tramite) --}}
+            <div class="field" id="campoTipoTramite" style="{{ $natActual === 'servicio' ? 'display:none' : '' }}">
               <label for="tipo_tramite_id">Tipo de trámite</label>
               <select id="tipo_tramite_id" name="tipo_tramite_id">
                 <option value="">— Seleccione tipo —</option>
@@ -74,6 +94,19 @@
                   <option value="{{ $tt->id }}"
                     {{ old('tipo_tramite_id', $tramite->tipo_tramite_id) == $tt->id ? 'selected' : '' }}>
                     {{ $tt->nombre }}
+                  </option>
+                @endforeach
+              </select>
+            </div>
+
+            {{-- Tipo de servicio (visible solo cuando naturaleza=servicio) --}}
+            <div class="field" id="campoTipoServicio" style="{{ $natActual !== 'servicio' ? 'display:none' : '' }}">
+              <label for="tipo_servicio">Tipo de servicio</label>
+              <select id="tipo_servicio" name="tipo_servicio">
+                <option value="">— Seleccione tipo de servicio —</option>
+                @foreach($tiposServicio as $ts)
+                  <option value="{{ $ts }}" {{ old('tipo_servicio', $tramite->tipo_servicio) === $ts ? 'selected' : '' }}>
+                    {{ $ts }}
                   </option>
                 @endforeach
               </select>
@@ -140,17 +173,9 @@
             {{-- #18: Sujeto Obligado editable con precarga del actual.
                  Antes el campo era un input disabled — si la titularidad
                  de la dependencia cambiaba, el trámite quedaba con un
-                 titular obsoleto y no había forma de corregirlo desde la UI. --}}
-            @php
-              $sujetoActual = $tramite->sujeto_obligado_id
-                  ? \App\Models\SujetoObligado::find($tramite->sujeto_obligado_id)
-                  : \App\Models\SujetoObligado::vigenteDe($tramite->dependencia_id);
-              $sujetosDisponibles = \App\Models\SujetoObligado::activos()
-                  ->where('dependencia_id', $tramite->dependencia_id)
-                  ->orderBy('nombre')
-                  ->get();
-              $enlaceTramite = $tramite->enlace_id ? \App\Models\User::find($tramite->enlace_id) : null;
-            @endphp
+                 titular obsoleto y no había forma de corregirlo desde la UI.
+                 $sujetoActual, $sujetosDisponibles y $enlaceTramite vienen
+                 del controlador (edit()). --}}
             <x-field-help label="Sujeto Obligado">
               <select name="sujeto_obligado_id">
                 <option value="">— Sin titular asignado —</option>
@@ -221,7 +246,7 @@
               </select>
             </x-field-help>
 
-            <x-input-validado tipo="numero_entero" name="volumen_anual" label="Volumen anual estimado" min="0" placeholder="Ej. 1250" :value="old('volumen_anual', $tramite->volumen_anual)" />
+            <x-input-validado tipo="numero_entero" name="volumen_anual" label="Volumen anual estimado" min="0" :max="config('punta.topes_tramite.volumen_anual')" placeholder="Ej. 1250" :value="old('volumen_anual', $tramite->volumen_anual)" help="Máximo permitido: {{ number_format(config('punta.topes_tramite.volumen_anual')) }} trámites al año." />
 
             {{-- Sector y subsector económico SCIAN --}}
             <x-selector-scian :sector="old('sector_id', $tramite->sector_id)" :subsector="old('subsector_id', $tramite->subsector_id)" />
@@ -358,7 +383,7 @@
               <x-field-help label="Costo público">
                 <div class="costo-grupo">
                   <select id="costoTipo" onchange="actualizarCosto()">
-                    @php $costoActual = old('portal_costo', $ficha->costo_publico ?? 'Gratuito'); $esConCosto = $costoActual !== 'Gratuito' && $costoActual !== ''; @endphp
+                    @php $costoActual = old('portal_costo_publico', $ficha->costo_publico ?? 'Gratuito'); $esConCosto = $costoActual !== 'Gratuito' && $costoActual !== ''; @endphp
                     <option value="gratuito" {{ $esConCosto ? '' : 'selected' }}>Gratuito</option>
                     <option value="con_costo" {{ $esConCosto ? 'selected' : '' }}>Con precio</option>
                   </select>
@@ -371,7 +396,7 @@
                   </select>
                   <span class="costo-moneda" id="costoEquiv"></span>
                 </div>
-                <input type="hidden" name="portal_costo" id="costoTexto" value="{{ $costoActual }}">
+                <input type="hidden" name="portal_costo_publico" id="costoTexto" value="{{ $costoActual }}">
                 <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ $esConCosto ? 'con_costo' : 'gratuito' }}">
                 <input type="hidden" name="costo_monto" id="costoMontoHidden" value="0">
                 <input type="hidden" name="costo_unidad" id="costoUnidadHidden" value="pesos">
@@ -431,14 +456,9 @@
               <div id="montoDerechosVariableAviso" class="assist-box span-2" style="display:{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? '' : 'none' }}">
                 <strong>Costo variable.</strong> El monto de derechos no se incluye en el cálculo del CBD porque depende del caso (ej. el predial varía según el valor catastral). El costo total del trámite seguirá considerando el tiempo del ciudadano (CBI) y las copias.
               </div>
-              {{-- Ítem E: pago de derechos variable (ej. predial). Checkbox fuera
-                   de <div class="field"> para que no herede el estilo uppercase
-                   de los labels de los campos. --}}
-              <label class="checkbox-opcion span-2">
-                <input type="checkbox" name="monto_derechos_variable" value="1" id="montoVariableChk"
-                  onchange="toggleMontoReferencia()" {{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? 'checked' : '' }}>
-                <span>El pago de derechos es variable (depende del caso, ej. predial)</span>
-              </label>
+              {{-- Ítem E: pago de derechos variable. Se auto-detecta cuando
+                   algún derecho se marca como "Variable" (checkbox por derecho). --}}
+              <input type="hidden" name="monto_derechos_variable" id="montoVariableChk" value="{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? '1' : '0' }}">
               <div id="montoReferenciaWrap" style="display:{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? '' : 'none' }}">
                 <x-field-help label="Base de cálculo del monto (referencia)" class="span-2">
                   <input name="monto_derechos_referencia" placeholder="Ej. tarifa mínima de la tabla municipal" value="{{ old('monto_derechos_referencia', $tramite->monto_derechos_referencia) }}">
@@ -447,7 +467,7 @@
               </div>
               <div class="field">
                 <label>Copias simples solicitadas</label>
-                <input name="copias_cantidad" type="number" min="0" value="{{ old('copias_cantidad', $tramite->copias_cantidad) }}">
+                <input name="copias_cantidad" type="number" min="0" max="{{ config('punta.topes_tramite.copias') }}" value="{{ old('copias_cantidad', $tramite->copias_cantidad) }}">
               </div>
               <div class="field">
                 <label>Precio por copia (pesos)</label>
@@ -457,6 +477,13 @@
           </div>
 
           {{-- Sub-tarjeta 5: Grupos de atención prioritaria (Art. 19 LNETB) --}}
+          <div class="wizard-section">
+            <div class="wizard-fields">
+              <div class="field span-2"><label>Población objetivo</label>
+                <input name="poblacion_objetivo" value="{{ old('poblacion_objetivo', $tramite->poblacion_objetivo ?? '') }}" placeholder="Ej. Comerciantes establecidos del municipio"></div>
+            </div>
+          </div>
+
           <div class="wizard-section">
             <div class="wizard-section-head">
               <h4>Grupos de atención prioritaria</h4>
@@ -481,46 +508,8 @@
           </div>
         </section>
 
-        {{-- SECCIÓN 4: Fundamento jurídico --}}
+        {{-- SECCIÓN 4: Requisitos (reordenada: antes era 5) --}}
         <section class="acc-seccion" data-acc="4">
-          <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
-            <span class="acc-titulo">Fundamento jurídico</span>
-            <span class="acc-sub">Normativa que da origen al trámite</span>
-            <span class="acc-flecha">▾</span>
-          </button>
-          <div class="acc-cuerpo">
-          {{-- Observaciones de esta sección (#18) --}}
-          @include('partials.observaciones-seccion', [
-            'seccion' => 'Fundamento jurídico',
-            'items'   => $observacionesPorSeccion['Fundamento jurídico'] ?? collect(),
-            'campos'  => $camposObservables['Fundamento jurídico'] ?? [],
-          ])
-          @forelse($tramite->fundamentos as $f)
-            <div class="wizard-fields">
-              <div class="field span-2"><label>Normativa</label><input name="fundamento_normativa" value="{{ $f->normativa_nombre }}"></div>
-              <div class="field"><label>Tipo</label>
-                <select name="fundamento_tipo">
-                  @foreach(['Reglamento','Lineamiento','Manual','Acuerdo','Ley'] as $tipo)
-                    <option {{ $f->tipo_normativa === $tipo ? 'selected' : '' }}>{{ $tipo }}</option>
-                  @endforeach
-                </select>
-              </div>
-              <div class="field"><label>Artículo / fracción</label><input name="fundamento_articulo" value="{{ $f->articulo_fraccion }}"></div>
-              <div class="field span-2"><label>Resumen</label><textarea name="fundamento_resumen" rows="3">{{ $f->resumen }}</textarea></div>
-            </div>
-          @empty
-            <div class="wizard-fields">
-              <div class="field span-2"><label>Normativa vinculada</label><input name="fundamento_normativa" placeholder="Buscar regulación..."></div>
-              <div class="field"><label>Tipo</label><select name="fundamento_tipo"><option>Reglamento</option><option>Lineamiento</option><option>Manual</option><option>Acuerdo</option><option>Ley</option></select></div>
-              <div class="field"><label>Artículo / fracción</label><input name="fundamento_articulo" placeholder="Ej. Artículo 45, Fracción II"></div>
-              <div class="field span-2"><label>Resumen</label><textarea name="fundamento_resumen" rows="3" placeholder="Explique la disposición aplicable..."></textarea></div>
-            </div>
-          @endforelse
-          </div>
-        </section>
-
-        {{-- SECCIÓN 5: Requisitos --}}
-        <section class="acc-seccion" data-acc="5">
           <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
             <span class="acc-titulo">Requisitos</span>
             <span class="acc-sub">Documentos que solicita el trámite</span>
@@ -538,32 +527,27 @@
                (las distinciones eran sutiles). Ahora es una pregunta binaria
                y el subtipo se describe en el campo de detalle. --}}
           <div class="wizard-fields" style="margin-bottom:1.2rem">
-            <x-field-help label="¿Guarda relación con otros trámites?" class="span-2">
+            <x-field-help label="¿Guarda relación con otros trámites? (Art. 29-VI LNETB)" class="span-2">
               @php
-                // Migración suave del dato viejo: cualquier valor distinto a
-                // "Ninguna" se interpreta como "Sí" para no perder el registro.
                 $rel = old('tipo_relacion', $tramite->tipo_relacion ?? 'Ninguna');
-                $relSi = ($rel !== 'Ninguna' && $rel !== '');
+                // Migración del dato viejo: "Sí" era el valor binario antes de
+                // implementar las opciones del Art. 29 LNETB. Lo mapeamos a
+                // "Naturaleza" (primer tipo real) para que el select funcione.
+                $tiposValidos = ['Ninguna','Naturaleza','Secuencia','Dependencia funcional'];
+                if (!in_array($rel, $tiposValidos)) $rel = ($rel !== '' && $rel !== null) ? 'Naturaleza' : 'Ninguna';
               @endphp
-              <div class="radio-group" style="display:flex; gap:24px; padding:8px 0;">
-                <label class="radio-item">
-                  <input type="radio" name="tipo_relacion" value="Ninguna"
-                    {{ !$relSi ? 'checked' : '' }}
-                    onchange="toggleRelacionados()">
-                  <span>No</span>
-                </label>
-                <label class="radio-item">
-                  <input type="radio" name="tipo_relacion" value="Sí"
-                    {{ $relSi ? 'checked' : '' }}
-                    onchange="toggleRelacionados()">
-                  <span>Sí</span>
-                </label>
-              </div>
+              <select name="tipo_relacion" onchange="toggleRelacionados()">
+                <option value="Ninguna" {{ $rel === 'Ninguna' ? 'selected' : '' }}>Ninguna</option>
+                <option value="Naturaleza" {{ $rel === 'Naturaleza' ? 'selected' : '' }}>Naturaleza — comparten el mismo tema o materia</option>
+                <option value="Secuencia" {{ $rel === 'Secuencia' ? 'selected' : '' }}>Secuencia — uno debe completarse antes que otro</option>
+                <option value="Dependencia funcional" {{ $rel === 'Dependencia funcional' ? 'selected' : '' }}>Dependencia funcional — el resultado de uno es requisito del otro</option>
+              </select>
             </x-field-help>
-            <div id="relacionadosDetalleWrap" style="display:{{ $relSi ? '' : 'none' }}">
-              <x-field-help label="Trámites relacionados" class="span-2">
-                <textarea name="relacionados_detalle" rows="3" placeholder="Ej. Licencia de uso de suelo (la requiere antes), Visto bueno de Protección Civil (lo habilita)">{{ old('relacionados_detalle', $tramite->relacionados_detalle) }}</textarea>
-              </x-field-help>
+            <div id="relacionadosDetalleWrap" style="display:{{ ($rel !== 'Ninguna' && $rel !== '') ? '' : 'none' }}">
+              <x-citar-tramite
+                :relacionados="$tramite->relacionados"
+                :tramite_actual_id="$tramite->id"
+              />
             </div>
           </div>
 
@@ -573,17 +557,14 @@
                 <strong>Requisito {{ $i + 1 }}: {{ $req->nombre }}</strong>
                 <div class="wizard-fields">
                   <div class="field"><label>Nombre *</label><input name="requisitos[{{ $i }}][nombre]" value="{{ $req->nombre }}" required></div>
-                  <div class="field"><label>¿Original?</label>
-                    <select name="requisitos[{{ $i }}][original]">
-                      <option value="1" {{ $req->original ? 'selected' : '' }}>Sí</option>
-                      <option value="0" {{ !$req->original ? 'selected' : '' }}>No</option>
-                    </select>
-                  </div>
-                  <div class="field"><label>¿Copia?</label>
-                    <select name="requisitos[{{ $i }}][copia]">
-                      <option value="1" {{ $req->copia ? 'selected' : '' }}>Sí</option>
-                      <option value="0" {{ !$req->copia ? 'selected' : '' }}>No</option>
-                    </select>
+                  {{-- Bug #44: multiselección de tipo de presentación --}}
+                  @php $tiposActivos = array_map('trim', explode(',', $req->tipo_presentacion ?? '')); @endphp
+                  <div class="field"><label>Tipo de presentación</label>
+                    <div class="tipo-pres-checks">
+                      @foreach(['original' => 'Original', 'copia' => 'Copia', 'digital' => 'Digital'] as $val => $lbl)
+                        <label><input type="checkbox" name="requisitos[{{ $i }}][tipo][]" value="{{ $val }}" {{ in_array($val, $tiposActivos) ? 'checked' : '' }}> {{ $lbl }}</label>
+                      @endforeach
+                    </div>
                   </div>
                   <div class="field"><label>Días estimados</label><input name="requisitos[{{ $i }}][dias]" type="number" min="0" value="{{ $req->dias_estimados }}"></div>
                   <div class="field"><label>Horas estimadas</label><input name="requisitos[{{ $i }}][horas]" type="number" min="0" value="{{ $req->horas_estimadas }}"></div>
@@ -653,6 +634,81 @@
           </div>
           </div>
         </section>
+        {{-- SECCIÓN 5: Fundamento jurídico (reordenada: antes era 4) --}}
+        <section class="acc-seccion" data-acc="5">
+          <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
+            <span class="acc-titulo">Fundamento jurídico</span>
+            <span class="acc-sub">Normativa que da origen al trámite</span>
+            <span class="acc-flecha">▾</span>
+          </button>
+          <div class="acc-cuerpo">
+          {{-- Observaciones de esta sección (#18) --}}
+          @include('partials.observaciones-seccion', [
+            'seccion' => 'Fundamento jurídico',
+            'items'   => $observacionesPorSeccion['Fundamento jurídico'] ?? collect(),
+            'campos'  => $camposObservables['Fundamento jurídico'] ?? [],
+          ])
+
+          @php
+            // Separar los fundamentos en: citas del catálogo (con regulacion_id)
+            // y manual (sin regulacion_id). El modo se infiere del dato.
+            $citasPrevias = $tramite->fundamentos->whereNotNull('regulacion_id')->values();
+            $manualPrevio = $tramite->fundamentos->whereNull('regulacion_id')->first();
+            $modoFund = $manualPrevio ? 'manual' : 'catalogo';
+          @endphp
+
+          <div class="wizard-fields">
+            {{-- Modo: catálogo (vinculado) o manual (llenado libre) --}}
+            <input type="hidden" name="fundamento_modo" id="fundamentoModo"
+                   value="{{ old('fundamento_modo', $modoFund) }}">
+
+            <label class="check-inline span-2" style="display:flex;align-items:center;gap:8px;font-size:14px">
+              <input type="checkbox" id="fundamentoManualChk" onchange="toggleFundamentoManual()"
+                     {{ old('fundamento_modo', $modoFund) === 'manual' ? 'checked' : '' }}>
+              Esta normativa <strong>no está en el catálogo</strong> (llenado manual)
+            </label>
+
+            {{-- MODO CATÁLOGO: buscar y vincular la regulación de origen --}}
+            <div id="fundamentoCatalogo" class="span-2"
+                 style="{{ old('fundamento_modo', $modoFund) === 'manual' ? 'display:none' : '' }}">
+              <x-citar-regulacion
+                :citas="$citasPrevias"
+                label="Normativa de origen (del catálogo)" />
+            </div>
+
+            {{-- MODO MANUAL: se escribe a mano; se descarta la vinculación --}}
+            <div id="fundamentoManual" class="span-2"
+                 style="{{ old('fundamento_modo', $modoFund) !== 'manual' ? 'display:none' : '' }}">
+              <div class="field span-2"><label>Normativa de origen</label>
+                <input name="fundamento_normativa"
+                       value="{{ old('fundamento_normativa', $manualPrevio->normativa_nombre ?? '') }}"
+                       placeholder="Ej. Reglamento de Comercio del Municipio de La Paz">
+              </div>
+              <div class="field"><label>Tipo de norma</label>
+                <select name="fundamento_tipo">
+                  <option value="">Seleccione...</option>
+                  @foreach(['Reglamento','Lineamiento','Manual','Acuerdo','Ley'] as $tipo)
+                    <option value="{{ $tipo }}"
+                      {{ old('fundamento_tipo', $manualPrevio->tipo_normativa ?? '') === $tipo ? 'selected' : '' }}>
+                      {{ $tipo }}
+                    </option>
+                  @endforeach
+                </select>
+              </div>
+              <div class="field"><label>Artículo y fracción</label>
+                <input name="fundamento_articulo"
+                       value="{{ old('fundamento_articulo', $manualPrevio->articulo_fraccion ?? '') }}"
+                       placeholder="Ej. Artículo 45, Fracción II">
+              </div>
+              <div class="field span-2"><label>Resumen ciudadano del fundamento</label>
+                <textarea name="fundamento_resumen" rows="3"
+                  placeholder="Explique de forma simple por qué existe este trámite...">{{ old('fundamento_resumen', $manualPrevio->resumen ?? '') }}</textarea>
+              </div>
+            </div>
+          </div>
+          </div>
+        </section>
+
 
         {{-- SECCIÓN: Procesos del trámite (atención y resolución por pasos) --}}
         <section class="acc-seccion" data-acc="proc">
@@ -676,7 +732,8 @@
         </section>
 
         {{-- SECCIÓN: Ficha para portal ciudadano --}}
-        @php $ficha = $tramite->fichaPortal; @endphp
+        {{-- $ficha ahora llega del controlador (eager-loaded), ya no se
+             resuelve aquí vía lazy-load implícito. --}}
         <section class="acc-seccion" data-acc="portal">
           <button type="button" class="acc-cabecera" onclick="toggleAcc(this)">
             <span class="acc-titulo">Ficha para portal ciudadano</span>
@@ -703,7 +760,7 @@
                 <input name="portal_url" type="url" value="{{ old('portal_url', $ficha->url ?? '') }}" placeholder="https://tramites.lapaz.gob.mx/..."></div>
               <div class="field span-2"><label>Costo público (capturado en Operación)</label>
                 <input type="text" id="costoPublicoResumen" readonly
-                  value="{{ old('portal_costo', $ficha->costo_publico ?? 'Gratuito') }}"
+                  value="{{ old('portal_costo_publico', $ficha->costo_publico ?? 'Gratuito') }}"
                   style="background:var(--surface-low);cursor:not-allowed">
                 <small class="campo-nota">Para cambiarlo, regrese al paso de Operación.</small></div>
               <div class="field span-2"><label>Descripción accesible</label>
@@ -715,9 +772,40 @@
                     value="{{ old('portal_horario', $ficha->horario ?? '') }}"
                     style="background:#f9fafb;flex:1;cursor:pointer"
                     onclick="abrirHorarios()">
-                  <input type="hidden" id="horariosJson" name="horarios_json" value="{{ old('horarios_json', $ficha->horarios_json ? json_encode($ficha->horarios_json) : '') }}">
+                  <input type="hidden" id="horariosJson" name="horarios_json" value="{{ old('horarios_json', $ficha?->horarios_json ? json_encode($ficha->horarios_json) : '') }}">
                   <button type="button" class="btn btn-outline btn-sm" onclick="abrirHorarios()" style="white-space:nowrap">Configurar</button>
                 </div></div>
+              <div class="field"><label>Homoclave pública</label>
+                <input name="portal_homoclave_publica" value="{{ old('portal_homoclave_publica', $ficha->homoclave_publica ?? '') }}" placeholder="Homoclave visible al ciudadano"></div>
+              <div class="field"><label>Documento que obtiene</label>
+                <input name="portal_documento_obtiene" value="{{ old('portal_documento_obtiene', $ficha->documento_obtiene ?? '') }}" placeholder="Ej. Licencia, constancia, permiso"></div>
+              <div class="field"><label>Canal principal de atención</label>
+                <select name="portal_canal_principal">
+                  <option value="">—</option>
+                  @foreach(['Presencial', 'En línea', 'Telefónico', 'Mixto'] as $op)
+                    <option value="{{ $op }}" {{ old('portal_canal_principal', $ficha->canal_principal ?? '') === $op ? 'selected' : '' }}>{{ $op }}</option>
+                  @endforeach
+                </select></div>
+              <div class="field"><label>Medio de entrega</label>
+                <select name="portal_medio_entrega">
+                  <option value="">—</option>
+                  @foreach(['Presencial', 'Correo electrónico', 'Mensajería', 'En línea'] as $op)
+                    <option value="{{ $op }}" {{ old('portal_medio_entrega', $ficha->medio_entrega ?? '') === $op ? 'selected' : '' }}>{{ $op }}</option>
+                  @endforeach
+                </select></div>
+              <div class="field"><label>Forma de pago</label>
+                <select name="portal_forma_pago">
+                  <option value="">—</option>
+                  @foreach(['No aplica', 'Efectivo', 'Tarjeta', 'Transferencia', 'Línea de captura'] as $op)
+                    <option value="{{ $op }}" {{ old('portal_forma_pago', $ficha->forma_pago ?? '') === $op ? 'selected' : '' }}>{{ $op }}</option>
+                  @endforeach
+                </select></div>
+              <div class="field"><label>Vigencia del resultado</label>
+                <input name="portal_vigencia" value="{{ old('portal_vigencia', $ficha->vigencia ?? '') }}" placeholder="Ej. 1 año, indefinida"></div>
+              <div class="field"><label>Oficina de atención</label>
+                <input name="portal_oficina" value="{{ old('portal_oficina', $ficha->oficina ?? '') }}" placeholder="Oficina o ventanilla"></div>
+              <div class="field span-2"><label>Casos en que se realiza</label>
+                <textarea name="portal_casos_realizarse" rows="2" placeholder="¿En qué situaciones se realiza este trámite?">{{ old('portal_casos_realizarse', $ficha->casos_realizarse ?? '') }}</textarea></div>
               <div class="field"><label>Teléfono</label>
                 <input name="portal_telefono" value="{{ old('portal_telefono', $ficha->telefono ?? '') }}" placeholder="(612) 123-4567"></div>
               <div class="field"><label>Correo</label>
@@ -753,6 +841,17 @@
 
     </div>{{-- /acordeon-tramite --}}
   </form>
+
+  {{-- Formularios de "Marcar como atendida", uno por observación viva.
+       Van AQUÍ, fuera del <form> de edición, porque los forms anidados son
+       inválidos en HTML. Cada botón de la sección los referencia por su id
+       (form="obs-atendida-{id}"). --}}
+  @foreach(($observacionesPorSeccion ?? collect())->flatten() as $obs)
+    @unless($obs->estaResuelta())
+      <form method="POST" action="{{ route('revision.atendida', $obs) }}"
+        id="obs-atendida-{{ $obs->id }}" class="hidden">@csrf</form>
+    @endunless
+  @endforeach
 
   @include('partials.calculadora-digitalizacion')
     </div>{{-- /detalle-main --}}
@@ -910,17 +1009,32 @@ document.addEventListener('DOMContentLoaded', toggleModalidadCampos);
 
 // Ítem A: mostrar campo de trámites relacionados solo cuando se elige "Sí"
 // (rubro 10.2 del instrumento ATDT). El campo cambió de un <select> a radios
-// Sí/No; se muestra el detalle solo cuando el radio "Sí" está marcado. Misma
-// lógica que public/js/tramites-create.js para que alta y edición coincidan.
+// Art. 29, fracción VI LNETB: si el tipo de relación es distinto de
+// "Ninguna", mostrar el detalle de trámites relacionados.
 function toggleRelacionados() {
-  var radioSi = document.querySelector('input[name="tipo_relacion"][value="Sí"]');
+  var sel = document.querySelector('select[name="tipo_relacion"]');
   var wrap = document.getElementById('relacionadosDetalleWrap');
   if (!wrap) return;
-  wrap.style.display = (radioSi && radioSi.checked) ? '' : 'none';
+  wrap.style.display = (sel && sel.value !== 'Ninguna' && sel.value !== '') ? '' : 'none';
 }
 document.addEventListener('DOMContentLoaded', function () {
   toggleRelacionados();
 });
+
+// Alterna entre modo catálogo (citas vinculadas) y modo manual (texto libre)
+// para el fundamento jurídico del trámite. Mismo comportamiento que en create.
+function toggleFundamentoManual() {
+  var chk = document.getElementById('fundamentoManualChk');
+  var modo = document.getElementById('fundamentoModo');
+  var cat = document.getElementById('fundamentoCatalogo');
+  var man = document.getElementById('fundamentoManual');
+  if (!chk || !modo) return;
+  var esManual = chk.checked;
+  modo.value = esManual ? 'manual' : 'catalogo';
+  if (cat) cat.style.display = esManual ? 'none' : '';
+  if (man) man.style.display = esManual ? '' : 'none';
+}
+
 function toggleAreasParticipantes() {
   var n = document.getElementById('numAreas');
   var wrap = document.getElementById('areasParticipantesWrap');
@@ -1036,6 +1150,7 @@ function agregarDerecho() {
 function quitarDerecho(i) {
   _derechos.splice(i, 1);
   renderDerechos();
+  toggleMontoReferencia();
 }
 
 function setDerecho(i, campo, valor) {
@@ -1050,6 +1165,7 @@ function setDerecho(i, campo, valor) {
     document.getElementById('derechosTotal').textContent = '$' + total.toFixed(2) + ' MXN';
     document.getElementById('derechosJson').value = JSON.stringify(_derechos);
     sincronizarMontoDerechos(total);
+    if (campo === 'es_variable') toggleMontoReferencia();
   }
 }
 
@@ -1089,14 +1205,15 @@ function toggleCostoReq(sel) {
 // Bug #B11: también oculta el campo "Monto de derechos" y muestra un aviso
 // explicativo cuando es variable (para evitar el confuso $0.00).
 function toggleMontoReferencia() {
-  var chk      = document.getElementById('montoVariableChk');
+  var hayVariable = _derechos.some(function (d) { return d.es_variable; });
+  var hidden   = document.getElementById('montoVariableChk');
   var wrap     = document.getElementById('montoReferenciaWrap');
   var fijo     = document.getElementById('montoDerechosFijoWrap');
   var aviso    = document.getElementById('montoDerechosVariableAviso');
-  if (!chk) return;
-  if (wrap)  wrap.style.display  = chk.checked ? '' : 'none';
-  if (fijo)  fijo.style.display  = chk.checked ? 'none' : '';
-  if (aviso) aviso.style.display = chk.checked ? '' : 'none';
+  if (hidden) hidden.value = hayVariable ? '1' : '0';
+  if (wrap)   wrap.style.display  = hayVariable ? '' : 'none';
+  if (fijo)   fijo.style.display  = hayVariable ? 'none' : '';
+  if (aviso)  aviso.style.display = hayVariable ? '' : 'none';
 }
 
 function toggleFjRadio(radio) {
@@ -1112,6 +1229,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (Array.isArray(inicial)) _derechos = inicial;
   } catch (e) { _derechos = []; }
   renderDerechos();
+  // Bug 51: reflejar al cargar el estado del costo variable (checkbox
+  // monto_derechos_variable). Sin esto, al editar un trámite que ya tiene
+  // costo variable, el campo de monto/UMA queda oculto hasta tocar el
+  // checkbox. La función ya existía; solo faltaba invocarla en la carga.
+  toggleMontoReferencia();
 });
 </script>
 @endpush
@@ -1165,8 +1287,11 @@ document.addEventListener('DOMContentLoaded', function () {
     a.className = 'requirement-card';
     a.innerHTML = '<strong>Requisito '+(i+1)+'</strong><div class="wizard-fields">'
       +'<div class="field"><label>Nombre</label><input name="requisitos['+i+'][nombre]" placeholder="Nombre del requisito"></div>'
-      +'<div class="field"><label>¿Original?</label><select name="requisitos['+i+'][original]"><option value="1">Sí</option><option value="0" selected>No</option></select></div>'
-      +'<div class="field"><label>¿Copia?</label><select name="requisitos['+i+'][copia]"><option value="1">Sí</option><option value="0" selected>No</option></select></div>'
+      +'<div class="field"><label>Tipo de presentación</label><div class="tipo-pres-checks">'
+      +'<label><input type="checkbox" name="requisitos['+i+'][tipo][]" value="original"> Original</label>'
+      +'<label><input type="checkbox" name="requisitos['+i+'][tipo][]" value="copia"> Copia</label>'
+      +'<label><input type="checkbox" name="requisitos['+i+'][tipo][]" value="digital"> Digital</label>'
+      +'</div></div>'
       +'<div class="field"><label>Días</label><input name="requisitos['+i+'][dias]" type="number" min="0" value="0"></div>'
       +'<div class="field"><label>Horas</label><input name="requisitos['+i+'][horas]" type="number" min="0" value="0"></div>'
       +'<div class="field"><label>Minutos</label><input name="requisitos['+i+'][minutos]" type="number" min="0" max="59" value="0"></div>'
@@ -1194,9 +1319,6 @@ document.addEventListener('DOMContentLoaded', function () {
       +'<div class="section-actions mt-2"><button type="button" class="btn btn-outline btn-sm danger" onclick="this.closest(\'article\').remove()">Eliminar</button></div>';
     document.getElementById('reqContainer').appendChild(a);
   };
-
-  go(1);
-})();
 
   // ─── Fase F.4: Horarios de atención ────────────────────────────
   var DIAS_H = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
@@ -1301,6 +1423,94 @@ document.addEventListener('DOMContentLoaded', function () {
   function abrirHorarios()  { renderHorariosUI(); document.getElementById('modalHorarios').classList.add('open'); }
   function cerrarHorarios() { document.getElementById('modalHorarios').classList.remove('open'); }
 
+  // Bug 65: auto-abrir secciones del acordeón que tienen observaciones.
+  // Busca los bloques .obs-aviso (renderizados por el partial) y abre
+  // su sección padre para que el enlace vea qué debe corregir sin tener
+  // que abrir cada acordeón manualmente.
+  document.querySelectorAll('.obs-aviso').forEach(function (aviso) {
+    var seccion = aviso.closest('.acc-seccion');
+    if (seccion && !seccion.classList.contains('abierta')) {
+      seccion.classList.add('abierta');
+    }
+  });
 
+})();
+</script>
+
+{{-- Selector de naturaleza Trámite / Servicio.
+     Fuera del IIFE anterior para que los onclick="elegirNaturaleza(...)"
+     de las cards del paso 1 puedan encontrar la función en scope global.
+     Si estuviera dentro del IIFE, el scope cerrado la haría inaccesible
+     y el navegador lanzaría ReferenceError. --}}
+<script>
+function elegirNaturaleza(tipo) {
+  var hidden = document.getElementById('naturalezaHidden');
+  var optT   = document.getElementById('optTramite');
+  var optS   = document.getElementById('optServicio');
+  var campoT = document.getElementById('campoTipoTramite');
+  var campoS = document.getElementById('campoTipoServicio');
+
+  hidden.value = tipo;
+  optT.classList.toggle('sel', tipo === 'tramite');
+  optS.classList.toggle('sel', tipo === 'servicio');
+  campoT.style.display = tipo === 'tramite'  ? '' : 'none';
+  campoS.style.display = tipo === 'servicio' ? '' : 'none';
+  if (tipo === 'tramite')  document.getElementById('tipo_servicio').value = '';
+  if (tipo === 'servicio') document.getElementById('tipo_tramite_id').value = '';
+
+  // Reemplazo masivo: misma lógica que en create.blade.php, con exclusión
+  // de las tarjetas selectoras (bug #46: sin esta exclusión, la tarjeta NO
+  // seleccionada terminaba mostrando el título de la seleccionada, ej.
+  // ambas tarjetas decían "Servicio").
+  var pares = [
+    ['del trámite',  'del servicio'],
+    ['Del trámite',  'Del servicio'],
+    ['al trámite',   'al servicio'],
+    ['el trámite',   'el servicio'],
+    ['El trámite',   'El servicio'],
+    ['un trámite',   'un servicio'],
+    ['trámites',     'servicios'],
+    ['Trámites',     'Servicios'],
+    ['trámite',      'servicio'],
+    ['Trámite',      'Servicio'],
+  ];
+  var wizard = document.querySelector('.wizard-shell') || document.querySelector('.page-body') || document.body;
+  var walker = document.createTreeWalker(wizard, NodeFilter.SHOW_TEXT, {
+    acceptNode: function (nodo) {
+      if (nodo.parentElement && nodo.parentElement.closest('[data-nat-fijo]')) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  }, false);
+  var nodo;
+  while (nodo = walker.nextNode()) {
+    var original = nodo.nodeValue;
+    if (!original || !original.trim()) continue;
+    if (!/tr[aá]mite|servicio/i.test(original)) continue;
+    var nuevo = original;
+    pares.forEach(function (par) {
+      var desde = tipo === 'servicio' ? par[0] : par[1];
+      var hacia = tipo === 'servicio' ? par[1] : par[0];
+      nuevo = nuevo.split(desde).join(hacia);
+    });
+    if (nuevo !== original) nodo.nodeValue = nuevo;
+  }
+}
+
+// Si al cargar la página el registro es un servicio, reemplazar los textos
+// inmediatamente para que el enlace no vea "Objetivo del trámite" cuando
+// está editando un servicio.
+(function () {
+  var nat = document.getElementById('naturalezaHidden');
+  if (nat && nat.value === 'servicio') {
+    // Esperar a que el DOM esté completo para que el TreeWalker encuentre todos los nodos
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { elegirNaturaleza('servicio'); });
+    } else {
+      elegirNaturaleza('servicio');
+    }
+  }
+})();
 </script>
 @endpush
