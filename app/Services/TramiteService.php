@@ -307,7 +307,7 @@ class TramiteService
                 continue;
             }
 
-            // Ítem E: captura del costo del requisito. El formulario manda un
+            // Captura del costo del requisito. El formulario manda un
             // modo: 'sin' (sin costo), 'fijo' (monto conocido) o 'variable'
             // (costo de mercado no cuantificable, ej. plano arquitectónico).
             $modoCosto    = $req['costo_modo'] ?? 'sin';
@@ -316,7 +316,7 @@ class TramiteService
             $montoFijo    = ($modoCosto === 'fijo') ? floatval($req['costo_monto'] ?? 0) : 0;
 
             // Tipo de presentación: checkboxes (original / copia / digital) que
-            // pueden marcarse a la vez (#44). Llega como arreglo; lo normalizamos
+            // pueden marcarse a la vez. Llega como arreglo; lo normalizamos
             // a una lista limpia. El cast a (array) tolera el formato viejo (un
             // solo texto) por si quedara algún envío heredado. Se guarda como CSV
             // en tipo_presentacion y se derivan los booleanos original/copia para
@@ -324,7 +324,7 @@ class TramiteService
             $tiposPres = array_values(array_filter((array) ($req['tipo'] ?? [])));
             $tipoPresCsv = implode(',', $tiposPres);
 
-            // Bug #18/#19: el formulario envía costo_unidad (PESOS o UMA) pero
+            // El formulario envía costo_unidad (PESOS o UMA) pero
             // el servicio no lo incluía en el array de datos. La columna existe
             // en la tabla (migración add_costo_unidad_to_requisitos) y el modelo
             // ahora la tiene en $fillable, pero aquí se descartaba el valor.

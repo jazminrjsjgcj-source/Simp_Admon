@@ -63,6 +63,67 @@ class TramiteRequest extends FormRequest
     }
 
     /**
+     * Validaciones de cruce del paso 4 (requisitos) que no se pueden expresar
+     * con reglas declarativas: el tiempo total no puede ser 0, y si un requisito
+     * tiene fundamento o costo fijo, sus campos deben venir completos. Solo
+     * corren cuando aplican las reglas completas (envío o actualización), no
+     * al guardar un borrador.
+     */
+    public function withValidator($validator): void
+    {
+        $completas = $this->isMethod('PUT') || $this->isMethod('PATCH')
+                  || $this->input('accion') === 'enviar';
+        if (!$completas) {
+            return;
+        }
+
+        $validator->after(function ($validator) {
+            foreach ((array) $this->input('requisitos', []) as $i => $req) {
+                if (!is_array($req)) {
+                    continue;
+                }
+
+                // Tiempo de obtención: la suma no puede quedar en 0.
+                $total = (int) ($req['dias'] ?? 0)
+                       + (int) ($req['horas'] ?? 0)
+                       + (int) ($req['minutos'] ?? 0);
+                if ($total <= 0) {
+                    $validator->errors()->add(
+                        "requisitos.$i.dias",
+                        'Indique el tiempo de obtención del requisito (no puede quedar en 0).'
+                    );
+                }
+
+                // Con fundamento jurídico: ley, capítulo y artículo completos.
+                if ((string) ($req['fj_tiene'] ?? '') === '1') {
+                    $campos = [
+                        'fj_norma'    => 'la ley o reglamento',
+                        'fj_capitulo' => 'el capítulo',
+                        'fj_articulo' => 'el artículo',
+                    ];
+                    foreach ($campos as $campo => $etiqueta) {
+                        if (trim((string) ($req[$campo] ?? '')) === '') {
+                            $validator->errors()->add(
+                                "requisitos.$i.$campo",
+                                "Complete el fundamento jurídico del requisito: falta $etiqueta."
+                            );
+                        }
+                    }
+                }
+
+                // Costo de monto fijo: debe ser mayor a 0.
+                if (($req['costo_modo'] ?? 'sin') === 'fijo'
+                    && (float) ($req['costo_monto'] ?? 0) <= 0) {
+                    $validator->errors()->add(
+                        "requisitos.$i.costo_monto",
+                        'Ingrese el costo del requisito (mayor a 0).'
+                    );
+                }
+            }
+        });
+    }
+
+    /**
      * Calcula el tope de `plazo_resolucion_cantidad` según la unidad elegida,
      * de modo que el plazo nunca supere MAX_PLAZO_ANIOS sin importar si se
      * captura en años, meses o días.
@@ -130,6 +191,41 @@ class TramiteRequest extends FormRequest
             'tiempo_espera_horas.max'       => 'Las horas de espera superan el máximo permitido.',
             'tiempo_atencion_horas.max'     => 'Las horas de atención superan el máximo permitido.',
             'costo_tipo.required' => 'Seleccione el tipo de costo público.',
+
+            // ── Paso 4: Requisitos ──
+            'requisitos.required'                 => 'Agregue al menos un requisito.',
+            'requisitos.min'                      => 'Agregue al menos un requisito.',
+            'requisitos.*.nombre.required'        => 'Cada requisito necesita un nombre.',
+            'requisitos.*.tipo.required'          => 'Marque el tipo de presentación de cada requisito.',
+            'requisitos.*.tipo.min'               => 'Marque al menos un tipo de presentación por requisito.',
+            'requisitos.*.observaciones.required' => 'Agregue las observaciones de cada requisito.',
+            'requisitos.*.fj_tiene.required'      => 'Indique si cada requisito tiene fundamento jurídico.',
+
+            // ── Paso 5: Fundamento jurídico ──
+            'citas.required'                => 'Agregue al menos una regulación del catálogo.',
+            'citas.min'                     => 'Agregue al menos una regulación del catálogo.',
+            'fundamento_normativa.required' => 'Escriba la normativa de origen.',
+            'fundamento_tipo.required'      => 'Seleccione el tipo de normativa.',
+            'fundamento_articulo.required'  => 'Indique el artículo o fracción.',
+
+            // ── Paso 6: Portal ciudadano ──
+            'portal_nombre_ciudadano.required'  => 'Indique el nombre ciudadano del trámite.',
+            'portal_resultado.required'         => 'Indique el resultado que se obtiene.',
+            'portal_modalidad.required'         => 'Seleccione la modalidad de atención.',
+            'portal_descripcion.required'       => 'Agregue la descripción para el portal.',
+            'portal_horario.required'           => 'Configure el horario de atención.',
+            'portal_documento_obtiene.required' => 'Indique el documento que obtiene el ciudadano.',
+            'portal_canal_principal.required'   => 'Seleccione el canal principal de atención.',
+            'portal_medio_entrega.required'     => 'Seleccione el medio de entrega.',
+            'portal_forma_pago.required'        => 'Seleccione la forma de pago.',
+            'portal_vigencia.required'          => 'Indique la vigencia.',
+            'portal_oficina.required'           => 'Indique la oficina.',
+            'portal_casos_realizarse.required'  => 'Indique los casos en que se realiza.',
+            'portal_telefono.required'          => 'Indique el teléfono de atención.',
+            'portal_correo.required'            => 'Indique el correo de atención.',
+            'portal_correo.email'               => 'El correo de atención no es válido.',
+            'portal_direccion.required_if'      => 'Indique la dirección (atención presencial o mixta).',
+            'portal_url.required_if'            => 'Indique la URL (atención en línea o mixta).',
         ];
     }
 
@@ -144,7 +240,7 @@ class TramiteRequest extends FormRequest
      * solo al enviar o actualizar (ver reglasCompletas).
      */
     /**
-     * Bug 48: los campos de tiempo pueden llegar con ceros iniciales ("011")
+     * Los campos de tiempo pueden llegar con ceros iniciales ("011")
      * que la regla `integer` rechaza. Los convertimos a int antes de validar.
      */
     protected function prepareForValidation(): void
@@ -173,7 +269,7 @@ class TramiteRequest extends FormRequest
     {
         return [
             'nombre_oficial'            => 'required|string|max:500',
-            // #42/#45/#46: naturaleza faltaba en reglasBase(). Sin esta regla,
+            // La naturaleza debe validarse también en el borrador. Sin esta regla,
             // Laravel's validated() nunca incluía el campo al guardar un
             // borrador, y el modelo caía al default de la BD ('tramite').
             // Un SERVICIO guardado como borrador terminaba registrado como
@@ -203,7 +299,7 @@ class TramiteRequest extends FormRequest
             'visitas_requeridas'        => 'nullable|integer|min:0|max:' . $this->tope('visitas'),
             'num_areas'                 => 'nullable|integer|min:0|max:' . $this->tope('num_areas'),
             'areas_participantes'       => 'nullable|string|max:500',
-            // #43: respaldo de servidor para la exclusividad de "No Aplica"
+            // Respaldo de servidor para la exclusividad de "No Aplica"
             // que ya se aplica en JS (partials/catalogos-tramite.blade.php).
             // Si alguien manda ambos por fuera del formulario normal (JS
             // deshabilitado, petición manual), el servidor lo rechaza.
@@ -281,12 +377,46 @@ class TramiteRequest extends FormRequest
             // revisa el min), evitando el falso "debe ser mayor a 0" del 0.
             'costo_monto'        => 'exclude_unless:costo_tipo,con_costo|required|numeric|min:0.01',
             'nivel_digitalizacion' => 'required|integer|min:0|max:5',
-            // ── Requisitos (paso 4) ──
-            // Al enviar, cada requisito con nombre debe declarar al menos un tipo
-            // de presentación (arreglo no vacío). Cada elemento debe ser válido.
-            'requisitos.*.tipo'   => 'required_with:requisitos.*.nombre|array',
-            'requisitos.*.tipo.*' => 'in:original,copia,digital',
             'costo_tipo' => 'required|in:gratuito,con_costo,con_costo_variable',
+
+            // ── Paso 4: Requisitos ── al menos uno, y cada uno completo.
+            'requisitos'                 => 'required|array|min:1',
+            'requisitos.*.nombre'        => 'required|string|max:255',
+            'requisitos.*.tipo'          => 'required|array|min:1',
+            'requisitos.*.tipo.*'        => 'in:original,copia,digital',
+            'requisitos.*.observaciones' => 'required|string',
+            'requisitos.*.dias'          => 'nullable|integer|min:0',
+            'requisitos.*.horas'         => 'nullable|integer|min:0',
+            'requisitos.*.minutos'       => 'nullable|integer|min:0',
+            'requisitos.*.fj_tiene'      => 'required|in:0,1',
+
+            // ── Paso 5: Fundamento jurídico ── según el modo activo.
+            // exclude_unless: el modo que NO se usa se ignora, para no exigir
+            // campos del otro modo.
+            'fundamento_modo'      => 'required|in:catalogo,manual',
+            'citas'                => 'exclude_unless:fundamento_modo,catalogo|required|array|min:1',
+            'fundamento_normativa' => 'exclude_unless:fundamento_modo,manual|required|string|max:500',
+            'fundamento_tipo'      => 'exclude_unless:fundamento_modo,manual|required|string|max:100',
+            'fundamento_articulo'  => 'exclude_unless:fundamento_modo,manual|required|string|max:100',
+
+            // ── Paso 6: Portal ciudadano ──
+            'portal_nombre_ciudadano'  => 'required|string|max:255',
+            'portal_resultado'         => 'required|string|max:255',
+            'portal_modalidad'         => 'required|in:Presencial,En línea,Mixta',
+            'portal_descripcion'       => 'required|string',
+            'portal_horario'           => 'required|string',
+            'portal_documento_obtiene' => 'required|string|max:255',
+            'portal_canal_principal'   => 'required|string|max:100',
+            'portal_medio_entrega'     => 'required|string|max:100',
+            'portal_forma_pago'        => 'required|string|max:100',
+            'portal_vigencia'          => 'required|string|max:255',
+            'portal_oficina'           => 'required|string|max:255',
+            'portal_casos_realizarse'  => 'required|string',
+            'portal_telefono'          => 'required|string|max:50',
+            'portal_correo'            => 'required|email|max:255',
+            // Dirección solo si es Presencial o Mixta; URL solo si es En línea o Mixta.
+            'portal_direccion' => 'required_if:portal_modalidad,Presencial,Mixta|nullable|string|max:500',
+            'portal_url'       => 'required_if:portal_modalidad,En línea,Mixta|nullable|string|max:500',
         ]);
     }
 }

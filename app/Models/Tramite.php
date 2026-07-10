@@ -173,9 +173,9 @@ class Tramite extends Model
         'cbi_indirecto'   => 'decimal:2',
         'cbu_unitario'    => 'decimal:2',
         'cbt_total'       => 'decimal:2',
-        // Ítem E
+        // Bandera de pago de derechos variable.
         'monto_derechos_variable' => 'boolean',
-        // Ítem F: catálogos de selección múltiple guardados como JSON.
+        // Catálogos de selección múltiple guardados como JSON.
         'acciones_simplificacion' => 'array',
         'grupos_atencion'         => 'array',
         // Fase 4: timestamps de revisión del flujo
@@ -184,7 +184,7 @@ class Tramite extends Model
     ];
 
     /**
-     * #12: al crear un trámite se le asigna automáticamente el periodo SyD
+     * Al crear un trámite se le asigna automáticamente el periodo SyD
      * activo, salvo que ya venga uno explícito. Así cada trámite queda ligado
      * a su periodo sin que el usuario tenga que elegirlo.
      */
@@ -197,7 +197,7 @@ class Tramite extends Model
         });
     }
 
-    /** #12: periodo (Agenda SyD) al que pertenece el trámite. */
+    /** Periodo (Agenda SyD) al que pertenece el trámite. */
     public function periodo()
     {
         return $this->belongsTo(Periodo::class);

@@ -52,7 +52,7 @@ class CostoBurocraticoService
         $volumenAnual  = max(1, intval($tramite->volumen_anual ?? 1));
         $cbtTotalAnual = $cbuUnitario * $volumenAnual;
 
-        // Ítem E: bandera para que el desglose muestre una nota cuando hay montos
+        // Bandera para que el desglose muestre una nota cuando hay montos
         // no cuantificables (derechos variables del trámite o requisitos de costo
         // de mercado), que quedan fuera del CBD pero existen para la ciudadanía.
         if (!$tramite->relationLoaded('requisitos')) {
@@ -250,7 +250,7 @@ class CostoBurocraticoService
             $tramite->load('requisitos');
         }
 
-        // Ítem E: un requisito con costo variable (ej. plano arquitectónico) NO
+        // Un requisito con costo variable (ej. plano arquitectónico) NO
         // suma al costo directo, porque su monto no es cuantificable de forma
         // objetiva. Su TIEMPO sí cuenta en el CBI (ver sumarTiempoRequisitos...).
         return $tramite->requisitos->sum(fn ($r) =>

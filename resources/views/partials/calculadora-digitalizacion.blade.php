@@ -1,5 +1,5 @@
 {{--
-  #10 — Calculadora de nivel de digitalización (instrumento oficial ATDT).
+  Calculadora de nivel de digitalización (instrumento oficial ATDT).
   Rediseñada como wizard de 6 bloques con SALIDAS INTELIGENTES:
 
   La fórmula `calcularNivel()` se mantiene IDÉNTICA byte por byte a la versión
@@ -419,7 +419,7 @@
     document.getElementById('calcDigBackdrop').classList.remove('open');
   };
 
-  /* Bug #B10: el select del nivel está disabled; el valor REAL viaja en el
+  /* El select del nivel está disabled; el valor REAL viaja en el
      hidden input #nivelDigHidden. Actualizamos ambos: el select para que el
      usuario vea el nivel asignado, y el hidden para que ese valor llegue al
      backend al guardar. Si el form usa una versión vieja (sin hidden), el

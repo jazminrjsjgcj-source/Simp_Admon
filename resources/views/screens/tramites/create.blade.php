@@ -122,7 +122,7 @@
               <small class="help-small">Asignada desde tu perfil de usuario. Contacta al administrador para cambiarla.</small>
             </x-field-help>
 
-            {{-- Fase F.1: Unidad administrativa auto-selección --}}
+            {{-- Unidad administrativa: si la dependencia tiene una sola, se selecciona sola --}}
             <div class="field">
               <label for="unidad_id">Unidad administrativa</label>
               @if($unidadAutoId)
@@ -260,7 +260,7 @@
               </div>
               <x-input-validado tipo="numero_entero" name="visitas_requeridas" label="Visitas requeridas" min="0" :max="config('punta.topes_tramite.visitas')" placeholder="0" :value="old('visitas_requeridas')" help="Máximo permitido: {{ config('punta.topes_tramite.visitas') }} visitas." />
 
-              {{-- Ítem C: Plazo de resolución --}}
+              {{-- Plazo de resolución --}}
               <div class="field">
                 <label>Plazo máximo de resolución</label>
                 <div class="split-fields">
@@ -314,10 +314,10 @@
             </div>
             <div class="wizard-fields">
               <x-field-help label="Nivel de digitalización" class="span-2">
-                {{-- Bug #B10: el select queda BLOQUEADO. El valor sólo se establece
-                     vía calculadora oficial (35 criterios ATDT). El hidden input
-                     lleva el valor real al backend porque los <select disabled>
-                     no se envían con el form. --}}
+                {{-- El select está bloqueado: el nivel solo se fija con la calculadora
+                     oficial (los 35 criterios ATDT), no a mano. El input oculto lleva
+                     el valor real al servidor, porque un <select disabled> no se
+                     envía con el formulario. --}}
                 {{-- Select (bloqueado) y botón de la calculadora, lado a lado. --}}
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
                   <select name="nivel_digitalizacion_display" id="nivelDigSelect" disabled style="background:var(--surface-low);cursor:not-allowed; flex:1 1 260px">
@@ -415,9 +415,9 @@
                 </div>
                 <input type="hidden" name="derechos_json" id="derechosJson" value="{{ old('derechos_json', '[]') }}">
               </x-field-help>
-              {{-- Bug #B11: Monto de derechos. Se oculta cuando "es variable"
-                   está marcado, porque mostrar $0.00 confunde al enlace.
-                   En su lugar aparece el aviso #montoDerechosVariableAviso. --}}
+              {{-- Monto de derechos. Se oculta cuando algún derecho es "variable",
+                   porque mostrar $0.00 confundiría al usuario. En su lugar aparece
+                   el aviso #montoDerechosVariableAviso. --}}
               <div id="montoDerechosFijoWrap" class="span-2" style="display:{{ old('monto_derechos_variable') ? 'none' : '' }}">
                 <x-field-help label="Monto de derechos (pesos)" class="span-2">
                   <input type="number" id="montoDerechosCalc" name="monto_derechos_display" readonly
@@ -430,9 +430,9 @@
               <div id="montoDerechosVariableAviso" class="assist-box span-2" style="display:{{ old('monto_derechos_variable') ? '' : 'none' }}">
                 <strong>Costo variable.</strong> El monto de derechos no se incluye en el cálculo del CBD porque depende del caso (ej. el predial varía según el valor catastral). El costo total del trámite seguirá considerando el tiempo del ciudadano (CBI) y las copias.
               </div>
-              {{-- Ítem E: pago de derechos variable. Se auto-detecta cuando
-                   algún derecho se marca como "Variable" (checkbox por derecho).
-                   Ya no es un checkbox manual global — se calcula. --}}
+              {{-- Pago de derechos variable. Se detecta solo cuando algún derecho se
+                   marca como "Variable" (un checkbox por derecho); no es un checkbox
+                   global, se calcula a partir de los derechos. --}}
               <input type="hidden" name="monto_derechos_variable" id="montoVariableChk" value="{{ old('monto_derechos_variable', 0) }}">
               <div id="montoReferenciaWrap" style="display:none">
                 <x-field-help label="Base de cálculo del monto (referencia)" class="span-2">
@@ -512,7 +512,7 @@
                 <x-field-help label="Nombre del requisito" class="span-2">
                   <input name="requisitos[0][nombre]" placeholder="Ej. Identificación oficial vigente">
                 </x-field-help>
-                {{-- Bug #44: multiselección de tipo de presentación --}}
+                {{-- Tipo de presentación: se pueden marcar varias (original, copia, digital) --}}
                 <x-field-help label="Tipo de presentación">
                   <div class="tipo-pres-checks">
                     <label><input type="checkbox" name="requisitos[0][tipo][]" value="original"> Original</label>
@@ -530,7 +530,7 @@
                 <x-field-help label="Observaciones para publicación" class="span-2">
                   <textarea name="requisitos[0][observaciones]" rows="2" placeholder="Vigencia, formato, dependencia emisora..."></textarea>
                 </x-field-help>
-                {{-- Ítem E: costo del requisito (sin costo / monto fijo / variable) --}}
+                {{-- Costo del requisito: sin costo, monto fijo o variable --}}
                 <x-field-help label="¿Este requisito tiene costo?">
                   <select name="requisitos[0][costo_modo]" onchange="toggleCostoReq(this)">
                     <option value="sin">Sin costo</option>
@@ -662,7 +662,7 @@
               </div>
             </x-field-help>
 
-            {{-- Fase F.4: Horarios de atención estructurados --}}
+            {{-- Horarios de atención estructurados --}}
             <x-field-help label="Horarios de atención">
               <div style="display:flex;gap:8px;align-items:center">
                 <input id="horarioResumen" name="portal_horario" readonly
@@ -759,7 +759,7 @@
   @include('partials.calculadora-digitalizacion')
 
 </div>
-{{-- Bug #B14: Modal de horarios de atención, flujo de 3 pasos --}}
+{{-- Modal de horarios de atención (flujo de 3 pasos) --}}
   <div id="modalHorarios">
     <div class="horario-modal-inner">
       <h3 style="margin:0 0 4px">Horarios de atención</h3>

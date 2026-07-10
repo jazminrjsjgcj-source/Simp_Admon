@@ -357,6 +357,19 @@
           @if($f->resumen)
             <div class="modal-data-item u-span-2"><span>Resumen</span><strong>{{ $f->resumen }}</strong></div>
           @endif
+          @if($esCita && $f->regulacion)
+            <div class="modal-data-item u-span-2" style="display:flex;gap:8px;flex-wrap:wrap">
+              @if($f->regulacion->tieneIndice())
+                {{-- La regulación tiene articulado: se abre el lector lateral para
+                     consultar el artículo citado sin salir del trámite. --}}
+                <button type="button" class="btn btn-outline btn-sm"
+                        data-lector-reg-id="{{ $f->regulacion->id }}"
+                        data-lector-reg-nombre="{{ $f->regulacion->nombre }}">Ver articulado</button>
+              @endif
+              {{-- Siempre disponible: abrir la ficha completa de la regulación. --}}
+              <a href="{{ route('regulaciones.show', $f->regulacion) }}" class="btn btn-outline btn-sm">Ver regulación</a>
+            </div>
+          @endif
         </div>
       @endforeach
     </div>

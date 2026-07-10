@@ -47,7 +47,7 @@
             <span class="acc-flecha">▾</span>
           </button>
           <div class="acc-cuerpo">
-          {{-- Observaciones de esta sección (#18) --}}
+          {{-- Observaciones de esta sección --}}
           @include('partials.observaciones-seccion', [
             'seccion' => 'Datos generales',
             'items'   => $observacionesPorSeccion['Datos generales'] ?? collect(),
@@ -119,7 +119,7 @@
               <small class="help-small">Asignada al momento de crear el trámite.</small>
             </x-field-help>
 
-            {{-- Fase F.1: Unidad administrativa con auto-selección --}}
+            {{-- Unidad administrativa con auto-selección --}}
             <div class="field">
               <label for="unidad_id">Unidad administrativa</label>
               @php
@@ -170,7 +170,7 @@
               <small class="help-small">Se genera automáticamente con el código de la Unidad Responsable + correlativo. Cambie la UR para regenerar.</small>
             </div>
 
-            {{-- #18: Sujeto Obligado editable con precarga del actual.
+            {{-- Sujeto Obligado editable con precarga del actual.
                  Antes el campo era un input disabled — si la titularidad
                  de la dependencia cambiaba, el trámite quedaba con un
                  titular obsoleto y no había forma de corregirlo desde la UI.
@@ -262,7 +262,7 @@
             <span class="acc-flecha">▾</span>
           </button>
           <div class="acc-cuerpo">
-          {{-- Observaciones de esta sección (#18) --}}
+          {{-- Observaciones de esta sección --}}
           @include('partials.observaciones-seccion', [
             'seccion' => 'Costo burocrático',
             'items'   => $observacionesPorSeccion['Costo burocrático'] ?? collect(),
@@ -290,7 +290,7 @@
                 <input name="visitas_requeridas" type="number" min="0" value="{{ old('visitas_requeridas', $tramite->visitas_requeridas) }}">
               </div>
 
-              {{-- Ítem C: Plazo de resolución --}}
+              {{-- Plazo de resolución --}}
               <div class="field">
                 <label>Plazo máximo de resolución</label>
                 <div class="split-fields">
@@ -347,10 +347,10 @@
             </div>
             <div class="wizard-fields">
               <x-field-help label="Nivel de digitalización">
-                {{-- Bug #B10: el select queda BLOQUEADO. El valor sólo se establece
-                     vía calculadora oficial (35 criterios ATDT). El hidden input
-                     lleva el valor real al backend porque los <select disabled>
-                     no se envían con el form. --}}
+                {{-- El select queda bloqueado: el valor solo se establece con la
+                     calculadora oficial (los 35 criterios ATDT). El input oculto lleva
+                     el valor real al servidor, porque un <select disabled> no se
+                     envía con el formulario. --}}
                 <select name="nivel_digitalizacion_display" id="nivelDigSelect" disabled style="background:var(--surface-low);cursor:not-allowed">
                   @php
                     $nivelesDig = [
@@ -383,9 +383,14 @@
               <x-field-help label="Costo público">
                 <div class="costo-grupo">
                   <select id="costoTipo" onchange="actualizarCosto()">
-                    @php $costoActual = old('portal_costo_publico', $ficha->costo_publico ?? 'Gratuito'); $esConCosto = $costoActual !== 'Gratuito' && $costoActual !== ''; @endphp
-                    <option value="gratuito" {{ $esConCosto ? '' : 'selected' }}>Gratuito</option>
+                    @php
+                      $costoActual = old('portal_costo_publico', $ficha->costo_publico ?? 'Gratuito');
+                      $esVariable  = $costoActual === 'Costo variable';
+                      $esConCosto  = $costoActual !== 'Gratuito' && $costoActual !== '' && !$esVariable;
+                    @endphp
+                    <option value="gratuito" {{ (!$esConCosto && !$esVariable) ? 'selected' : '' }}>Gratuito</option>
                     <option value="con_costo" {{ $esConCosto ? 'selected' : '' }}>Con precio</option>
+                    <option value="con_costo_variable" {{ $esVariable ? 'selected' : '' }}>Con precio variable</option>
                   </select>
                   <input type="number" id="costoMonto" min="0" step="0.01" placeholder="0.00"
                     value="{{ $esConCosto ? preg_replace('/[^0-9.]/', '', $costoActual) : 0 }}"
@@ -397,7 +402,7 @@
                   <span class="costo-moneda" id="costoEquiv"></span>
                 </div>
                 <input type="hidden" name="portal_costo_publico" id="costoTexto" value="{{ $costoActual }}">
-                <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ $esConCosto ? 'con_costo' : 'gratuito' }}">
+                <input type="hidden" name="costo_tipo" id="costoTipoHidden" value="{{ $esVariable ? 'con_costo_variable' : ($esConCosto ? 'con_costo' : 'gratuito') }}">
                 <input type="hidden" name="costo_monto" id="costoMontoHidden" value="0">
                 <input type="hidden" name="costo_unidad" id="costoUnidadHidden" value="pesos">
               </x-field-help>
@@ -440,7 +445,7 @@
                 <input type="hidden" name="derechos_json" id="derechosJson"
                   value="{{ old('derechos_json', $tramite->derechos->map(fn($d) => ['concepto' => $d->concepto, 'monto' => (float) $d->monto, 'unidad' => $d->unidad ?? 'pesos', 'es_variable' => (bool) ($d->es_variable ?? false), 'fj_norma' => $d->fj_norma, 'fj_capitulo' => $d->fj_capitulo, 'fj_articulo' => $d->fj_articulo])->toJson()) }}">
               </x-field-help>
-              {{-- Bug #B11: Monto de derechos. Se oculta cuando "es variable"
+              {{-- Monto de derechos. Se oculta cuando "es variable"
                    está marcado, porque mostrar $0.00 confunde al enlace.
                    En su lugar aparece el aviso #montoDerechosVariableAviso. --}}
               <div id="montoDerechosFijoWrap" class="span-2" style="display:{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? 'none' : '' }}">
@@ -456,7 +461,7 @@
               <div id="montoDerechosVariableAviso" class="assist-box span-2" style="display:{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? '' : 'none' }}">
                 <strong>Costo variable.</strong> El monto de derechos no se incluye en el cálculo del CBD porque depende del caso (ej. el predial varía según el valor catastral). El costo total del trámite seguirá considerando el tiempo del ciudadano (CBI) y las copias.
               </div>
-              {{-- Ítem E: pago de derechos variable. Se auto-detecta cuando
+              {{-- Pago de derechos variable. Se detecta solo cuando
                    algún derecho se marca como "Variable" (checkbox por derecho). --}}
               <input type="hidden" name="monto_derechos_variable" id="montoVariableChk" value="{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? '1' : '0' }}">
               <div id="montoReferenciaWrap" style="display:{{ old('monto_derechos_variable', $tramite->monto_derechos_variable) ? '' : 'none' }}">
@@ -516,13 +521,13 @@
             <span class="acc-flecha">▾</span>
           </button>
           <div class="acc-cuerpo">
-          {{-- Observaciones de esta sección (#18) --}}
+          {{-- Observaciones de esta sección --}}
           @include('partials.observaciones-seccion', [
             'seccion' => 'Requisitos',
             'items'   => $observacionesPorSeccion['Requisitos'] ?? collect(),
             'campos'  => $camposObservables['Requisitos'] ?? [],
           ])
-          {{-- Ítem A #21: ¿Guarda relación? Radio Sí/No con detalle condicional.
+          {{-- ¿Guarda relación? Radio Sí/No con detalle condicional.
                Antes era un select con 4 opciones que confundía al enlace
                (las distinciones eran sutiles). Ahora es una pregunta binaria
                y el subtipo se describe en el campo de detalle. --}}
@@ -557,7 +562,7 @@
                 <strong>Requisito {{ $i + 1 }}: {{ $req->nombre }}</strong>
                 <div class="wizard-fields">
                   <div class="field"><label>Nombre *</label><input name="requisitos[{{ $i }}][nombre]" value="{{ $req->nombre }}" required></div>
-                  {{-- Bug #44: multiselección de tipo de presentación --}}
+                  {{-- Tipo de presentación: se pueden marcar varias (original, copia, digital) --}}
                   @php $tiposActivos = array_map('trim', explode(',', $req->tipo_presentacion ?? '')); @endphp
                   <div class="field"><label>Tipo de presentación</label>
                     <div class="tipo-pres-checks">
@@ -570,7 +575,7 @@
                   <div class="field"><label>Horas estimadas</label><input name="requisitos[{{ $i }}][horas]" type="number" min="0" value="{{ $req->horas_estimadas }}"></div>
                   <div class="field"><label>Minutos estimados</label><input name="requisitos[{{ $i }}][minutos]" type="number" min="0" max="59" value="{{ $req->minutos_estimados }}"></div>
                   <div class="field span-2"><label>Observaciones</label><textarea name="requisitos[{{ $i }}][observaciones]" rows="2">{{ $req->observaciones }}</textarea></div>
-                  {{-- Ítem E: costo del requisito (pre-cargado según lo guardado) --}}
+                  {{-- Costo del requisito (pre-cargado según lo guardado) --}}
                   @php
                     $reqModoCosto = $req->costo_variable ? 'variable' : ($req->tiene_costo ? 'fijo' : 'sin');
                   @endphp
@@ -642,7 +647,7 @@
             <span class="acc-flecha">▾</span>
           </button>
           <div class="acc-cuerpo">
-          {{-- Observaciones de esta sección (#18) --}}
+          {{-- Observaciones de esta sección --}}
           @include('partials.observaciones-seccion', [
             'seccion' => 'Fundamento jurídico',
             'items'   => $observacionesPorSeccion['Fundamento jurídico'] ?? collect(),
@@ -867,7 +872,7 @@
   @endif
 
 </div>
-{{-- Fase F.4: Modal de horarios de atención --}}
+{{-- Modal de horarios de atención --}}
 <div id="modalHorarios">
   <div class="horario-modal-inner">
     <h3 style="margin:0 0 4px">Horarios de atención</h3>
@@ -1007,7 +1012,7 @@ function toggleModalidadCampos() {
 }
 document.addEventListener('DOMContentLoaded', toggleModalidadCampos);
 
-// Ítem A: mostrar campo de trámites relacionados solo cuando se elige "Sí"
+// Mostrar campo de trámites relacionados solo cuando se elige "Sí"
 // (rubro 10.2 del instrumento ATDT). El campo cambió de un <select> a radios
 // Art. 29, fracción VI LNETB: si el tipo de relación es distinto de
 // "Ninguna", mostrar el detalle de trámites relacionados.
@@ -1066,20 +1071,28 @@ function actualizarCosto() {
   if (!tipo || !monto || !unidad) return;
 
   var esGratuito = tipo.value === 'gratuito';
-  monto.style.display  = esGratuito ? 'none' : '';
-  unidad.style.display = esGratuito ? 'none' : '';
-  if (esGratuito) { monto.value = 0; if (equiv) equiv.textContent = ''; }
+  var esVariable = tipo.value === 'con_costo_variable';
+  var conMonto   = tipo.value === 'con_costo';
+  monto.style.display  = conMonto ? '' : 'none';
+  unidad.style.display = conMonto ? '' : 'none';
+  if (!conMonto) { monto.value = 0; if (equiv) equiv.textContent = ''; }
 
   var valorCapturado = parseFloat(monto.value) || 0;
   var esUma = unidad.value === 'UMA';
   var valorPesos = esUma ? (valorCapturado * VALOR_UMA) : valorCapturado;
 
-  if (equiv) equiv.textContent = esGratuito ? '' : (esUma ? ('≈ $' + valorPesos.toFixed(2) + ' MXN') : 'MXN');
+  if (equiv) equiv.textContent = conMonto ? (esUma ? ('≈ $' + valorPesos.toFixed(2) + ' MXN') : 'MXN') : '';
 
-  document.getElementById('costoTexto').value        = esGratuito ? 'Gratuito' : ('$' + valorPesos.toFixed(2) + ' MXN');
+  var texto;
+  if (esGratuito)      texto = 'Gratuito';
+  else if (esVariable) texto = 'Costo variable';
+  else                 texto = '$' + valorPesos.toFixed(2) + ' MXN';
+
+  document.getElementById('costoTexto').value        = texto;
   document.getElementById('costoTipoHidden').value   = tipo.value;
-  document.getElementById('costoMontoHidden').value  = valorPesos;
-  document.getElementById('costoUnidadHidden').value = esGratuito ? 'pesos' : unidad.value;
+  document.getElementById('costoMontoHidden').value  = conMonto ? valorPesos : 0;
+  var cuh = document.getElementById('costoUnidadHidden');
+  if (cuh) cuh.value = conMonto ? unidad.value : 'pesos';
 }
 document.addEventListener('DOMContentLoaded', actualizarCosto);
 
@@ -1181,7 +1194,7 @@ function setDerechoFj(i, tiene) {
 
 // Muestra u oculta los campos de fundamento de un bloque según el radio Sí/No.
 // La usan el costo, los requisitos y los derechos (misma estructura .fj-bloque).
-// Ítem F: la etapa de operación solo aplica a personas morales.
+// La etapa de operación solo aplica a personas morales.
 function toggleEtapaOperacion() {
   var sel  = document.querySelector('select[name="dirigido_a"]');
   var wrap = document.getElementById('etapaOperacionWrap');
@@ -1194,15 +1207,15 @@ document.addEventListener('DOMContentLoaded', function () {
   toggleEtapaOperacion();
 });
 
-// Ítem E: muestra el campo de monto solo cuando el requisito tiene costo fijo.
+// Muestra el campo de monto solo cuando el requisito tiene costo fijo.
 function toggleCostoReq(sel) {
   var card = sel.closest('article.requirement-card');
   if (!card) return;
   var montoWrap = card.querySelector('.req-costo-monto');
   if (montoWrap) montoWrap.style.display = (sel.value === 'fijo') ? '' : 'none';
 }
-// Ítem E: muestra la base de cálculo solo cuando el pago de derechos es variable.
-// Bug #B11: también oculta el campo "Monto de derechos" y muestra un aviso
+// Muestra la base de cálculo solo cuando el pago de derechos es variable.
+// También oculta el campo "Monto de derechos" y muestra un aviso
 // explicativo cuando es variable (para evitar el confuso $0.00).
 function toggleMontoReferencia() {
   var hayVariable = _derechos.some(function (d) { return d.es_variable; });
@@ -1229,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (Array.isArray(inicial)) _derechos = inicial;
   } catch (e) { _derechos = []; }
   renderDerechos();
-  // Bug 51: reflejar al cargar el estado del costo variable (checkbox
+  // Reflejar al cargar el estado del costo variable (checkbox
   // monto_derechos_variable). Sin esto, al editar un trámite que ya tiene
   // costo variable, el campo de monto/UMA queda oculto hasta tocar el
   // checkbox. La función ya existía; solo faltaba invocarla en la carga.
@@ -1320,7 +1333,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('reqContainer').appendChild(a);
   };
 
-  // ─── Fase F.4: Horarios de atención ────────────────────────────
+  // ─── Horarios de atención ────────────────────────────
   var DIAS_H = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
   var H_INI = '09:00', H_FIN = '15:00';
   var horariosData = (function () {
@@ -1423,7 +1436,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function abrirHorarios()  { renderHorariosUI(); document.getElementById('modalHorarios').classList.add('open'); }
   function cerrarHorarios() { document.getElementById('modalHorarios').classList.remove('open'); }
 
-  // Bug 65: auto-abrir secciones del acordeón que tienen observaciones.
+  // Auto-abrir secciones del acordeón que tienen observaciones.
   // Busca los bloques .obs-aviso (renderizados por el partial) y abre
   // su sección padre para que el enlace vea qué debe corregir sin tener
   // que abrir cada acordeón manualmente.
@@ -1459,7 +1472,7 @@ function elegirNaturaleza(tipo) {
   if (tipo === 'servicio') document.getElementById('tipo_tramite_id').value = '';
 
   // Reemplazo masivo: misma lógica que en create.blade.php, con exclusión
-  // de las tarjetas selectoras (bug #46: sin esta exclusión, la tarjeta NO
+  // de las tarjetas selectoras (sin esta exclusión, la tarjeta NO
   // seleccionada terminaba mostrando el título de la seleccionada, ej.
   // ambas tarjetas decían "Servicio").
   var pares = [

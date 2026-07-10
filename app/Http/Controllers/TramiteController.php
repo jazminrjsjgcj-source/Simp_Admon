@@ -47,8 +47,8 @@ class TramiteController extends Controller
 
     /**
      * Visibilidad del listado según el rol: admin y revisora ven todas las
-     * dependencias (C2); los demás, solo la suya; y un borrador solo lo ve su
-     * creador o el admin (#32).
+     * dependencias; los demás, solo la suya; y un borrador solo lo ve su
+     * creador o el admin.
      */
     private function aplicaVisibilidad(\Illuminate\Database\Eloquent\Builder $query, User $user): void
     {
@@ -301,7 +301,7 @@ class TramiteController extends Controller
         $tramite->load(['dependencia', 'unidad', 'requisitos', 'fundamentos', 'fichaPortal', 'observaciones.realizadaPor', 'firmas.firmante', 'derechos', 'relacionados.dependencia', 'acciones']);
         $snapshotCosto = $this->costoService->ultimoSnapshot($tramite);
 
-        // Corrección #18: si el usuario puede observar, preparamos los datos
+        // Si el usuario puede observar, preparamos los datos
         // del modal de observación por campo. Los destinatarios son los
         // usuarios activos de la dependencia del trámite (los enlaces que
         // corregirán), igual que en el módulo de revisión.
@@ -309,7 +309,7 @@ class TramiteController extends Controller
             && $tramite->estaEnObservacion();
         $revisores = collect();
         if ($puedeObservar) {
-            // Bug 53: excluir al propio usuario — no puede dirigirse
+            // Excluir al propio usuario — no puede dirigirse
             // observaciones a sí mismo (ej. jurídico observándose).
             $revisores = \App\Models\User::where('activo', true)
                 ->where('dependencia_id', $tramite->dependencia_id)
@@ -319,7 +319,7 @@ class TramiteController extends Controller
         }
 
         // Observaciones agrupadas por sección, para el checklist lateral y los
-        // avisos por sección (corrección #18). Mismo formato que en edit().
+        // avisos por sección. Mismo formato que en edit().
         $observacionesPorSeccion = $tramite->observaciones
             ->groupBy('seccion');
         $camposObservables = config('punta.campos_observables_tramite');
@@ -354,14 +354,14 @@ class TramiteController extends Controller
             ->groupBy('seccion');
         $camposObservables = config('punta.campos_observables_tramite');
 
-        // Fase F.1: unidades de la dependencia del trámite para auto-selección.
+        // Unidades de la dependencia del trámite, para la auto-selección.
         $dependencias = Dependencia::activas()->with('unidades')->orderBy('nombre')->get();
         $unidadesDependencia = \App\Models\UnidadAdministrativa::where('dependencia_id', $tramite->dependencia_id)
             ->where('activo', true)
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'codigo']);
 
-        // A1: datos del sujeto obligado y enlace. Antes se calculaban dentro
+        // Datos del sujeto obligado y enlace. Antes se calculaban dentro
         // de la vista con queries directas (::find, ::vigenteDe, ::activos),
         // violando la separación de capas. Ahora viven aquí en el controlador.
         $sujetoActual = $tramite->sujeto_obligado_id
@@ -487,7 +487,7 @@ class TramiteController extends Controller
         if (!$user->puedeEditarTramite($tramite)) {
             return back()->with('error', 'No tiene permiso.');
         }
-        // Bug 64: al republicar, las observaciones que el enlace ya corrigió
+        // Al republicar, las observaciones que el enlace ya corrigió
         // pasan a 'atendida'. Si la revisora quiere reabrir alguna, lo hace en
         // el nuevo ciclo de observaciones.
         $tramite->observaciones()
@@ -552,12 +552,12 @@ class TramiteController extends Controller
             'tipo_relacion'        => $request->input('tipo_relacion') ?: null,
             'relacionados_detalle' => $request->input('relacionados_detalle') ?: null,
 
-            // Ítem E: pago de derechos variable (ej. predial). El monto capturado se
+            // Pago de derechos variable (ej. predial). El monto capturado se
             // usa como estimación; la referencia explica la base de cálculo.
             'monto_derechos_variable'   => $request->boolean('monto_derechos_variable'),
             'monto_derechos_referencia' => $request->input('monto_derechos_referencia') ?: null,
 
-            // Ítem F: catálogos oficiales (selección múltiple + etapa de operación).
+            // Catálogos oficiales (selección múltiple + etapa de operación).
             'acciones_simplificacion' => $request->input('acciones_simplificacion', []),
             'grupos_atencion'         => $request->input('grupos_atencion', []),
             'etapa_operacion'         => $request->input('etapa_operacion') ?: null,

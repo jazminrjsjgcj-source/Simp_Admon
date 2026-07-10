@@ -388,17 +388,20 @@ class User extends Authenticatable
      */
     public function puedeVerRegistro($registro, string $modulo): bool
     {
-        // Regla de BORRADOR (#32): un borrador es trabajo en proceso, privado de
-        // quien lo creó. No es visible para nadie más —ni siquiera para quien ve
-        // todo el módulo (revisora)— salvo el admin. Esto cubre el acceso por URL
-        // directa al detalle, complementando el filtrado de los listados.
+        // Un borrador es trabajo en proceso, privado de quien lo creó (o del
+        // admin). No lo ve nadie más, ni siquiera quien ve todo el módulo. Cubre
+        // también el acceso por URL directa, no solo el filtrado de los listados.
         $esBorrador = ($registro->estatus ?? null) === 'borrador';
         if ($esBorrador && !$this->isRol(self::ROL_ADMIN)) {
             return ($registro->created_by ?? null) === $this->id;
         }
 
-        return $this->veTodoElModulo($modulo)
-            || $this->esDeSuDependencia($registro);
+        // Un registro ya publicado (no borrador) se puede VER en modo lectura
+        // desde cualquier dependencia. Así, un trámite o regulación que aparece
+        // como relacionado se abre desde el detalle sin dar 403. La restricción
+        // por dependencia sigue aplicando para EDITAR o gestionar (métodos
+        // aparte), no para ver.
+        return true;
     }
 
     /**
