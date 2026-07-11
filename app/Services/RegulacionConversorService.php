@@ -25,6 +25,16 @@ use Throwable;
  */
 class RegulacionConversorService
 {
+    /**
+     * ¿El texto se extrajo con una herramienta que separa bien las palabras
+     * (pdftotext, LibreOffice)? En ese caso NO hay que segmentar: el segmentador
+     * está para reparar el texto de la librería PHP, que pega palabras cuando el
+     * PDF no guarda el espacio. Aplicarlo sobre un texto ya correcto es dañino,
+     * porque parte términos que no están en el diccionario ("semifijos" acababa
+     * como "se mi fijos", ya que "se", "mi" y "fijos" sí existen por separado).
+     */
+    private bool $textoYaSeparado = false;
+
     public function __construct(
         private SegmentadorPalabrasService $segmentador,
         // Se reutiliza para localizar LibreOffice: ya sabe dónde buscarlo
@@ -279,8 +289,8 @@ class RegulacionConversorService
 
     private function extraerTextoPdf(string $ruta): string
     {
-        // Primero pdftotext con -layout: conserva la disposición del documento,
-        // incluidos los saltos de línea que separan artículos y fracciones.
+        // Primero pdftotext: conserva los saltos de línea que separan artículos
+        // y fracciones (ver extraerPdfConPdftotext para el detalle del modo -raw).
         //
         // La librería PHP (Smalot\PdfParser) devuelve el texto corrido, sin esos
         // saltos, y así el estructurador no puede distinguir dónde termina un
@@ -288,6 +298,10 @@ class RegulacionConversorService
         // herramienta estándar para esto y respeta la maquetación original.
         $texto = $this->extraerPdfConPdftotext($ruta);
         if ($texto !== null && trim($texto) !== '') {
+            // pdftotext respeta los espacios reales del documento: el texto ya
+            // viene con las palabras bien separadas y no hay que segmentarlo.
+            $this->textoYaSeparado = true;
+
             return $texto;
         }
 
@@ -319,9 +333,17 @@ class RegulacionConversorService
 
         $salida = tempnam(sys_get_temp_dir(), 'punta_pdf_') . '.txt';
 
-        // -layout → conserva la disposición del texto (con sus saltos de línea).
+        // -raw → extrae el texto en el orden del flujo del documento.
+        //
+        //   Se usa -raw y NO -layout a propósito: -layout intenta reproducir la
+        //   maquetación y, en documentos con texto justificado o en columnas,
+        //   mete espacios DENTRO de las palabras ("se mi fijos" en vez de
+        //   "semifijos"), lo que rompe el buscador. Con -raw las palabras quedan
+        //   enteras y los artículos y fracciones siguen empezando en su línea,
+        //   que es lo que necesita el estructurador.
+        //
         // -enc UTF-8 → para no perder los acentos.
-        $comando = 'pdftotext -layout -enc UTF-8 '
+        $comando = 'pdftotext -raw -enc UTF-8 '
                  . escapeshellarg($ruta) . ' '
                  . escapeshellarg($salida) . ' 2>&1';
 
@@ -353,12 +375,15 @@ class RegulacionConversorService
         //
         // LibreOffice sí RENDERIZA esa numeración al generar el PDF —igual que al
         // imprimir—, así que la letra pasa a ser texto real. Desde ahí, pdftotext
-        // con -layout conserva la disposición y el estructurador la reconoce.
+        // conserva la disposición y el estructurador la reconoce.
         //
         // Es una conversión más, y por tanto más lenta, pero recupera contenido que
         // de otro modo desaparecía.
         $texto = $this->extraerWordViaPdf($ruta);
         if ($texto !== null && trim($texto) !== '') {
+            // Viene de LibreOffice + pdftotext: las palabras ya están separadas.
+            $this->textoYaSeparado = true;
+
             return $texto;
         }
 
@@ -722,7 +747,12 @@ class RegulacionConversorService
         //    corte así de seguro, la deja intacta — nunca parte una palabra
         //    real por accidente (ver la documentación completa de la clase
         //    para el razonamiento detrás de esta regla).
-        $cuerpo = $this->segmentador->aplicarATexto($cuerpo);
+        // Solo se segmenta el texto que viene de la librería PHP de respaldo, que
+        // es la que pega palabras. Si lo extrajo pdftotext o LibreOffice, ya está
+        // bien separado y segmentarlo solo puede romperlo.
+        if (! $this->textoYaSeparado) {
+            $cuerpo = $this->segmentador->aplicarATexto($cuerpo);
+        }
 
         // ── Eliminar líneas que son solo basura (< 20% alfanumérico) ──────
         $lineas = explode("\n", $cuerpo);
@@ -826,7 +856,7 @@ class RegulacionConversorService
      * disponibles, o si algo falla: en ese caso el llamador usa PHPWord.
      *
      * Se hace así porque LibreOffice renderiza la numeración de las listas (los
-     * "a)", "b)" que Word dibuja pero no guarda como texto), y pdftotext -layout
+     * "a)", "b)" que Word dibuja pero no guarda como texto), y pdftotext
      * conserva la disposición. Es el mismo camino que ya da buen resultado con los
      * PDF originales.
      */
