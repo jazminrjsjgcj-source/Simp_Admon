@@ -25,59 +25,59 @@ return new class extends Migration
         Schema::table('proceso_atencion', function (Blueprint $table) {
             // Tipo de paso enriquecido (más allá de atencion/resolucion)
             if (!Schema::hasColumn('proceso_atencion', 'tipo_paso')) {
-                $table->string('tipo_paso', 30)->default('paso')->after('area');
+                $table->string('tipo_paso', 30)->default('paso');
                 // Valores: paso, decision, inspeccion, pago, resolutivo,
                 //          notificacion, espera, firma, entrega
             }
 
             // Actor que ejecuta este paso
             if (!Schema::hasColumn('proceso_atencion', 'actor')) {
-                $table->string('actor', 200)->nullable()->after('tipo_paso');
+                $table->string('actor', 200)->nullable();
                 // Ej: "Ciudadano", "Ventanilla", "Director", "Sistema"
             }
 
             // Duración estimada del paso
             if (!Schema::hasColumn('proceso_atencion', 'duracion_estimada')) {
-                $table->string('duracion_estimada', 100)->nullable()->after('actor');
+                $table->string('duracion_estimada', 100)->nullable();
                 // Ej: "15 min", "3 días hábiles", "inmediato"
             }
 
             // ¿Este paso se puede digitalizar?
             if (!Schema::hasColumn('proceso_atencion', 'es_digital')) {
-                $table->boolean('es_digital')->default(false)->after('duracion_estimada');
+                $table->boolean('es_digital')->default(false);
             }
 
             // Requisito de entrada (qué necesita el paso para ejecutarse)
             if (!Schema::hasColumn('proceso_atencion', 'entrada')) {
-                $table->string('entrada', 500)->nullable()->after('es_digital');
+                $table->string('entrada', 500)->nullable();
             }
 
             // Resultado de salida (qué produce el paso)
             if (!Schema::hasColumn('proceso_atencion', 'salida')) {
-                $table->string('salida', 500)->nullable()->after('entrada');
+                $table->string('salida', 500)->nullable();
             }
 
             // Observaciones del levantamiento
             if (!Schema::hasColumn('proceso_atencion', 'notas')) {
-                $table->text('notas')->nullable()->after('salida');
+                $table->text('notas')->nullable();
             }
 
             // Orden explícito (para reordenar sin depender de paso/subpaso)
             if (!Schema::hasColumn('proceso_atencion', 'orden')) {
-                $table->unsignedSmallInteger('orden')->default(0)->after('notas');
+                $table->unsignedSmallInteger('orden')->default(0);
             }
         });
 
         // Campos de revisión del flujo en tramites
         Schema::table('tramites', function (Blueprint $table) {
             if (!Schema::hasColumn('tramites', 'flujo_enviado_en')) {
-                $table->timestamp('flujo_enviado_en')->nullable()->after('digitalizacion_origen');
+                $table->timestamp('flujo_enviado_en')->nullable();
             }
             if (!Schema::hasColumn('tramites', 'flujo_aprobado_en')) {
-                $table->timestamp('flujo_aprobado_en')->nullable()->after('flujo_enviado_en');
+                $table->timestamp('flujo_aprobado_en')->nullable();
             }
             if (!Schema::hasColumn('tramites', 'flujo_aprobado_por')) {
-                $table->foreignId('flujo_aprobado_por')->nullable()->after('flujo_aprobado_en')
+                $table->foreignId('flujo_aprobado_por')->nullable()
                     ->constrained('users')->nullOnDelete();
             }
         });

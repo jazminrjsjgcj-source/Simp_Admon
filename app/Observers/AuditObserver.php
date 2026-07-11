@@ -2,11 +2,12 @@
 
 namespace App\Observers;
 
+use Exception;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Str;
 
 class AuditObserver
@@ -76,7 +77,7 @@ class AuditObserver
                 'created_at'     => now(),
             ]);
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('AuditObserver error: ' . $e->getMessage());
         }
     }

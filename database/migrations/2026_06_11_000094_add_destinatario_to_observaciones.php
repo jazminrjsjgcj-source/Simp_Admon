@@ -17,7 +17,7 @@ return new class extends Migration
         Schema::table('observaciones', function (Blueprint $table) {
             $table->foreignId('destinatario_id')
                 ->nullable()
-                ->after('realizada_por')
+                
                 ->constrained('users')
                 ->nullOnDelete();
         });

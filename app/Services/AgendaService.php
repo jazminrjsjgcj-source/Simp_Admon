@@ -97,7 +97,7 @@ class AgendaService
             // un resumen útil para la revisora.
             $resumen = sprintf(
                 'Trámite "%s" creado desde Agenda SyD · %d derecho(s) · %d requisito(s) · monto derechos $%s',
-                \Illuminate\Support\Str::limit($tramite->nombre_oficial, 60),
+                Str::limit($tramite->nombre_oficial, 60),
                 count($derechos),
                 count($requisitos),
                 number_format((float) ($tramite->monto_derechos ?? 0), 2)

@@ -6,6 +6,7 @@ use App\Models\Regulacion;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
  * PdfConversorService
@@ -65,7 +66,7 @@ class PdfConversorService
      * Devuelve la ruta absoluta al PDF de la regulación, generándolo
      * si aún no existe. Es el punto de entrada principal del servicio.
      *
-     * @throws \RuntimeException Si no hay ningún motor disponible para generar el PDF.
+     * @throws RuntimeException Si no hay ningún motor disponible para generar el PDF.
      * @return string Ruta absoluta al archivo PDF.
      */
     public function obtenerOGenerarPdf(Regulacion $regulacion): string
@@ -91,7 +92,7 @@ class PdfConversorService
             return $this->generarConDompdf($regulacion);
         }
 
-        throw new \RuntimeException(
+        throw new RuntimeException(
             'No hay motor de PDF disponible. '
             . 'Instale LibreOffice (recomendado, alta fidelidad) o ejecute: composer require barryvdh/laravel-dompdf'
         );
@@ -126,7 +127,7 @@ class PdfConversorService
      *   2. Si existe un DOCX cacheado → devolverlo sin regenerar.
      *   3. Si LibreOffice está disponible → convertir el PDF original.
      *
-     * @throws \RuntimeException Si el archivo es PDF y LibreOffice no está disponible.
+     * @throws RuntimeException Si el archivo es PDF y LibreOffice no está disponible.
      * @return string Ruta absoluta al archivo DOCX.
      */
     public function obtenerOGenerarDocx(Regulacion $regulacion): string
@@ -144,7 +145,7 @@ class PdfConversorService
 
         // Estrategia 3: convertir el PDF a DOCX con LibreOffice.
         if (!$this->libreOfficeDisponible()) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'La descarga como Word requiere LibreOffice instalado en el servidor. '
                 . 'Instale LibreOffice y configure LIBREOFFICE_PATH en el .env.'
             );
@@ -185,13 +186,13 @@ class PdfConversorService
      * Devuelve la ruta absoluta al archivo original de la regulación.
      * Solo se usa cuando el original ya es PDF (estrategia 1).
      *
-     * @throws \RuntimeException Si el archivo no existe en disco.
+     * @throws RuntimeException Si el archivo no existe en disco.
      */
     private function rutaAbsolutaOriginal(Regulacion $regulacion): string
     {
         $ruta = Storage::disk('local')->path($regulacion->archivo_original);
         if (!file_exists($ruta)) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 "El archivo original no existe en disco: {$regulacion->archivo_original}"
             );
         }
@@ -247,7 +248,7 @@ class PdfConversorService
      * automáticamente cuando se llama a invalidarCache() (al reconvertir o al
      * reemplazar el archivo original).
      *
-     * @throws \RuntimeException Si LibreOffice devuelve código de error != 0.
+     * @throws RuntimeException Si LibreOffice devuelve código de error != 0.
      */
     /**
      * Convierte el PDF original a DOCX usando LibreOffice.
@@ -271,7 +272,7 @@ class PdfConversorService
      *    mismo tiempo), la segunda ve el perfil bloqueado y falla con código 1.
      *    Cada llamada genera su propio directorio temporal con uniqid().
      *
-     * @throws \RuntimeException Si LibreOffice devuelve código de error != 0.
+     * @throws RuntimeException Si LibreOffice devuelve código de error != 0.
      */
     private function convertirConLibreOfficeADocx(Regulacion $regulacion): string
     {
@@ -316,7 +317,7 @@ class PdfConversorService
                 "LibreOffice falló al convertir PDF→DOCX para regulación #{$regulacion->id}. "
                 . "Código: {$codigoSalida}. Salida: {$salidaTexto}"
             );
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 "LibreOffice no pudo convertir el PDF a Word (código: {$codigoSalida}). "
                 . "La causa más frecuente es que el módulo 'PDF Import' de LibreOffice no "
                 . "está instalado. Reinstale LibreOffice con todos los componentes activados. "
@@ -370,7 +371,7 @@ class PdfConversorService
      * en cada descarga. Si LibreOffice falla (timeout, formato corrupto,
      * permisos), lanza una RuntimeException con el código de error.
      *
-     * @throws \RuntimeException Si LibreOffice devuelve código de error != 0.
+     * @throws RuntimeException Si LibreOffice devuelve código de error != 0.
      */
     private function convertirConLibreOffice(Regulacion $regulacion): string
     {
@@ -405,7 +406,7 @@ class PdfConversorService
         if ($codigoSalida !== 0 || !file_exists($rutaGenerada)) {
             $salidaTexto = implode("\n", $salida);
             Log::error("LibreOffice falló para regulación #{$regulacion->id}. Código: {$codigoSalida}. Salida: {$salidaTexto}");
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 "LibreOffice falló al convertir el archivo (código de error: {$codigoSalida}). "
                 . "Revise storage/logs/laravel.log para más detalles."
             );
@@ -425,12 +426,12 @@ class PdfConversorService
      * directorio de caché. No se cachea permanentemente (Dompdf es rápido
      * y regenerar es barato en comparación con LibreOffice).
      *
-     * @throws \RuntimeException Si la regulación no tiene Markdown o está vacío.
+     * @throws RuntimeException Si la regulación no tiene Markdown o está vacío.
      */
     private function generarConDompdf(Regulacion $regulacion): string
     {
         if (empty($regulacion->archivo_markdown) || !Storage::disk('local')->exists($regulacion->archivo_markdown)) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'No hay contenido Markdown para generar el PDF. '
                 . 'Use "Reintentar conversión" primero.'
             );
@@ -439,13 +440,13 @@ class PdfConversorService
         $markdown = Storage::disk('local')->get($regulacion->archivo_markdown);
 
         if (trim($markdown) === '') {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'El contenido Markdown está vacío. No se puede generar el PDF. '
                 . 'Intente reconvertir el archivo.'
             );
         }
 
-        $html   = \Illuminate\Support\Str::markdown($markdown);
+        $html   = Str::markdown($markdown);
         $pagina = '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">'
                 . '<style>' . self::ESTILOS_DOMPDF . '</style>'
                 . '</head><body>' . $html . '</body></html>';

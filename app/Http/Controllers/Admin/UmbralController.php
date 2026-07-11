@@ -8,6 +8,7 @@ use App\Models\SubsectorScian;
 use App\Models\UmbralConfigurado;
 use App\Services\UmbralCalculadorService;
 use Illuminate\Http\Request;
+use RuntimeException;
 
 /**
  * CRUD de umbrales configurados.
@@ -53,7 +54,7 @@ class UmbralController extends Controller
                 $validated['unidad_base'],
                 intval($validated['anio'])
             );
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
 
@@ -84,7 +85,7 @@ class UmbralController extends Controller
                 $validated['unidad_base'],
                 intval($validated['anio'])
             );
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return back()->withInput()->with('error', $e->getMessage());
         }
 

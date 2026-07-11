@@ -61,7 +61,7 @@ return new class extends Migration
         Schema::create('acl_bitacora', function (Blueprint $table) {
             $table->id();
             $table->foreignId('usuario_afectado_id')->constrained('users');
-            $table->enum('accion', ['rol_asignado', 'rol_removido', 'permiso_dado', 'permiso_revocado', 'rol_creado', 'rol_eliminado']);
+            $table->string('accion', 30);
             $table->foreignId('role_id')->nullable()->constrained('roles');
             $table->foreignId('permiso_id')->nullable()->constrained('permisos');
             $table->foreignId('ejecutado_por')->nullable()->constrained('users');

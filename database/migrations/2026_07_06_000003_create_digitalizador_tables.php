@@ -23,11 +23,11 @@ return new class extends Migration
         // campos de estado para el flujo de digitalización.
         Schema::table('tramites', function (Blueprint $table) {
             // Estado del levantamiento del flujo (AS-IS)
-            $table->string('flujo_estado', 30)->default('sin_flujo')->after('estatus');
+            $table->string('flujo_estado', 30)->default('sin_flujo');
             // Estado de la digitalización
-            $table->string('digitalizacion_estado', 40)->default('no_iniciada')->after('flujo_estado');
+            $table->string('digitalizacion_estado', 40)->default('no_iniciada');
             // Origen de la digitalización (null = no aplica todavía)
-            $table->string('digitalizacion_origen', 20)->nullable()->after('digitalizacion_estado');
+            $table->string('digitalizacion_origen', 20)->nullable();
 
             $table->index('flujo_estado');
             $table->index('digitalizacion_estado');
@@ -41,7 +41,7 @@ return new class extends Migration
             $table->foreignId('tramite_id')->constrained('tramites')->cascadeOnDelete();
             $table->foreignId('agenda_accion_id')->nullable()->constrained('acciones_agenda')->nullOnDelete();
 
-            $table->enum('origen', ['agenda', 'directa'])->default('agenda');
+            $table->string('origen', 30)->default('agenda');
             $table->unsignedSmallInteger('version')->default(1);
 
             // Estado del flujo de reingeniería
@@ -77,7 +77,7 @@ return new class extends Migration
             $table->foreignId('tramite_id')->constrained('tramites')->cascadeOnDelete();
             $table->foreignId('reingenieria_id')->constrained('reingenierias')->cascadeOnDelete();
 
-            $table->enum('tipo_diagrama', ['as_is', 'to_be'])->default('to_be');
+            $table->string('tipo_diagrama', 30)->default('to_be');
 
             // Contenido generado
             $table->mediumText('contenido_mermaid')->nullable();
@@ -100,7 +100,7 @@ return new class extends Migration
             $table->foreignId('reingenieria_id')->constrained('reingenierias')->cascadeOnDelete();
             $table->foreignId('usuario_id')->nullable()->constrained('users')->nullOnDelete();
 
-            $table->enum('formato', ['pdf', 'jpg', 'png', 'svg', 'drawio']);
+            $table->string('formato', 30);
             $table->string('hash_archivo_generado', 128)->nullable();
 
             $table->string('ip', 45)->nullable();

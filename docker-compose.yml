@@ -1,0 +1,62 @@
+# Entorno de desarrollo/pruebas para PUNTA con PostgreSQL.
+#
+# Levanta dos servicios:
+#   - app: PHP 8.3 (CLI) con las extensiones que Laravel necesita, INCLUYENDO
+#          pdo_pgsql (la que le falta al PHP de Windows). Aquí se corre artisan.
+#   - db:  PostgreSQL 17, la base de pruebas.
+#
+# El código del proyecto se monta dentro del contenedor, así que se edita en
+# Windows normalmente y el contenedor ve los cambios al instante.
+#
+# Uso:
+#   docker compose up -d          → levanta los servicios
+#   docker compose exec app bash  → entra al contenedor a correr artisan
+#   docker compose down           → los apaga
+#
+# Para ver el sitio:
+#   docker compose exec app php artisan serve --host=0.0.0.0 --port=8000
+#   y abrir http://localhost:8000 en el navegador.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: punta-app
+    working_dir: /var/www/html
+    volumes:
+      # Monta el proyecto (la carpeta actual) dentro del contenedor.
+      - .:/var/www/html
+    ports:
+      # Expone el servidor de Laravel (artisan serve) en el 8000 de Windows,
+      # para poder abrir el sitio desde el navegador en http://localhost:8000
+      - "8000:8000"
+    depends_on:
+      - db
+    networks:
+      - punta-red
+    # Mantiene el contenedor vivo para poder entrar con 'exec'.
+    tty: true
+
+  db:
+    image: postgres:17
+    container_name: punta-db
+    environment:
+      POSTGRES_DB: punta
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: punta123
+    ports:
+      # Se expone en el 5433 de Windows para NO chocar con el postgres-punta
+      # que ya tienes corriendo en el 5432.
+      - "5433:5432"
+    volumes:
+      - punta-pgdata:/var/lib/postgresql/data
+    networks:
+      - punta-red
+
+networks:
+  punta-red:
+    driver: bridge
+
+volumes:
+  punta-pgdata:

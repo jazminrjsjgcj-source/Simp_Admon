@@ -2,21 +2,21 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\Blade;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Pagination\Paginator;
-use App\Observers\AuditObserver;
-use App\Observers\ProcesoAtencionObserver;
-use App\Models\Tramite;
 use App\Models\AccionAgenda;
-use App\Models\PropuestaRegulatoria;
-use App\Models\Regulacion;
 use App\Models\AnalisisImpactoRegulatorio;
 use App\Models\ExencionAir;
-use App\Models\User;
 use App\Models\Periodo;
 use App\Models\ProcesoAtencion;
+use App\Models\PropuestaRegulatoria;
+use App\Models\Regulacion;
+use App\Models\Tramite;
+use App\Models\User;
+use App\Observers\AuditObserver;
+use App\Observers\ProcesoAtencionObserver;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {

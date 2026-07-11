@@ -19,9 +19,9 @@ return new class extends Migration
         Schema::table('propuesta_tramite_impacto', function (Blueprint $table) {
             // Tipo de impacto sobre el trámite. Nullable para no romper los
             // registros que ya existen sin este dato.
-            $table->enum('accion', ['crea', 'modifica', 'elimina'])
+            $table->string('accion', 30)
                 ->nullable()
-                ->after('tramite_id');
+                ;
         });
     }
 

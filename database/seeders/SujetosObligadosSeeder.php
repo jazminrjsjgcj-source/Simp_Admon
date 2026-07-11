@@ -41,7 +41,10 @@ class SujetosObligadosSeeder extends Seeder
         foreach ($titulares as $t) {
             // Buscar dependencia por coincidencia parcial
             $dep = DB::table('dependencias')
-                ->where('nombre', 'LIKE', '%' . $t['dependencia'] . '%')
+                // ILIKE (no LIKE): en PostgreSQL, LIKE distingue mayúsculas y no
+                // encontraría la dependencia si estuviera capitalizada distinto.
+                // ILIKE ignora mayúsculas, que es el comportamiento que se espera.
+                ->where('nombre', 'ILIKE', '%' . $t['dependencia'] . '%')
                 ->first();
 
             // Si no existe, crearla

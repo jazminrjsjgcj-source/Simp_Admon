@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('nombre');
             $table->date('fecha_inicio');
             $table->date('fecha_fin');
-            $table->enum('estatus', ['activo', 'cerrado', 'proximo'])->default('proximo');
+            $table->string('estatus', 30)->default('proximo');
             $table->text('descripcion')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users');
             $table->timestamps();

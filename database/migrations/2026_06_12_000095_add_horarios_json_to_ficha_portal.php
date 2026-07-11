@@ -15,7 +15,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('ficha_portal', function (Blueprint $table) {
-            $table->json('horarios_json')->nullable()->after('horario');
+            $table->json('horarios_json')->nullable();
         });
     }
 

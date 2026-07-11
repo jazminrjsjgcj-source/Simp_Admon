@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\UnidadValorReferencia;
 
 /**
  * Concepto de pago de derechos ligado a un trámite.

@@ -6,8 +6,8 @@ use App\Models\ParametroCostoBurocratico;
 use App\Models\Tramite;
 use App\Models\TramiteCostoBurocratico;
 use App\Models\UmbralConfigurado;
-use App\Models\UnidadValorReferencia;
 use Illuminate\Support\Carbon;
+use Throwable;
 
 /**
  * Servicio que concentra toda la lógica del Costo Burocrático.
@@ -304,7 +304,7 @@ class CostoBurocraticoService
             $registros = ParametroCostoBurocratico::activos()
                 ->pluck('valor', 'clave')
                 ->toArray();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $registros = [];
         }
 

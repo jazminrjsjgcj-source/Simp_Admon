@@ -23,7 +23,7 @@ return new class extends Migration
     {
         Schema::table('proceso_atencion', function (Blueprint $table) {
             if (!Schema::hasColumn('proceso_atencion', 'area')) {
-                $table->string('area', 255)->nullable()->after('detalle');
+                $table->string('area', 255)->nullable();
             }
         });
     }

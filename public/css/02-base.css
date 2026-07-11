@@ -1,4 +1,53 @@
 /* ===========================================
+   Montserrat servida desde el propio servidor (public/fonts/)
+
+   No se usa Google Fonts a propósito: el sistema no debe depender de un
+   tercero para verse bien. Así funciona sin conexión a internet externa y
+   no expone a las personas usuarias a servidores ajenos.
+
+   Solo se declaran los pesos que el sitio usa (400, 500, 600, 700 y 800).
+   El navegador descarga únicamente los que cada página necesita.
+
+   font-display: swap → el texto aparece de inmediato con la fuente de
+   respaldo y cambia a Montserrat al cargar (evita el "texto invisible").
+   =========================================== */
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/montserrat-v31-latin-regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/montserrat-v31-latin-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/montserrat-v31-latin-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/montserrat-v31-latin-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../fonts/montserrat-v31-latin-800.woff2') format('woff2');
+}
+
+/* ===========================================
    Reset y estilos base globales
    =========================================== */
 *, *::before, *::after { box-sizing: border-box; }

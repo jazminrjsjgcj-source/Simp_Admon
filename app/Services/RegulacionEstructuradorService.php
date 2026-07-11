@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Regulacion;
 use App\Models\RegulacionNodo;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Construye el árbol de nodos (regulacion_nodos) a partir del Markdown ya
@@ -55,20 +54,13 @@ class RegulacionEstructuradorService
             // Reconstrucción limpia e idempotente: se borran TODOS los nodos
             // previos (vivos y en papelera) antes de reconstruir.
             //
-            // Se desactivan temporalmente las llaves foráneas porque parent_id
-            // tiene cascadeOnDelete: un DELETE masivo del árbol en una sola
-            // sentencia no respeta el orden padre→hijo y choca con las FK,
-            // dejando la mayoría de las filas sin borrar (era la causa de que
-            // cada re-estructuración apilara otra copia en vez de reemplazar).
-            // El try/finally garantiza que las FK se reactiven pase lo que pase.
-            DB::statement('SET FOREIGN_KEY_CHECKS=0');
-            try {
-                RegulacionNodo::withTrashed()
-                    ->where('regulacion_id', $regulacion->id)
-                    ->forceDelete();
-            } finally {
-                DB::statement('SET FOREIGN_KEY_CHECKS=1');
-            }
+            // Los nodos forman un árbol (parent_id apunta a otro nodo), así que un
+            // DELETE masivo en una sola sentencia no respeta el orden padre→hijo y
+            // choca con las llaves foráneas. En vez de desactivarlas con
+            // SET FOREIGN_KEY_CHECKS (sintaxis exclusiva de MySQL), se borra de las
+            // hojas hacia la raíz: primero los nodos sin hijos, luego sus padres.
+            // Es portable a cualquier motor y no desactiva las FK ni un instante.
+            $this->borrarArbolDeNodos($regulacion->id);
 
             $markdown = $this->normalizarFraccionesInline($markdown);
             $lineas = preg_split('/\r\n|\r|\n/', $markdown);
@@ -585,5 +577,42 @@ class RegulacionEstructuradorService
             }
         }
         return false;
+    }
+
+    /**
+     * Borra todos los nodos de una regulación respetando la jerarquía: en cada
+     * vuelta elimina las hojas (los nodos que no son padres de nadie), hasta que
+     * no queda ninguno. Así nunca se intenta borrar un padre antes que sus hijos,
+     * que es lo que chocaba con las llaves foráneas.
+     */
+    private function borrarArbolDeNodos(int $regulacionId): void
+    {
+        // Tope de seguridad: el árbol nunca debería ser tan profundo, pero evita
+        // un bucle infinito si los datos quedaran inconsistentes.
+        for ($vuelta = 0; $vuelta < 100; $vuelta++) {
+            $base = fn () => RegulacionNodo::withTrashed()->where('regulacion_id', $regulacionId);
+
+            if (! $base()->exists()) {
+                return; // el árbol ya quedó vacío
+            }
+
+            // Nodos que todavía figuran como padre de alguien.
+            $padres = $base()->whereNotNull('parent_id')->pluck('parent_id')->unique();
+
+            // Las hojas son las que no aparecen como padre de nadie.
+            $hojas = $base()->when(
+                $padres->isNotEmpty(),
+                fn ($q) => $q->whereNotIn('id', $padres)
+            );
+
+            if (! $hojas->exists()) {
+                // Sin hojas identificables (datos inconsistentes): se borra el resto
+                // de una vez, para no dejar la reconstrucción a medias.
+                $base()->forceDelete();
+                return;
+            }
+
+            $hojas->forceDelete();
+        }
     }
 }

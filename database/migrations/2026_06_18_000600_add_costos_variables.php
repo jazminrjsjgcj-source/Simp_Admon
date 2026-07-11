@@ -30,16 +30,16 @@ return new class extends Migration
     {
         Schema::table('tramites', function (Blueprint $table) {
             if (!Schema::hasColumn('tramites', 'monto_derechos_variable')) {
-                $table->boolean('monto_derechos_variable')->default(false)->after('monto_derechos');
+                $table->boolean('monto_derechos_variable')->default(false);
             }
             if (!Schema::hasColumn('tramites', 'monto_derechos_referencia')) {
-                $table->string('monto_derechos_referencia', 500)->nullable()->after('monto_derechos_variable');
+                $table->string('monto_derechos_referencia', 500)->nullable();
             }
         });
 
         Schema::table('requisitos', function (Blueprint $table) {
             if (!Schema::hasColumn('requisitos', 'costo_variable')) {
-                $table->boolean('costo_variable')->default(false)->after('tiene_costo');
+                $table->boolean('costo_variable')->default(false);
             }
         });
     }

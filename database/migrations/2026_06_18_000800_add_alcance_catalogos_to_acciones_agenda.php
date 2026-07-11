@@ -27,21 +27,21 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Agregar 'ambas' al enum tipo.
-        DB::statement("ALTER TABLE acciones_agenda MODIFY COLUMN tipo
-            ENUM('simplificacion','digitalizacion','ambas') NOT NULL");
+        // El tipo ya es columna de texto: acepta 'ambas' sin ampliar un ENUM.
+        // Los valores válidos los valida Laravel.
 
         Schema::table('acciones_agenda', function (Blueprint $table) {
             if (!Schema::hasColumn('acciones_agenda', 'acciones_simplificacion')) {
-                $table->json('acciones_simplificacion')->nullable()->after('meta');
+                $table->json('acciones_simplificacion')->nullable();
             }
             if (!Schema::hasColumn('acciones_agenda', 'acciones_digitalizacion')) {
-                $table->json('acciones_digitalizacion')->nullable()->after('acciones_simplificacion');
+                $table->json('acciones_digitalizacion')->nullable();
             }
             if (!Schema::hasColumn('acciones_agenda', 'nivel_actual')) {
-                $table->unsignedTinyInteger('nivel_actual')->nullable()->after('acciones_digitalizacion');
+                $table->unsignedTinyInteger('nivel_actual')->nullable();
             }
             if (!Schema::hasColumn('acciones_agenda', 'nivel_meta')) {
-                $table->unsignedTinyInteger('nivel_meta')->nullable()->after('nivel_actual');
+                $table->unsignedTinyInteger('nivel_meta')->nullable();
             }
         });
     }
@@ -58,7 +58,7 @@ return new class extends Migration
 
         // Revertir el enum: cualquier acción 'ambas' se normaliza a 'simplificacion'.
         DB::statement("UPDATE acciones_agenda SET tipo = 'simplificacion' WHERE tipo = 'ambas'");
-        DB::statement("ALTER TABLE acciones_agenda MODIFY COLUMN tipo
-            ENUM('simplificacion','digitalizacion') NOT NULL");
+        // El tipo ya es columna de texto: acepta 'ambas' sin ampliar un ENUM.
+        // Los valores válidos los valida Laravel.
     }
 };

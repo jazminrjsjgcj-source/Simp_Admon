@@ -1,9 +1,9 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Database\Schema\Blueprint;
 
 /**
  * Sprint 1 — Correcciones urgentes de BD.
@@ -25,7 +25,8 @@ return new class extends Migration
         });
 
         // #24: tipo ENUM → agregar 'ambas'
-        DB::statement("ALTER TABLE calendario_eventos MODIFY COLUMN tipo ENUM('simplificacion','digitalizacion','regulatoria','ambas') NOT NULL");
+        // El tipo ya es una columna de texto (string), así que acepta 'ambas'
+        // sin necesidad de ampliar un ENUM. Los valores los valida Laravel.
     }
 
     public function down(): void
@@ -38,7 +39,8 @@ return new class extends Migration
         // Solo revertir ENUM si no hay filas con 'ambas'
         $tiene = DB::table('calendario_eventos')->where('tipo', 'ambas')->exists();
         if (!$tiene) {
-            DB::statement("ALTER TABLE calendario_eventos MODIFY COLUMN tipo ENUM('simplificacion','digitalizacion','regulatoria') NOT NULL");
+        // El tipo ya es una columna de texto (string), así que acepta 'ambas'
+        // sin necesidad de ampliar un ENUM. Los valores los valida Laravel.
         }
     }
 };

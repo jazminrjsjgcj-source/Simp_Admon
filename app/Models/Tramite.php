@@ -495,13 +495,21 @@ class Tramite extends Model
      */
     public static function siguienteConsecutivoGlobal(?int $excluirId = null): int
     {
+        // El consecutivo es el último segmento de la homoclave (LPZ-T-DEP-UNI-42 → 42).
+        // Se extrae en PHP y no con SQL crudo, porque SUBSTRING_INDEX y
+        // CAST(... AS UNSIGNED) son sintaxis exclusiva de MySQL: así el cálculo
+        // funciona igual en MySQL y en PostgreSQL.
         $maxConsecutivo = static::withTrashed()
             ->whereNotNull('homoclave')
             ->when($excluirId, fn ($q) => $q->where('id', '!=', $excluirId))
-            ->selectRaw("MAX(CAST(SUBSTRING_INDEX(homoclave, '-', -1) AS UNSIGNED)) as max_n")
-            ->value('max_n');
+            ->pluck('homoclave')
+            ->map(function (string $homoclave): int {
+                $ultimo = substr((string) strrchr($homoclave, '-'), 1);
+                return ctype_digit($ultimo) ? (int) $ultimo : 0;
+            })
+            ->max();
 
-        return ($maxConsecutivo ?? 0) + 1;
+        return ((int) $maxConsecutivo) + 1;
     }
 
     // ═══════════════════════════════════════════════════════════════════════

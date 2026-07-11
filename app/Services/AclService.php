@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Permiso;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;

@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\ProcesoAtencion;
 use App\Services\CambioPostFirmaService;
+use Throwable;
 
 /**
  * Observer de ProcesoAtencion — Fase 6 del Digitalizador.
@@ -64,7 +65,7 @@ class ProcesoAtencionObserver
             }
 
             app(CambioPostFirmaService::class)->verificarYActuar($tramite, $origen);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('ProcesoAtencionObserver: error', [
                 'error' => $e->getMessage(),
                 'paso'  => $paso->id ?? null,

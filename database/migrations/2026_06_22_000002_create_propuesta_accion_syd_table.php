@@ -30,7 +30,7 @@ return new class extends Migration
             $table->foreignId('accion_agenda_id')
                 ->constrained('acciones_agenda')
                 ->cascadeOnDelete();
-            $table->enum('tipo', ['simplificacion', 'digitalizacion']);
+            $table->string('tipo', 30);
             $table->timestamps();
 
             // Una misma acción no debe vincularse dos veces con el mismo tipo

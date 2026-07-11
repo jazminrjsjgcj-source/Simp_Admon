@@ -42,11 +42,11 @@ return new class extends Migration
 
         // 4. Users — agregar campos PUNTA
         Schema::table('users', function (Blueprint $table) {
-            $table->string('cargo')->nullable()->after('name');
-            $table->enum('rol', ['enlace', 'sujeto', 'revisora', 'juridico', 'admin'])->default('enlace')->after('cargo');
-            $table->foreignId('dependencia_id')->nullable()->after('rol')->constrained('dependencias');
-            $table->foreignId('unidad_id')->nullable()->after('dependencia_id')->constrained('unidades_administrativas');
-            $table->boolean('activo')->default(true)->after('unidad_id');
+            $table->string('cargo')->nullable();
+            $table->string('rol', 30)->default('enlace');
+            $table->foreignId('dependencia_id')->nullable()->constrained('dependencias');
+            $table->foreignId('unidad_id')->nullable()->constrained('unidades_administrativas');
+            $table->boolean('activo')->default(true);
         });
 
         // 5. Configuración del sistema
@@ -67,7 +67,7 @@ return new class extends Migration
             $table->foreignId('dependencia_id')->nullable()->constrained('dependencias');
             $table->date('fecha_publicacion')->nullable();
             $table->date('fecha_vigencia')->nullable();
-            $table->enum('estatus', ['vigente', 'en_revision', 'derogada'])->default('vigente');
+            $table->string('estatus', 30)->default('vigente');
             $table->string('archivo_pdf', 500)->nullable();
             $table->text('resumen')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users');

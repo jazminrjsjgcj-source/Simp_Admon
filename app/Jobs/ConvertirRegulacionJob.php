@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Throwable;
 
 /**
  * Job que dispara la conversión del archivo original (PDF/Word)
@@ -29,7 +30,7 @@ class ConvertirRegulacionJob implements ShouldQueue
         $conversor->convertirAMarkdown($this->regulacion);
     }
 
-    public function failed(\Throwable $e): void
+    public function failed(Throwable $e): void
     {
         $this->regulacion->update([
             'conversion_estatus' => Regulacion::CONVERSION_ERROR,

@@ -1,27 +1,27 @@
 <?php
 
-use App\Http\Controllers\AuthController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\TramiteController;
-use App\Http\Controllers\AgendaController;
-use App\Http\Controllers\AgendaRegulatoriaController;
-use App\Http\Controllers\CalendarioController;
-use App\Http\Controllers\NotificacionController;
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\RegulacionController;
-use App\Http\Controllers\RegulacionNodoController;
 use App\Http\Controllers\Admin\AclController;
-use App\Http\Controllers\Admin\ParametroCostoController;
-use App\Http\Controllers\Admin\UnidadValorController;
-use App\Http\Controllers\Admin\UmbralController;
-use App\Http\Controllers\FirmaController;
-use App\Http\Controllers\RevisionController;
-use App\Http\Controllers\AirController;
-use App\Http\Controllers\DictamenAirController;
-use App\Http\Controllers\HistorialController;
 use App\Http\Controllers\Admin\CatalogoController;
+use App\Http\Controllers\Admin\ParametroCostoController;
 use App\Http\Controllers\Admin\TipoRegulacionController;
 use App\Http\Controllers\Admin\TipoTramiteController;
+use App\Http\Controllers\Admin\UmbralController;
+use App\Http\Controllers\Admin\UnidadValorController;
+use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AgendaController;
+use App\Http\Controllers\AgendaRegulatoriaController;
+use App\Http\Controllers\AirController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CalendarioController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DictamenAirController;
+use App\Http\Controllers\FirmaController;
+use App\Http\Controllers\HistorialController;
+use App\Http\Controllers\NotificacionController;
+use App\Http\Controllers\RegulacionController;
+use App\Http\Controllers\RegulacionNodoController;
+use App\Http\Controllers\RevisionController;
+use App\Http\Controllers\TramiteController;
 use App\Models\Tramite;
 use App\Models\UnidadAdministrativa;
 use Illuminate\Support\Facades\Route;
@@ -40,44 +40,44 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
     // Buscador global — accesible para todos los roles sin restricción
-    Route::get('buscar', [\App\Http\Controllers\BuscadorController::class, 'index'])->name('buscar');
+    Route::get('buscar', [App\Http\Controllers\BuscadorController::class, 'index'])->name('buscar');
 
     // Artículo completo en JSON, para el modal de lectura del buscador.
     // {nodo} puede ser el id de una fracción o inciso — el controlador sube
     // a su artículo padre usando LegalArticleResolverService.
-    Route::get('buscar/articulo/{nodo}', [\App\Http\Controllers\BuscadorController::class, 'obtenerArticulo'])->name('buscar.articulo');
+    Route::get('buscar/articulo/{nodo}', [App\Http\Controllers\BuscadorController::class, 'obtenerArticulo'])->name('buscar.articulo');
 
     // Bitácora del buscador — Capa 1 (clic en resultado) y Capa 2 (feedback 👍/👎).
-    Route::post('buscar/clic', [\App\Http\Controllers\BuscadorController::class, 'registrarClic'])->name('buscar.clic');
-    Route::post('buscar/feedback', [\App\Http\Controllers\BuscadorController::class, 'registrarFeedback'])->name('buscar.feedback');
-    Route::get('buscar/detalle/{tipo}/{id}', [\App\Http\Controllers\BuscadorController::class, 'obtenerDetalle'])->name('buscar.detalle');
+    Route::post('buscar/clic', [App\Http\Controllers\BuscadorController::class, 'registrarClic'])->name('buscar.clic');
+    Route::post('buscar/feedback', [App\Http\Controllers\BuscadorController::class, 'registrarFeedback'])->name('buscar.feedback');
+    Route::get('buscar/detalle/{tipo}/{id}', [App\Http\Controllers\BuscadorController::class, 'obtenerDetalle'])->name('buscar.detalle');
 
     // Digitalización — Biblioteca del Digitalizador
-    Route::get('digitalizacion/dashboard', [\App\Http\Controllers\DigitalizacionController::class, 'dashboard'])->name('digitalizacion.dashboard');
-    Route::get('digitalizacion', [\App\Http\Controllers\DigitalizacionController::class, 'index'])->name('digitalizacion.index');
-    Route::get('digitalizacion/{tramite}', [\App\Http\Controllers\DigitalizacionController::class, 'show'])->name('digitalizacion.show');
+    Route::get('digitalizacion/dashboard', [App\Http\Controllers\DigitalizacionController::class, 'dashboard'])->name('digitalizacion.dashboard');
+    Route::get('digitalizacion', [App\Http\Controllers\DigitalizacionController::class, 'index'])->name('digitalizacion.index');
+    Route::get('digitalizacion/{tramite}', [App\Http\Controllers\DigitalizacionController::class, 'show'])->name('digitalizacion.show');
 
     // Digitalización — Iniciar y completar
-    Route::post('digitalizacion/{tramite}/iniciar', [\App\Http\Controllers\DigitalizacionController::class, 'iniciarDigitalizacion'])->name('digitalizacion.iniciar');
-    Route::post('digitalizacion/{tramite}/completar', [\App\Http\Controllers\DigitalizacionController::class, 'completarDigitalizacion'])->name('digitalizacion.completar');
+    Route::post('digitalizacion/{tramite}/iniciar', [App\Http\Controllers\DigitalizacionController::class, 'iniciarDigitalizacion'])->name('digitalizacion.iniciar');
+    Route::post('digitalizacion/{tramite}/completar', [App\Http\Controllers\DigitalizacionController::class, 'completarDigitalizacion'])->name('digitalizacion.completar');
 
     // Digitalización — Reingeniería CRUD
-    Route::get('digitalizacion/{tramite}/reingenieria/crear', [\App\Http\Controllers\DigitalizacionController::class, 'crearReingenieria'])->name('digitalizacion.reingenieria.crear');
-    Route::post('digitalizacion/{tramite}/reingenieria', [\App\Http\Controllers\DigitalizacionController::class, 'guardarReingenieria'])->name('digitalizacion.reingenieria.guardar');
-    Route::get('digitalizacion/{tramite}/reingenieria/{reingenieria}/editar', [\App\Http\Controllers\DigitalizacionController::class, 'editarReingenieria'])->name('digitalizacion.reingenieria.editar');
-    Route::put('digitalizacion/{tramite}/reingenieria/{reingenieria}', [\App\Http\Controllers\DigitalizacionController::class, 'actualizarReingenieria'])->name('digitalizacion.reingenieria.actualizar');
-    Route::post('digitalizacion/{tramite}/reingenieria/{reingenieria}/enviar-firma', [\App\Http\Controllers\DigitalizacionController::class, 'enviarAFirma'])->name('digitalizacion.reingenieria.enviarFirma');
-    Route::post('digitalizacion/{tramite}/reingenieria/nueva-version', [\App\Http\Controllers\DigitalizacionController::class, 'crearNuevaVersion'])->name('digitalizacion.reingenieria.nuevaVersion');
+    Route::get('digitalizacion/{tramite}/reingenieria/crear', [App\Http\Controllers\DigitalizacionController::class, 'crearReingenieria'])->name('digitalizacion.reingenieria.crear');
+    Route::post('digitalizacion/{tramite}/reingenieria', [App\Http\Controllers\DigitalizacionController::class, 'guardarReingenieria'])->name('digitalizacion.reingenieria.guardar');
+    Route::get('digitalizacion/{tramite}/reingenieria/{reingenieria}/editar', [App\Http\Controllers\DigitalizacionController::class, 'editarReingenieria'])->name('digitalizacion.reingenieria.editar');
+    Route::put('digitalizacion/{tramite}/reingenieria/{reingenieria}', [App\Http\Controllers\DigitalizacionController::class, 'actualizarReingenieria'])->name('digitalizacion.reingenieria.actualizar');
+    Route::post('digitalizacion/{tramite}/reingenieria/{reingenieria}/enviar-firma', [App\Http\Controllers\DigitalizacionController::class, 'enviarAFirma'])->name('digitalizacion.reingenieria.enviarFirma');
+    Route::post('digitalizacion/{tramite}/reingenieria/nueva-version', [App\Http\Controllers\DigitalizacionController::class, 'crearNuevaVersion'])->name('digitalizacion.reingenieria.nuevaVersion');
 
     // Digitalización — Diagrama
-    Route::post('digitalizacion/{tramite}/diagrama/generar', [\App\Http\Controllers\DigitalizacionController::class, 'generarDiagrama'])->name('digitalizacion.diagrama.generar');
-    Route::get('digitalizacion/diagrama/{diagrama}/descargar', [\App\Http\Controllers\DigitalizacionController::class, 'descargarDiagrama'])->name('digitalizacion.diagrama.descargar');
+    Route::post('digitalizacion/{tramite}/diagrama/generar', [App\Http\Controllers\DigitalizacionController::class, 'generarDiagrama'])->name('digitalizacion.diagrama.generar');
+    Route::get('digitalizacion/diagrama/{diagrama}/descargar', [App\Http\Controllers\DigitalizacionController::class, 'descargarDiagrama'])->name('digitalizacion.diagrama.descargar');
 
     // Flujo del proceso (levantamiento AS-IS)
-    Route::post('tramites/{tramite}/flujo/iniciar', [\App\Http\Controllers\FlujoController::class, 'iniciar'])->name('flujo.iniciar');
-    Route::post('tramites/{tramite}/flujo/enviar-revision', [\App\Http\Controllers\FlujoController::class, 'enviarRevision'])->name('flujo.enviarRevision');
-    Route::post('tramites/{tramite}/flujo/aprobar', [\App\Http\Controllers\FlujoController::class, 'aprobar'])->name('flujo.aprobar');
-    Route::post('tramites/{tramite}/flujo/observar', [\App\Http\Controllers\FlujoController::class, 'observar'])->name('flujo.observar');
+    Route::post('tramites/{tramite}/flujo/iniciar', [App\Http\Controllers\FlujoController::class, 'iniciar'])->name('flujo.iniciar');
+    Route::post('tramites/{tramite}/flujo/enviar-revision', [App\Http\Controllers\FlujoController::class, 'enviarRevision'])->name('flujo.enviarRevision');
+    Route::post('tramites/{tramite}/flujo/aprobar', [App\Http\Controllers\FlujoController::class, 'aprobar'])->name('flujo.aprobar');
+    Route::post('tramites/{tramite}/flujo/observar', [App\Http\Controllers\FlujoController::class, 'observar'])->name('flujo.observar');
 
     // Trámites
     Route::resource('tramites', TramiteController::class);
@@ -201,7 +201,7 @@ Route::middleware(['auth'])->group(function () {
 
     // ─── API unidades activas — Fase F.1 ────────────────────────
     Route::get('api/dependencias/{id}/unidades-activas', fn ($id) =>
-        \App\Models\UnidadAdministrativa::where('dependencia_id', $id)
+        UnidadAdministrativa::where('dependencia_id', $id)
             ->where('activo', true)
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'codigo'])
@@ -321,9 +321,9 @@ Route::middleware(['auth'])->group(function () {
     // ─── API (cualquier autenticado) ───
     Route::prefix('api')->group(function () {
         Route::get('umbral', [AgendaRegulatoriaController::class, 'umbral']);
-        Route::get('homoclave/previsualizar', function (\Illuminate\Http\Request $request) {
-            $dependencia = \App\Models\Dependencia::find($request->query('dependencia_id'));
-            $unidad      = \App\Models\UnidadAdministrativa::find($request->query('unidad_id'));
+        Route::get('homoclave/previsualizar', function (Illuminate\Http\Request $request) {
+            $dependencia = App\Models\Dependencia::find($request->query('dependencia_id'));
+            $unidad      = UnidadAdministrativa::find($request->query('unidad_id'));
 
             if (!$dependencia || !$unidad) {
                 return response()->json(['homoclave' => null, 'error' => 'Selecciona dependencia y unidad.'], 422);
@@ -352,7 +352,7 @@ Route::middleware(['auth'])->group(function () {
             ]);
         })->name('api.homoclave.previsualizar');
         Route::get('dependencias/{id}/unidades', fn ($id) =>
-            \App\Models\UnidadAdministrativa::where('dependencia_id', $id)->get()
+            UnidadAdministrativa::where('dependencia_id', $id)->get()
         );
         // Búsqueda de trámites para el wizard de agenda (camino A: precargar existente).
         Route::get('tramites/buscar', [TramiteController::class, 'buscarJson'])->name('api.tramites.buscar');

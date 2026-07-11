@@ -32,7 +32,7 @@ return new class extends Migration
 
         // Referencia opcional en trámites a la UR oficial
         Schema::table('tramites', function (Blueprint $table) {
-            $table->foreignId('unidad_responsable_id')->nullable()->after('unidad_id')->constrained('unidades_responsables');
+            $table->foreignId('unidad_responsable_id')->nullable()->constrained('unidades_responsables');
         });
     }
 

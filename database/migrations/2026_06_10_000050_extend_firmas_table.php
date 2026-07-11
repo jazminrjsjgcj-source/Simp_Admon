@@ -24,27 +24,27 @@ return new class extends Migration
             // Columnas existentes: id, firmable_*, tipo, firmante_id, fecha, hash_acuse
 
             // Datos del firmante en el momento de firmar (snapshot)
-            $table->string('firmante_nombre', 255)->nullable()->after('firmante_id');
-            $table->string('firmante_cargo',  255)->nullable()->after('firmante_nombre');
-            $table->string('firmante_email',  255)->nullable()->after('firmante_cargo');
-            $table->string('firmante_rfc',     20)->nullable()->after('firmante_email');
+            $table->string('firmante_nombre', 255)->nullable();
+            $table->string('firmante_cargo',  255)->nullable();
+            $table->string('firmante_email',  255)->nullable();
+            $table->string('firmante_rfc',     20)->nullable();
 
             // Metadatos del proceso de firma
-            $table->string('ip_origen', 45)->nullable()->after('hash_acuse');
-            $table->string('user_agent', 500)->nullable()->after('ip_origen');
-            $table->text('cadena_original')->nullable()->after('user_agent');
-            $table->text('observaciones')->nullable()->after('cadena_original');
+            $table->string('ip_origen', 45)->nullable();
+            $table->string('user_agent', 500)->nullable();
+            $table->text('cadena_original')->nullable();
+            $table->text('observaciones')->nullable();
 
             // Estructura para integración futura con autoridad certificadora
-            $table->string('certificado_emisor', 255)->nullable()->after('observaciones');
-            $table->string('certificado_serie',  100)->nullable()->after('certificado_emisor');
-            $table->json('metadata_firmante')->nullable()->after('certificado_serie');
+            $table->string('certificado_emisor', 255)->nullable();
+            $table->string('certificado_serie',  100)->nullable();
+            $table->json('metadata_firmante')->nullable();
 
             // Estado y revocación
-            $table->enum('estatus', ['activa', 'revocada'])->default('activa')->after('metadata_firmante');
-            $table->timestamp('revocada_en')->nullable()->after('estatus');
-            $table->foreignId('revocada_por')->nullable()->after('revocada_en')->constrained('users');
-            $table->text('motivo_revocacion')->nullable()->after('revocada_por');
+            $table->string('estatus', 30)->default('activa');
+            $table->timestamp('revocada_en')->nullable();
+            $table->foreignId('revocada_por')->nullable()->constrained('users');
+            $table->text('motivo_revocacion')->nullable();
 
             $table->index(['firmable_type', 'firmable_id', 'estatus']);
         });

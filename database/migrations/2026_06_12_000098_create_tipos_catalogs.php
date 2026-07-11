@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Fase C.2 — Tablas de catálogos editables.
@@ -42,7 +42,7 @@ return new class extends Migration
         Schema::table('tramites', function (Blueprint $table) {
             $table->foreignId('tipo_tramite_id')
                   ->nullable()
-                  ->after('nombre_oficial')
+                  
                   ->constrained('tipos_tramite')
                   ->nullOnDelete();
         });

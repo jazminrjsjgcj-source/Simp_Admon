@@ -27,10 +27,10 @@ return new class extends Migration
     {
         Schema::table('tramite_derechos', function (Blueprint $table) {
             if (!Schema::hasColumn('tramite_derechos', 'unidad')) {
-                $table->string('unidad', 10)->default('pesos')->after('monto');
+                $table->string('unidad', 10)->default('pesos');
             }
             if (!Schema::hasColumn('tramite_derechos', 'es_variable')) {
-                $table->boolean('es_variable')->default(false)->after('unidad');
+                $table->boolean('es_variable')->default(false);
             }
         });
     }

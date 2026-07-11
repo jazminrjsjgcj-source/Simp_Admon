@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Exception;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -59,7 +60,7 @@ class BitacoraService
                 'ip_address'     => Request::ip(),
                 'created_at'     => now(),
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Un fallo al auditar no debe tumbar la operación principal; se
             // registra en el log para diagnóstico y la petición continúa.
             Log::error('BitacoraService error: ' . $e->getMessage());

@@ -25,7 +25,7 @@ return new class extends Migration
         // 1. Agregar columna `activo` si no existe (las dependencias viejas no la tenían)
         if (!Schema::hasColumn('dependencias', 'activo')) {
             Schema::table('dependencias', function (Blueprint $table) {
-                $table->boolean('activo')->default(true)->after('nombre');
+                $table->boolean('activo')->default(true);
             });
         }
 

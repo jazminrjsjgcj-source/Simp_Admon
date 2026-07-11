@@ -12,6 +12,8 @@ use App\Services\RegulacionConversorService;
 use App\Services\RegulacionEstructuradorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
+use ZipArchive;
 
 class RegulacionController extends Controller
 {
@@ -32,12 +34,12 @@ class RegulacionController extends Controller
                 //  - 'vencida'  => marcada vigente PERO con fecha ya pasada
                 //                  (estado calculado, no almacenado en BD).
                 //  - otros      => coincidencia directa del campo estatus.
-                if ($v === \App\Models\Regulacion::ESTATUS_VIGENTE) {
+                if ($v === Regulacion::ESTATUS_VIGENTE) {
                     $q->where('estatus', $v)
                       ->where(fn ($s) => $s->whereNull('fecha_vigencia')
                                            ->orWhere('fecha_vigencia', '>=', now()->startOfDay()));
-                } elseif ($v === \App\Models\Regulacion::ESTATUS_VENCIDA) {
-                    $q->where('estatus', \App\Models\Regulacion::ESTATUS_VIGENTE)
+                } elseif ($v === Regulacion::ESTATUS_VENCIDA) {
+                    $q->where('estatus', Regulacion::ESTATUS_VIGENTE)
                       ->whereNotNull('fecha_vigencia')
                       ->where('fecha_vigencia', '<', now()->startOfDay());
                 } else {
@@ -46,8 +48,8 @@ class RegulacionController extends Controller
             })
             ->when($request->dependencia, fn ($q, $v) => $q->where('dependencia_id', $v))
             ->when($request->q, fn ($q, $v) => $q->where(function ($q) use ($v) {
-                $q->where('nombre', 'like', "%{$v}%")
-                  ->orWhere('palabras_clave', 'like', "%{$v}%");
+                $q->where('nombre', 'ILIKE', "%{$v}%")
+                  ->orWhere('palabras_clave', 'ILIKE', "%{$v}%");
             }))
             ->latest()
             ->paginate(20)
@@ -226,7 +228,7 @@ class RegulacionController extends Controller
      * manual ya construida; por eso vive en su propio botón con su propia
      * confirmación, en vez de viajar junto con el guardado de metadatos.
      */
-    public function reemplazarArchivo(\Illuminate\Http\Request $request, Regulacion $regulacion)
+    public function reemplazarArchivo(Request $request, Regulacion $regulacion)
     {
         if (!$request->user()->puedeEditarRegulacion($regulacion)) {
             abort(403, 'No tiene permiso para reemplazar el archivo de esta regulación.');
@@ -345,7 +347,7 @@ class RegulacionController extends Controller
                     'Content-Type'        => 'application/pdf',
                     'Content-Disposition' => 'inline; filename="' . \Illuminate\Support\Str::slug($regulacion->nombre) . '.pdf"',
                 ]);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // LibreOffice falló — continuar al fallback HTML del Markdown.
                 \Illuminate\Support\Facades\Log::warning(
                     "Preview: LibreOffice falló para regulación #{$regulacion->id}, usando HTML. " . $e->getMessage()
@@ -358,7 +360,7 @@ class RegulacionController extends Controller
             try {
                 $this->conversor->convertirAMarkdown($regulacion);
                 $regulacion->refresh();
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 \Illuminate\Support\Facades\Log::error('Preview: error al convertir regulación #' . $regulacion->id . ': ' . $e->getMessage());
                 return $this->paginaError(
                     'Error al convertir',
@@ -458,7 +460,7 @@ class RegulacionController extends Controller
         try {
             $rutaAbsoluta = $this->pdfConversor->obtenerOGenerarPdf($regulacion);
             return response()->download($rutaAbsoluta, $nombre);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             \Illuminate\Support\Facades\Log::error(
                 "Error al descargar PDF de regulación #{$regulacion->id}: " . $e->getMessage()
             );
@@ -484,7 +486,7 @@ class RegulacionController extends Controller
         try {
             $rutaAbsoluta = $this->pdfConversor->obtenerOGenerarDocx($regulacion);
             return response()->download($rutaAbsoluta, $nombre);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             \Illuminate\Support\Facades\Log::error(
                 "Error al descargar DOCX de regulación #{$regulacion->id}: " . $e->getMessage()
             );
@@ -505,7 +507,7 @@ class RegulacionController extends Controller
             ->when($request->estatus,     fn ($q, $v) => $q->where('estatus', $v))
             ->when($request->dependencia, fn ($q, $v) => $q->where('dependencia_id', $v))
             ->when($request->q, fn ($q, $v) => $q->where(function ($q) use ($v) {
-                $q->where('nombre', 'like', "%{$v}%");
+                $q->where('nombre', 'ILIKE', "%{$v}%");
             }))
             ->get();
 
@@ -527,8 +529,8 @@ class RegulacionController extends Controller
         }
         $rutaZip = $rutaTemp . DIRECTORY_SEPARATOR . $nombreZip;
 
-        $zip = new \ZipArchive();
-        if ($zip->open($rutaZip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+        $zip = new ZipArchive();
+        if ($zip->open($rutaZip, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             return back()->with('error', 'No se pudo crear el archivo ZIP.');
         }
 
@@ -707,7 +709,7 @@ class RegulacionController extends Controller
 
         try {
             $creados = $this->estructurador->importarDesdeMarkdown($regulacion);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             \Illuminate\Support\Facades\Log::error(
                 'Error al estructurar regulación #' . $regulacion->id . ': ' . $e->getMessage()
             );
@@ -751,7 +753,7 @@ class RegulacionController extends Controller
         $definicionesEncontradas = 0;
         try {
             $definicionesEncontradas = $this->extractorDefiniciones->extraerDeRegulacion($regulacion);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             \Illuminate\Support\Facades\Log::warning(
                 'No se pudieron extraer definiciones de la regulación #' . $regulacion->id . ': ' . $e->getMessage()
             );

@@ -72,7 +72,7 @@ return new class extends Migration
             $table->unsignedSmallInteger('anio');
             $table->date('vigencia_inicio')->nullable();
             $table->date('vigencia_fin')->nullable();
-            $table->enum('estatus', ['activo', 'inactivo'])->default('activo');
+            $table->string('estatus', 30)->default('activo');
             $table->string('fuente', 500)->nullable();
             $table->date('fecha_fuente')->nullable();
             $table->date('fecha_carga')->nullable();
@@ -109,8 +109,8 @@ return new class extends Migration
             $table->decimal('umbral_monto_salario_minimo', 16, 4)->nullable();
             $table->decimal('porcentaje_umbral',            8, 2)->nullable();
             // Resultado
-            $table->enum('impacto', ['no_determinado', 'bajo', 'medio', 'alto', 'critico'])->default('no_determinado');
-            $table->enum('resultado_air', ['no_determinado', 'no_activa_automaticamente', 'puede_requerir_air'])->default('no_determinado');
+            $table->string('impacto', 30)->default('no_determinado');
+            $table->string('resultado_air', 40)->default('no_determinado');
             $table->timestamp('calculado_en')->nullable();
             $table->timestamps();
             $table->index(['tramite_id', 'calculado_en']);
@@ -118,17 +118,17 @@ return new class extends Migration
 
         // 5. Columnas nuevas en `tramites`
         Schema::table('tramites', function (Blueprint $table) {
-            $table->decimal('monto_requisitos_con_costo', 14, 2)->nullable()->default(0)->after('copias_precio');
-            $table->decimal('cbi_requisitos', 14, 2)->nullable()->after('cbi_indirecto');
-            $table->decimal('cbi_resolucion', 14, 2)->nullable()->after('cbi_requisitos');
-            $table->enum('impacto', ['no_determinado', 'bajo', 'medio', 'alto', 'critico'])->default('no_determinado')->after('cbt_total');
-            $table->enum('resultado_air', ['no_determinado', 'no_activa_automaticamente', 'puede_requerir_air'])->default('no_determinado')->after('impacto');
+            $table->decimal('monto_requisitos_con_costo', 14, 2)->nullable()->default(0);
+            $table->decimal('cbi_requisitos', 14, 2)->nullable();
+            $table->decimal('cbi_resolucion', 14, 2)->nullable();
+            $table->string('impacto', 30)->default('no_determinado');
+            $table->string('resultado_air', 40)->default('no_determinado');
         });
 
         // 6. Columna `requiere_tercero` y `tiene_costo` en requisitos (el resto ya existe)
         Schema::table('requisitos', function (Blueprint $table) {
-            $table->boolean('tiene_costo')->default(false)->after('costo_requisito');
-            $table->boolean('requiere_tercero')->default(false)->after('tiene_costo');
+            $table->boolean('tiene_costo')->default(false);
+            $table->boolean('requiere_tercero')->default(false);
         });
     }
 

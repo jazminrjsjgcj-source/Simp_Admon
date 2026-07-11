@@ -22,21 +22,21 @@ return new class extends Migration
             // Criterio 1 del Art. 35 LNETB para requerir AIR.
             $table->boolean('genera_costos_burocraticos')
                 ->nullable()
-                ->after('poblacion_afectada');
+                ;
 
             // Art. 48 fracción VII Lineamientos:
             // ¿La propuesta impacta en comercio o inversión?
             // Criterio 2 del Art. 35 LNETB (impacto en actividad económica).
             $table->boolean('impacta_comercio_inversion')
                 ->nullable()
-                ->after('genera_costos_burocraticos');
+                ;
 
             // Art. 48 fracción VIII Lineamientos:
             // ¿La propuesta crea, modifica o elimina trámites existentes?
             // Complementa el criterio 2 del Art. 35 LNETB.
             $table->boolean('impacta_tramites_existentes')
                 ->nullable()
-                ->after('impacta_comercio_inversion');
+                ;
         });
     }
 

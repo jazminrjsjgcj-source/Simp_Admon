@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
+use App\Http\Controllers\Concerns\ExtraeFichaPortal;
 
 use App\Models\AccionAgenda;
 use App\Models\Dependencia;
 use App\Models\Tramite;
-use App\Services\CalendarioEventoService;
+use App\Models\User;
 use App\Services\AgendaExportService;
+use App\Services\CalendarioEventoService;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Concerns\ExtraeFichaPortal;
 
 class AgendaController extends Controller
 {
@@ -39,7 +39,7 @@ class AgendaController extends Controller
             // revisora, ni otros enlaces— hasta que se envíe a revisión. El admin
             // sí los ve (supervisión). Los registros ya enviados (no borrador) se
             // rigen solo por la visibilidad de dependencia de arriba.
-            ->when(!$user->isRol(\App\Models\User::ROL_ADMIN), function ($q) use ($user) {
+            ->when(!$user->isRol(User::ROL_ADMIN), function ($q) use ($user) {
                 $q->where(function ($sub) use ($user) {
                     $sub->where('estatus', '!=', AccionAgenda::ESTATUS_BORRADOR)
                         ->orWhere('created_by', $user->id);
@@ -50,9 +50,9 @@ class AgendaController extends Controller
             // Búsqueda libre: folio, descripción o nombre del trámite asociado.
             ->when($request->buscar, function ($q, $v) {
                 $q->where(function ($sub) use ($v) {
-                    $sub->where('folio', 'like', "%{$v}%")
-                        ->orWhere('descripcion', 'like', "%{$v}%")
-                        ->orWhereHas('tramite', fn ($t) => $t->where('nombre_oficial', 'like', "%{$v}%"));
+                    $sub->where('folio', 'ILIKE', "%{$v}%")
+                        ->orWhere('descripcion', 'ILIKE', "%{$v}%")
+                        ->orWhereHas('tramite', fn ($t) => $t->where('nombre_oficial', 'ILIKE', "%{$v}%"));
                 });
             })
             ->when($request->unidad, fn ($q, $v) => $q->where('unidad_id', $v))
@@ -240,7 +240,7 @@ class AgendaController extends Controller
             // precarga dejó el select deshabilitado (no se envía), lo tomamos del
             // trámite vinculado para que siempre quede registrado en la acción.
             'nivel_actual'            => $request->input('nivel_actual') ?? optional(
-                $tramiteId ? \App\Models\Tramite::find($tramiteId) : null
+                $tramiteId ? Tramite::find($tramiteId) : null
             )->nivel_digitalizacion,
             'nivel_meta'              => $request->input('nivel_meta'),
         ];
@@ -273,7 +273,7 @@ class AgendaController extends Controller
         if ($puedeObservar) {
             // Bug #51: excluir al propio usuario — no puede dirigirse
             // observaciones a sí mismo (misma protección que TramiteController).
-            $revisores = \App\Models\User::where('activo', true)
+            $revisores = User::where('activo', true)
                 ->where('dependencia_id', $agenda->dependencia_id)
                 ->where('id', '!=', request()->user()->id)
                 ->orderBy('name')
@@ -541,7 +541,7 @@ class AgendaController extends Controller
         // verdad regulatoria — sin él aprobado, la agenda no tiene sustento.
         if ($request->estatus === AccionAgenda::ESTATUS_EN_FIRMA && $agenda->tramite_id) {
             $tramite = $agenda->tramite;
-            if (!$tramite || $tramite->estatus !== \App\Models\Tramite::ESTATUS_COMPLETADO) {
+            if (!$tramite || $tramite->estatus !== Tramite::ESTATUS_COMPLETADO) {
                 return back()->with('error',
                     'No se puede enviar a firma: el trámite vinculado "'
                     . ($tramite->nombre_oficial ?? '—')

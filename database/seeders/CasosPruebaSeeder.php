@@ -146,7 +146,7 @@ class CasosPruebaSeeder extends Seeder
             'dependencia_id'    => $depId,
             'fecha_publicacion' => now()->subYear()->toDateString(),
             'fecha_vigencia'    => now()->subYear()->addMonth()->toDateString(),
-            'estatus'           => $this->estatus($this->valoresEnum('regulaciones', 'estatus'), 'vigente'),
+            'estatus'           => 'vigente',
             'resumen'           => 'Regulación de prueba para citarla desde un requisito.',
             'created_by'        => $autorId,
             'created_at'        => now(),
@@ -156,7 +156,7 @@ class CasosPruebaSeeder extends Seeder
 
     private function crearTramite(int $depId, ?int $autorId, string $nombre, string $estatusDeseado): int
     {
-        $estatus = $this->estatus($this->valoresEnum('tramites', 'estatus'), $estatusDeseado);
+        $estatus = $estatusDeseado;
 
         return DB::table('tramites')->insertGetId([
             'nombre_oficial'            => self::PREFIJO . $nombre,
@@ -216,7 +216,7 @@ class CasosPruebaSeeder extends Seeder
 
     private function crearAccion(int $depId, ?int $autorId, string $etiqueta): void
     {
-        $estatus = $this->estatus($this->valoresEnum('acciones_agenda', 'estatus'), 'borrador');
+        $estatus = 'borrador';
 
         $id = DB::table('acciones_agenda')->insertGetId([
             'tipo'             => 'simplificacion',
@@ -242,7 +242,7 @@ class CasosPruebaSeeder extends Seeder
 
     private function crearPropuesta(int $depId, ?int $autorId, string $etiqueta): void
     {
-        $estatus = $this->estatus($this->valoresEnum('propuestas_regulatorias', 'estatus'), 'borrador');
+        $estatus = 'borrador';
 
         DB::table('propuestas_regulatorias')->insertGetId([
             'folio'              => 'PROP-PRUEBA-' . $depId,
@@ -290,21 +290,8 @@ class CasosPruebaSeeder extends Seeder
         return DB::table('dependencias')->where('codigo', $codigo)->first();
     }
 
-    private function valoresEnum(string $tabla, string $columna): array
-    {
-        try {
-            $col = DB::select("SHOW COLUMNS FROM {$tabla} WHERE Field = ?", [$columna]);
-            if (empty($col)) return [];
-            preg_match_all("/'([^']+)'/", $col[0]->Type, $m);
-            return $m[1] ?? [];
-        } catch (\Throwable $e) {
-            return [];
-        }
-    }
-
-    private function estatus(array $validos, string $deseado): string
-    {
-        if (empty($validos)) return $deseado;
-        return in_array($deseado, $validos, true) ? $deseado : ($validos[0] ?? 'borrador');
-    }
+    // valoresEnum() y estatus() se eliminaron: leían los valores permitidos de la
+    // columna con "SHOW COLUMNS" (sintaxis exclusiva de MySQL) para no chocar con
+    // un ENUM. Las columnas de estatus ahora son de texto y los valores válidos los
+    // definen las constantes de los modelos, así que el estatus se asigna directo.
 }

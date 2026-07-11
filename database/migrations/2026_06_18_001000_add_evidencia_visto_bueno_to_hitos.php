@@ -31,24 +31,24 @@ return new class extends Migration
     {
         Schema::table('hitos_agenda', function (Blueprint $table) {
             if (!Schema::hasColumn('hitos_agenda', 'evidencia_archivo')) {
-                $table->string('evidencia_archivo', 500)->nullable()->after('completado_por');
+                $table->string('evidencia_archivo', 500)->nullable();
             }
             if (!Schema::hasColumn('hitos_agenda', 'evidencia_nombre')) {
-                $table->string('evidencia_nombre', 255)->nullable()->after('evidencia_archivo');
+                $table->string('evidencia_nombre', 255)->nullable();
             }
             if (!Schema::hasColumn('hitos_agenda', 'estado_aprobacion')) {
-                $table->enum('estado_aprobacion', ['sin_evidencia', 'pendiente', 'aprobado', 'rechazado'])
-                    ->default('sin_evidencia')->after('evidencia_nombre');
+                $table->string('estado_aprobacion', 30)
+                    ->default('sin_evidencia');
             }
             if (!Schema::hasColumn('hitos_agenda', 'aprobado_por')) {
-                $table->foreignId('aprobado_por')->nullable()->after('estado_aprobacion')
+                $table->foreignId('aprobado_por')->nullable()
                     ->constrained('users')->nullOnDelete();
             }
             if (!Schema::hasColumn('hitos_agenda', 'fecha_aprobacion')) {
-                $table->date('fecha_aprobacion')->nullable()->after('aprobado_por');
+                $table->date('fecha_aprobacion')->nullable();
             }
             if (!Schema::hasColumn('hitos_agenda', 'motivo_rechazo')) {
-                $table->string('motivo_rechazo', 500)->nullable()->after('fecha_aprobacion');
+                $table->string('motivo_rechazo', 500)->nullable();
             }
         });
     }

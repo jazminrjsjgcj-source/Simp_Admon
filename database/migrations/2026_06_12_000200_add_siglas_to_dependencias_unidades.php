@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Agrega el campo `siglas` a dependencias y unidades administrativas.
@@ -28,10 +28,10 @@ return new class extends Migration
     {
         // 1. Agregar la columna (nullable primero, para poder poblarla después)
         Schema::table('dependencias', function (Blueprint $table) {
-            $table->string('siglas', 15)->nullable()->after('codigo');
+            $table->string('siglas', 15)->nullable();
         });
         Schema::table('unidades_administrativas', function (Blueprint $table) {
-            $table->string('siglas', 15)->nullable()->after('codigo');
+            $table->string('siglas', 15)->nullable();
         });
 
         // 2. Poblar siglas de dependencias a partir de su nombre

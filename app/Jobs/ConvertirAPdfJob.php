@@ -10,6 +10,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * ConvertirAPdfJob
@@ -61,7 +62,7 @@ class ConvertirAPdfJob implements ShouldQueue
         try {
             $rutaPdf = $pdfConversor->obtenerOGenerarPdf($this->regulacion);
             Log::info("ConvertirAPdfJob: PDF generado correctamente → {$rutaPdf}");
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::error(
                 "ConvertirAPdfJob: falló para regulación #{$this->regulacion->id}: "
                 . $e->getMessage()
@@ -75,7 +76,7 @@ class ConvertirAPdfJob implements ShouldQueue
      * Se llama cuando el Job agotó todos los reintentos y se declara fallido.
      * Registra el error final en el log para que el admin lo investigue.
      */
-    public function failed(\Throwable $exception): void
+    public function failed(Throwable $exception): void
     {
         Log::critical(
             "ConvertirAPdfJob: agotó {$this->tries} intentos para regulación "

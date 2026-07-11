@@ -27,20 +27,20 @@ return new class extends Migration
     {
         Schema::table('tramites', function (Blueprint $table) {
             if (!Schema::hasColumn('tramites', 'acciones_simplificacion')) {
-                $table->json('acciones_simplificacion')->nullable()->after('tipo_relacion');
+                $table->json('acciones_simplificacion')->nullable();
             }
             if (!Schema::hasColumn('tramites', 'grupos_atencion')) {
-                $table->json('grupos_atencion')->nullable()->after('acciones_simplificacion');
+                $table->json('grupos_atencion')->nullable();
             }
             if (!Schema::hasColumn('tramites', 'etapa_operacion')) {
-                $table->string('etapa_operacion', 20)->nullable()->after('grupos_atencion');
+                $table->string('etapa_operacion', 20)->nullable();
             }
         });
 
         // Agregar 'anios' al enum de unidad de plazo. Se hace con SQL crudo porque
         // modificar un enum en MySQL no requiere doctrine/dbal por esta vía.
-        DB::statement("ALTER TABLE tramites MODIFY COLUMN plazo_resolucion_unidad
-            ENUM('habiles','naturales','meses','anios') NULL DEFAULT 'habiles'");
+        // plazo_resolucion_unidad ya es columna de texto: acepta 'anios' sin
+        // ampliar ningún ENUM. Los valores válidos los valida Laravel.
     }
 
     public function down(): void
@@ -56,7 +56,7 @@ return new class extends Migration
         // Revertir el enum a sus tres valores originales. Cualquier trámite con
         // 'anios' debe ajustarse antes de revertir (se normaliza a 'meses').
         DB::statement("UPDATE tramites SET plazo_resolucion_unidad = 'meses' WHERE plazo_resolucion_unidad = 'anios'");
-        DB::statement("ALTER TABLE tramites MODIFY COLUMN plazo_resolucion_unidad
-            ENUM('habiles','naturales','meses') NULL DEFAULT 'habiles'");
+        // plazo_resolucion_unidad ya es columna de texto: acepta 'anios' sin
+        // ampliar ningún ENUM. Los valores válidos los valida Laravel.
     }
 };

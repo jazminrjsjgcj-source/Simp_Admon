@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Collection;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as WriterXlsx;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -78,7 +79,7 @@ class AgendaExportService
         $rutaPlantilla = resource_path(self::DIR_PLANTILLAS . '/' . $nombrePlantilla);
 
         if (!is_file($rutaPlantilla)) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 "No se encontró la plantilla oficial: {$nombrePlantilla}. " .
                 'Debe estar en resources/templates/ (viene incluida con el proyecto).'
             );
@@ -88,7 +89,7 @@ class AgendaExportService
         $hoja        = $spreadsheet->getSheetByName($nombreHoja);
 
         if ($hoja === null) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 "La plantilla {$nombrePlantilla} no contiene la hoja '{$nombreHoja}'."
             );
         }

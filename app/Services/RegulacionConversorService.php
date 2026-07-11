@@ -6,6 +6,9 @@ use App\Models\Regulacion;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
+use RuntimeException;
+use Throwable;
 
 /**
  * Servicio para gestionar la conversión de regulaciones jurídicas
@@ -55,7 +58,7 @@ class RegulacionConversorService
         $extension = strtolower($archivo->getClientOriginalExtension());
 
         if (!in_array($extension, Regulacion::EXTENSIONES_PERMITIDAS, true)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 Regulacion::ARCHIVO_ERROR_TIPO . ' Extensión recibida: .' . $extension
             );
         }
@@ -139,7 +142,7 @@ class RegulacionConversorService
             ]);
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Bug #21: mensaje amigable si fue un timeout.
             $msg = $e->getMessage();
             if (stripos($msg, 'Maximum execution time') !== false
@@ -267,14 +270,14 @@ class RegulacionConversorService
         return match($extension) {
             'pdf'         => $this->extraerTextoPdf($rutaAbsoluta),
             'docx', 'doc' => $this->extraerTextoWord($rutaAbsoluta, $extension),
-            default       => throw new \RuntimeException("Extensión no soportada: {$extension}"),
+            default       => throw new RuntimeException("Extensión no soportada: {$extension}"),
         };
     }
 
     private function extraerTextoPdf(string $ruta): string
     {
         if (!class_exists(\Smalot\PdfParser\Parser::class)) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'Librería smalot/pdfparser no instalada. Ejecute: composer require smalot/pdfparser'
             );
         }
@@ -287,7 +290,7 @@ class RegulacionConversorService
     private function extraerTextoWord(string $ruta, string $extension): string
     {
         if (!class_exists(\PhpOffice\PhpWord\IOFactory::class)) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'Librería phpoffice/phpword no instalada. Ejecute: composer require phpoffice/phpword'
             );
         }
@@ -308,7 +311,7 @@ class RegulacionConversorService
         $textoPhpWord = '';
         try {
             $textoPhpWord = $this->extraerConPhpWord($ruta, $reader);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             \Illuminate\Support\Facades\Log::warning(
                 "PHPWord falló al leer {$ruta} con reader {$reader}: " . $e->getMessage()
             );
@@ -353,7 +356,7 @@ class RegulacionConversorService
         $mejor = $resultados[0];
 
         if ($mejor[1] < 0.20 || trim($mejor[0]) === '') {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'No se pudo extraer texto legible del archivo .doc. '
                 . 'Scores de legibilidad: PHPWord=' . round($scorePhpWord, 2)
                 . ', directo=' . round($scoreDirecto, 2)

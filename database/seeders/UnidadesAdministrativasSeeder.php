@@ -210,9 +210,14 @@ class UnidadesAdministrativasSeeder extends Seeder
             if (!$dep) {
                 // Busca el siguiente código numérico libre, para no chocar
                 // con las dependencias que ya existían.
+                // Se resuelve en PHP y no con SQL crudo, porque REGEXP y
+                // CAST(... AS UNSIGNED) son sintaxis exclusiva de MySQL. Así el
+                // seeder funciona igual en MySQL y en PostgreSQL.
                 $maxCodigo = (int) DB::table('dependencias')
-                    ->whereRaw('codigo REGEXP "^[0-9]+$"')
-                    ->max(DB::raw('CAST(codigo AS UNSIGNED)'));
+                    ->pluck('codigo')
+                    ->filter(fn ($c) => ctype_digit((string) $c))
+                    ->map(fn ($c) => (int) $c)
+                    ->max();
                 $nuevoCodigo = max($maxCodigo, 100) + 1;
 
                 $datosDep = [

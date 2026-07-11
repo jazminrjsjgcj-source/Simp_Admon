@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-
-use App\Models\AnalisisImpactoRegulatorio;
-use App\Models\ExencionAir;
 use App\Models\PropuestaRegulatoria;
+
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 

@@ -26,7 +26,7 @@ class CalendarioController extends Controller
      * Actualiza el porcentaje de avance de un evento del calendario.
      * Si el avance llega a 100%, el estatus se marca como "cumplido" automáticamente.
      */
-    public function actualizarAvance(\Illuminate\Http\Request $request, \App\Models\CalendarioEvento $evento): \Illuminate\Http\RedirectResponse
+    public function actualizarAvance(Request $request, \App\Models\CalendarioEvento $evento): \Illuminate\Http\RedirectResponse
     {
         if (!$request->user()->tienePermiso('calendario.ver')) {
             abort(403, 'No tiene permiso para actualizar avances.');

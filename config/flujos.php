@@ -1,9 +1,9 @@
 <?php
 
-use App\Models\Tramite;
 use App\Models\AccionAgenda;
-use App\Models\Regulacion;
 use App\Models\Observacion;
+use App\Models\Regulacion;
+use App\Models\Tramite;
 
 /**
  * Configuración central de flujos.

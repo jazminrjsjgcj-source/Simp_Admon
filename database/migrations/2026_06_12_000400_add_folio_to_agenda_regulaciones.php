@@ -22,13 +22,13 @@ return new class extends Migration
     {
         if (!Schema::hasColumn('acciones_agenda', 'folio')) {
             Schema::table('acciones_agenda', function (Blueprint $table) {
-                $table->string('folio', 50)->nullable()->unique()->after('id');
+                $table->string('folio', 50)->nullable()->unique();
             });
         }
 
         if (!Schema::hasColumn('regulaciones', 'folio')) {
             Schema::table('regulaciones', function (Blueprint $table) {
-                $table->string('folio', 50)->nullable()->unique()->after('id');
+                $table->string('folio', 50)->nullable()->unique();
             });
         }
     }

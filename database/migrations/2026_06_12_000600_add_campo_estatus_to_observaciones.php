@@ -2,8 +2,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Extiende la tabla observaciones para la corrección #18:
@@ -26,10 +26,10 @@ return new class extends Migration
     {
         Schema::table('observaciones', function (Blueprint $table) {
             if (!Schema::hasColumn('observaciones', 'campo')) {
-                $table->string('campo', 100)->nullable()->after('seccion');
+                $table->string('campo', 100)->nullable();
             }
             if (!Schema::hasColumn('observaciones', 'estatus')) {
-                $table->string('estatus', 20)->default('pendiente')->after('texto');
+                $table->string('estatus', 20)->default('pendiente');
             }
         });
 

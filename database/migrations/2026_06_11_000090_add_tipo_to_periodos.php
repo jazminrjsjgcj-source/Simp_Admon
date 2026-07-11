@@ -17,7 +17,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('periodos', function (Blueprint $table) {
-            $table->string('tipo', 30)->default('agenda_syd')->after('nombre');
+            $table->string('tipo', 30)->default('agenda_syd');
         });
     }
 

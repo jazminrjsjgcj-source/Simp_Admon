@@ -17,14 +17,14 @@ return new class extends Migration
         // unidades_administrativas ya no tiene activo — lo añadimos
         if (!Schema::hasColumn('unidades_administrativas', 'activo')) {
             Schema::table('unidades_administrativas', function (Blueprint $table) {
-                $table->boolean('activo')->default(true)->after('nombre');
+                $table->boolean('activo')->default(true);
             });
         }
 
         // unidades_responsables
         if (Schema::hasTable('unidades_responsables') && !Schema::hasColumn('unidades_responsables', 'activo')) {
             Schema::table('unidades_responsables', function (Blueprint $table) {
-                $table->boolean('activo')->default(true)->after('nombre');
+                $table->boolean('activo')->default(true);
             });
         }
     }

@@ -24,14 +24,14 @@ return new class extends Migration
     {
         Schema::table('tramites', function (Blueprint $table) {
             if (!Schema::hasColumn('tramites', 'periodo_id')) {
-                $table->foreignId('periodo_id')->nullable()->after('id')
+                $table->foreignId('periodo_id')->nullable()
                     ->constrained('periodos')->nullOnDelete();
             }
         });
 
         Schema::table('acciones_agenda', function (Blueprint $table) {
             if (!Schema::hasColumn('acciones_agenda', 'periodo_id')) {
-                $table->foreignId('periodo_id')->nullable()->after('id')
+                $table->foreignId('periodo_id')->nullable()
                     ->constrained('periodos')->nullOnDelete();
             }
         });

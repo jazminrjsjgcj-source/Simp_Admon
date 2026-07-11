@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\Diagrama;
-use App\Models\Reingenieria;
-use Illuminate\Support\Facades\Storage;
+use RuntimeException;
+use Throwable;
 
 /**
  * Genera el PDF oficial institucional del diagrama de reingeniería.
@@ -36,13 +36,13 @@ class PdfDiagramaService
      *
      * @param  Diagrama $diagrama  El diagrama con su reingeniería y trámite cargados.
      * @return string              Path absoluto del PDF generado.
-     * @throws \RuntimeException   Si faltan firmas o datos requeridos.
+     * @throws RuntimeException   Si faltan firmas o datos requeridos.
      */
     public function generar(Diagrama $diagrama): string
     {
         // ── Verificar que DomPDF está instalado ──────────────────────────
         if (!class_exists(\Barryvdh\DomPDF\Facade\Pdf::class)) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 'El paquete barryvdh/laravel-dompdf no está instalado. '
                 . 'Ejecute: composer install (ya está en composer.json) '
                 . 'o: composer require barryvdh/laravel-dompdf'
@@ -60,11 +60,11 @@ class PdfDiagramaService
 
         // ── Validaciones ─────────────────────────────────────────────────
         if (!$reing->firmasCompletas()) {
-            throw new \RuntimeException('La reingeniería no tiene firmas completas.');
+            throw new RuntimeException('La reingeniería no tiene firmas completas.');
         }
 
         if (!$diagrama->tieneMermaid()) {
-            throw new \RuntimeException('El diagrama no tiene contenido Mermaid.');
+            throw new RuntimeException('El diagrama no tiene contenido Mermaid.');
         }
 
         // ── Datos para la plantilla ──────────────────────────────────────
@@ -101,7 +101,7 @@ class PdfDiagramaService
                     ->size(120)
                     ->margin(0)
                     ->generate($urlVerificacion);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // Sin QR si falla — no bloquear el PDF
                 $qrSvg = '';
             }

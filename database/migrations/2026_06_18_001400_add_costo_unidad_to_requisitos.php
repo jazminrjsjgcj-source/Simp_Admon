@@ -19,10 +19,10 @@ return new class extends Migration
     {
         Schema::table('requisitos', function (Blueprint $table) {
             if (!Schema::hasColumn('requisitos', 'costo_unidad')) {
-                $table->enum('costo_unidad', ['UMA', 'PESOS'])
+                $table->string('costo_unidad', 30)
                     ->default('PESOS')
                     ->nullable()
-                    ->after('costo_requisito');
+                    ;
             }
         });
     }

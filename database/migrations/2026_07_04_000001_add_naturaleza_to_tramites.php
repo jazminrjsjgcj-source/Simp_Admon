@@ -28,14 +28,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('tramites', function (Blueprint $table) {
-            $table->enum('naturaleza', ['tramite', 'servicio'])
+            $table->string('naturaleza', 30)
                   ->default('tramite')
-                  ->after('nombre_oficial')
+                  
                   ->comment('Distingue si el registro es un trámite o un servicio municipal.');
 
             $table->string('tipo_servicio', 200)
                   ->nullable()
-                  ->after('naturaleza')
+                  
                   ->comment('Tipo de servicio (lista fija LNETB). NULL cuando naturaleza=tramite.');
         });
     }

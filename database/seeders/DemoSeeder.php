@@ -496,7 +496,7 @@ class DemoSeeder extends Seeder
             $ids[] = $id;
 
             // Cargar el modelo para las operaciones siguientes.
-            $accion = \App\Models\AccionAgenda::find($id);
+            $accion = AccionAgenda::find($id);
             if (!$accion) continue;
 
             // Generar folio con el formato LPZ-AGD-SIGLAS-AÑO-NNN.
@@ -657,7 +657,7 @@ class DemoSeeder extends Seeder
         if (empty($idsTramites)) return;
 
         DB::table('observaciones')->insert([
-            'observable_type' => \App\Models\Tramite::class,
+            'observable_type' => Tramite::class,
             'observable_id'   => $idsTramites[0],
             'seccion'         => 'Datos generales',
             'campo'           => 'volumen_anual',
@@ -693,7 +693,7 @@ class DemoSeeder extends Seeder
                 'responsable'    => 'Lic. Responsable Demo',
                 'dependencia_id' => $dependencia->id,
                 'evidencia'      => $estatus === 'cumplido',
-                'eventable_type' => \App\Models\AccionAgenda::class,
+                'eventable_type' => AccionAgenda::class,
                 'eventable_id'   => $idsAcciones[$i % count($idsAcciones)],
                 'created_at'     => now(),
                 'updated_at'     => now(),

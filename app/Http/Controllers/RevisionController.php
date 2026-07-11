@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Observacion;
-use App\Services\RevisionService;
+use App\Models\User;
 use App\Services\NotificadorService;
+use App\Services\RevisionService;
 use Illuminate\Http\Request;
 
 /**

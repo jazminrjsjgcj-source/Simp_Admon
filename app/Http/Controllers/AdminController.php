@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use App\Models\Permiso;
-use App\Models\Periodo;
 use App\Models\Dependencia;
+use App\Models\Periodo;
+use App\Models\Permiso;
+use App\Models\User;
 use App\Services\PeriodoService;
 use App\Services\UsuarioService;
 use Illuminate\Http\Request;

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Tramite;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 /**
  * Controlador del flujo del proceso (levantamiento AS-IS).

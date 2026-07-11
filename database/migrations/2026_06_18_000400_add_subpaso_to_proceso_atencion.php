@@ -17,7 +17,7 @@ return new class extends Migration
     {
         Schema::table('proceso_atencion', function (Blueprint $table) {
             if (!Schema::hasColumn('proceso_atencion', 'subpaso')) {
-                $table->unsignedTinyInteger('subpaso')->default(0)->after('paso');
+                $table->unsignedTinyInteger('subpaso')->default(0);
             }
         });
     }

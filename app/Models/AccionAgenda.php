@@ -1,8 +1,8 @@
 <?php
 namespace App\Models;
+use App\Models\Concerns\GeneraFolio;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\Concerns\GeneraFolio;
 
 class AccionAgenda extends Model
 {

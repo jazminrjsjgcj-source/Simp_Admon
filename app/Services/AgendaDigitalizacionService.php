@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\AvisoPunta;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 /**
  * Servicio que conecta la Agenda de Digitalización con la Biblioteca
@@ -166,7 +167,7 @@ class AgendaDigitalizacionService
                     url:     route('digitalizacion.show', $tramite->id),
                 ));
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Las notificaciones nunca deben reventar el flujo principal
             Log::warning('AgendaDigitalizacion: error al notificar', [
                 'error' => $e->getMessage(),

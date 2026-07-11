@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Servicio de bitácora del buscador — Capas 1 y 2 de preparación para IA.
@@ -61,7 +62,7 @@ class BusquedaLogService
                 'tiene_destacada'   => $tieneDestacada,
                 'created_at'        => now(),
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // La bitácora nunca debe reventar la búsqueda.
             Log::warning('BusquedaLog: no se pudo registrar búsqueda', [
                 'error' => $e->getMessage(),
@@ -91,7 +92,7 @@ class BusquedaLogService
                     'resultado_clickeado_tipo' => $tipoResultado,
                     'resultado_clickeado_id'   => $resultadoId,
                 ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('BusquedaLog: no se pudo registrar clic', [
                 'error' => $e->getMessage(),
                 'log_id' => $logId,
@@ -130,7 +131,7 @@ class BusquedaLogService
                 'created_at'        => now(),
             ]);
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('BusquedaLog: no se pudo registrar feedback', [
                 'error' => $e->getMessage(),
                 'tipo' => $tipoResultado,

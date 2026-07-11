@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
+use PDO;
+use PDOStatement;
+use Throwable;
 
 /**
  * Separa palabras de español que quedaron pegadas sin espacio durante la
@@ -117,8 +120,8 @@ class SegmentadorPalabrasService
      * vez (la primera palabra que se necesite verificar) y las siguientes
      * búsquedas reutilizan la misma conexión y la misma sentencia preparada.
      */
-    private ?\PDO $conexion = null;
-    private ?\PDOStatement $sentenciaExiste = null;
+    private ?PDO $conexion = null;
+    private ?PDOStatement $sentenciaExiste = null;
 
     /**
      * Aplica la segmentación a todo un texto: recorre cada palabra, y si es
@@ -342,9 +345,9 @@ class SegmentadorPalabrasService
      * abriendo la conexión SQLite la primera vez que se necesita y
      * reutilizándola en las siguientes llamadas dentro del mismo request.
      *
-     * @return \PDOStatement|null  null si el diccionario no está disponible.
+     * @return PDOStatement|null  null si el diccionario no está disponible.
      */
-    private function obtenerSentenciaExiste(): ?\PDOStatement
+    private function obtenerSentenciaExiste(): ?PDOStatement
     {
         if ($this->sentenciaExiste !== null) {
             return $this->sentenciaExiste;
@@ -356,15 +359,15 @@ class SegmentadorPalabrasService
 
         try {
             $ruta = resource_path(self::RUTA_DICCIONARIO);
-            $this->conexion = new \PDO('sqlite:' . $ruta);
-            $this->conexion->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+            $this->conexion = new PDO('sqlite:' . $ruta);
+            $this->conexion->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
             $this->sentenciaExiste = $this->conexion->prepare(
                 'SELECT 1 FROM palabras WHERE palabra = ? LIMIT 1'
             );
 
             return $this->sentenciaExiste;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('SegmentadorPalabrasService: no se pudo abrir el diccionario SQLite: ' . $e->getMessage());
             return null;
         }

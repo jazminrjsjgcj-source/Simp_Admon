@@ -8,8 +8,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Cache;
 
-use App\Models\Permiso;
-use App\Models\Regulacion;
 
 class User extends Authenticatable
 {

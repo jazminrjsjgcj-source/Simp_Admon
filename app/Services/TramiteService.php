@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Tramite;
 use App\Models\Requisito;
+use App\Models\Tramite;
 use Illuminate\Support\Facades\DB;
 
 /**

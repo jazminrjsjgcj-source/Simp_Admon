@@ -14,27 +14,27 @@ return new class extends Migration
     {
         Schema::table('regulaciones', function (Blueprint $table) {
             // Art. 153 fracc. II — Ámbito de aplicación o materia
-            $table->string('materia', 100)->nullable()->after('tipo');
+            $table->string('materia', 100)->nullable();
 
             // Art. 153 fracc. VIII — Fundamento jurídico para la expedición
-            $table->text('fundamento_juridico')->nullable()->after('resumen');
+            $table->text('fundamento_juridico')->nullable();
 
             // Art. 153 fracc. XI — Objetivo de la Regulación
-            $table->text('objetivo')->nullable()->after('fundamento_juridico');
+            $table->text('objetivo')->nullable();
 
             // Art. 153 fracc. XIII — Sectores o sujetos regulados
-            $table->foreignId('sector_id')->nullable()->after('objetivo')
+            $table->foreignId('sector_id')->nullable()
                 ->constrained('sectores_scian')->nullOnDelete();
 
             // Art. 153 fracc. XIV — Palabras clave para identificar la Regulación
-            $table->string('palabras_clave', 500)->nullable()->after('sector_id');
+            $table->string('palabras_clave', 500)->nullable();
 
             // Art. 153 fracc. XV — ¿Deja sin efectos alguna otra regulación?
-            $table->boolean('deroga_otra')->default(false)->after('palabras_clave');
-            $table->string('regulacion_derogada', 500)->nullable()->after('deroga_otra');
+            $table->boolean('deroga_otra')->default(false);
+            $table->string('regulacion_derogada', 500)->nullable();
 
             // Art. 153 fracc. XII — Índice de la Regulación (auto-extraído + editable)
-            $table->json('indice')->nullable()->after('regulacion_derogada');
+            $table->json('indice')->nullable();
         });
     }
 

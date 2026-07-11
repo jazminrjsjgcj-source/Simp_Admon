@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Diagrama;
 use App\Models\DescargaDiagrama;
+use App\Models\Diagrama;
 use App\Models\Reingenieria;
 use App\Models\Tramite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Throwable;
 
 /**
  * Controlador de la Biblioteca de Digitalización.
@@ -469,7 +470,7 @@ class DigitalizacionController extends Controller
             try {
                 $pdfService = app(\App\Services\PdfDiagramaService::class);
                 $path = $pdfService->generar($diagrama);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 return back()->with('error', 'Error al generar el PDF: ' . $e->getMessage());
             }
 

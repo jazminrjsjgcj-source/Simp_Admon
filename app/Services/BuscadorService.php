@@ -250,20 +250,22 @@ class BuscadorService
 
         $terminos = [];
         foreach ($palabras as $palabra) {
-            // Limpiar caracteres especiales de FULLTEXT que podrían romper la query
-            $limpia = preg_replace('/[+\-><()~*"@]/', '', $palabra);
+            // Se limpian los operadores de tsquery (& | ! : * paréntesis, comillas)
+            // para que una palabra escrita por el usuario no rompa la consulta.
+            $limpia = preg_replace('/[&|!():*\'"]/', '', $palabra);
             if (mb_strlen($limpia) >= 3) {
-                $terminos[] = '+' . $limpia . '*';
+                // ':*' busca por prefijo (equivale al '*' del BOOLEAN MODE de MySQL).
+                $terminos[] = $limpia . ':*';
             }
         }
 
-        // Si no quedaron términos válidos (todo era muy corto), usar la
-        // consulta original sin operadores para que FULLTEXT haga match natural.
+        // Si todas las palabras eran demasiado cortas, se busca la frase tal cual.
         if (empty($terminos)) {
-            return $consulta;
+            return preg_replace('/[&|!():*\'"]/', '', $consulta);
         }
 
-        return implode(' ', $terminos);
+        // ' & ' exige que todas las palabras aparezcan (equivale al '+' de MySQL).
+        return implode(' & ', $terminos);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -297,9 +299,9 @@ class BuscadorService
                 n.texto,
                 n.regulacion_id,
                 r.nombre as regulacion_nombre,
-                MATCH(n.texto) AGAINST(? IN BOOLEAN MODE) as score
+                ts_rank(to_tsvector('spanish', coalesce(n.texto, '')), to_tsquery('spanish', ?)) as score
             ", [$consultaFt])
-            ->whereRaw('MATCH(n.texto) AGAINST(? IN BOOLEAN MODE)', [$consultaFt])
+            ->whereRaw("to_tsvector('spanish', coalesce(n.texto, '')) @@ to_tsquery('spanish', ?)", [$consultaFt])
             ->whereNull('n.deleted_at');
 
         if (!empty($regulacionIds)) {
@@ -355,8 +357,7 @@ class BuscadorService
         $query = DB::table('regulaciones')
             ->selectRaw("
                 id, nombre, tipo, resumen, objetivo, materia,
-                MATCH(nombre, resumen, objetivo, palabras_clave, materia)
-                    AGAINST(? IN BOOLEAN MODE) as score
+                ts_rank(to_tsvector('spanish', coalesce(nombre, '') || ' ' || coalesce(resumen, '') || ' ' || coalesce(objetivo, '') || ' ' || coalesce(palabras_clave, '') || ' ' || coalesce(materia, '')), to_tsquery('spanish', ?)) as score
             ", [$consultaFt])
             ->whereNull('deleted_at');
 
@@ -366,7 +367,7 @@ class BuscadorService
             $query->whereIn('id', $regulacionIds);
         } else {
             $query->whereRaw(
-                'MATCH(nombre, resumen, objetivo, palabras_clave, materia) AGAINST(? IN BOOLEAN MODE)',
+                "to_tsvector('spanish', coalesce(nombre, '') || ' ' || coalesce(resumen, '') || ' ' || coalesce(objetivo, '') || ' ' || coalesce(palabras_clave, '') || ' ' || coalesce(materia, '')) @@ to_tsquery('spanish', ?)",
                 [$consultaFt]
             );
         }
@@ -426,11 +427,10 @@ class BuscadorService
                 d.nombre as dependencia_nombre,
                 t.plazo_resolucion_cantidad, t.plazo_resolucion_unidad,
                 t.cbu_unitario,
-                MATCH(t.nombre_oficial, t.objetivo, t.poblacion_objetivo)
-                    AGAINST(? IN BOOLEAN MODE) as score
+                ts_rank(to_tsvector('spanish', coalesce(t.nombre_oficial, '') || ' ' || coalesce(t.objetivo, '') || ' ' || coalesce(t.poblacion_objetivo, '')), to_tsquery('spanish', ?)) as score
             ", [$consultaFt])
             ->whereRaw(
-                'MATCH(t.nombre_oficial, t.objetivo, t.poblacion_objetivo) AGAINST(? IN BOOLEAN MODE)',
+                "to_tsvector('spanish', coalesce(t.nombre_oficial, '') || ' ' || coalesce(t.objetivo, '') || ' ' || coalesce(t.poblacion_objetivo, '')) @@ to_tsquery('spanish', ?)",
                 [$consultaFt]
             )
             ->whereNull('t.deleted_at');
@@ -510,9 +510,9 @@ class BuscadorService
                 rq.id, rq.nombre, rq.tiempo_homologado_hrs, rq.costo_requisito,
                 rq.tiene_costo, rq.costo_unidad,
                 t.id as tramite_id, t.nombre_oficial as tramite_nombre, t.naturaleza,
-                MATCH(rq.nombre) AGAINST(? IN BOOLEAN MODE) as score
+                ts_rank(to_tsvector('spanish', coalesce(rq.nombre, '')), to_tsquery('spanish', ?)) as score
             ", [$consultaFt])
-            ->whereRaw('MATCH(rq.nombre) AGAINST(? IN BOOLEAN MODE)', [$consultaFt])
+            ->whereRaw("to_tsvector('spanish', coalesce(rq.nombre, '')) @@ to_tsquery('spanish', ?)", [$consultaFt])
             ->whereNull('t.deleted_at');
 
         if (!empty($regulacionIds)) {
@@ -594,11 +594,10 @@ class BuscadorService
                 fj.regulacion_id,
                 t.id as tramite_id, t.nombre_oficial as tramite_nombre,
                 r.nombre as regulacion_nombre,
-                MATCH(fj.normativa_nombre, fj.articulo_fraccion, fj.resumen)
-                    AGAINST(? IN BOOLEAN MODE) as score
+                ts_rank(to_tsvector('spanish', coalesce(fj.normativa_nombre, '') || ' ' || coalesce(fj.articulo_fraccion, '') || ' ' || coalesce(fj.resumen, '')), to_tsquery('spanish', ?)) as score
             ", [$consultaFt])
             ->whereRaw(
-                'MATCH(fj.normativa_nombre, fj.articulo_fraccion, fj.resumen) AGAINST(? IN BOOLEAN MODE)',
+                "to_tsvector('spanish', coalesce(fj.normativa_nombre, '') || ' ' || coalesce(fj.articulo_fraccion, '') || ' ' || coalesce(fj.resumen, '')) @@ to_tsquery('spanish', ?)",
                 [$consultaFt]
             )
             ->whereNull('t.deleted_at');
@@ -697,10 +696,10 @@ class BuscadorService
                 aa.fecha_compromiso,
                 t.id as tramite_id, t.nombre_oficial as tramite_nombre,
                 d.nombre as dependencia_nombre,
-                MATCH(aa.descripcion, aa.meta) AGAINST(? IN BOOLEAN MODE) as score
+                ts_rank(to_tsvector('spanish', coalesce(aa.descripcion, '') || ' ' || coalesce(aa.meta, '')), to_tsquery('spanish', ?)) as score
             ", [$consultaFt])
             ->whereRaw(
-                'MATCH(aa.descripcion, aa.meta) AGAINST(? IN BOOLEAN MODE)',
+                "to_tsvector('spanish', coalesce(aa.descripcion, '') || ' ' || coalesce(aa.meta, '')) @@ to_tsquery('spanish', ?)",
                 [$consultaFt]
             )
             ->whereNull('aa.deleted_at')

@@ -2,16 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-
-use App\Models\Tramite;
-use App\Models\Dependencia;
-use App\Models\FichaPortal;
-use App\Models\TipoTramite;
-use App\Models\SujetoObligado;
-use Illuminate\Http\Request;
-use App\Http\Requests\TramiteRequest;
 use App\Http\Controllers\Concerns\ExtraeFichaPortal;
+
+use App\Http\Requests\TramiteRequest;
+use App\Models\Dependencia;
+use App\Models\SujetoObligado;
+use App\Models\Tramite;
+use App\Models\User;
+use Illuminate\Http\Request;
 
 class TramiteController extends Controller
 {
@@ -71,8 +69,8 @@ class TramiteController extends Controller
             ->when($request->dependencia, fn ($q, $v) => $q->where('dependencia_id', $v))
             ->when($request->naturaleza,  fn ($q, $v) => $q->where('naturaleza', $v))
             ->when($request->q, fn ($q, $v) => $q->where(function ($sub) use ($v) {
-                $sub->where('nombre_oficial', 'like', '%' . $v . '%')
-                    ->orWhere('homoclave', 'like', '%' . $v . '%');
+                $sub->where('nombre_oficial', 'ILIKE', '%' . $v . '%')
+                    ->orWhere('homoclave', 'ILIKE', '%' . $v . '%');
             }))
             ->when($request->costo_unitario === 'bajo',  fn ($q) => $q->where('cbu_unitario', '<',  Tramite::CBU_UMBRAL_BAJO))
             ->when($request->costo_unitario === 'medio', fn ($q) => $q->whereBetween('cbu_unitario', [Tramite::CBU_UMBRAL_BAJO, Tramite::CBU_UMBRAL_ALTO]))
@@ -138,8 +136,8 @@ class TramiteController extends Controller
 
         $tramites = Tramite::query()
             ->where(function ($q) use ($termino) {
-                $q->where('nombre_oficial', 'like', '%' . $termino . '%')
-                  ->orWhere('homoclave', 'like', '%' . $termino . '%');
+                $q->where('nombre_oficial', 'ILIKE', '%' . $termino . '%')
+                  ->orWhere('homoclave', 'ILIKE', '%' . $termino . '%');
             })
             ->with('dependencia:id,nombre')
             ->orderBy('nombre_oficial')
@@ -311,7 +309,7 @@ class TramiteController extends Controller
         if ($puedeObservar) {
             // Excluir al propio usuario — no puede dirigirse
             // observaciones a sí mismo (ej. jurídico observándose).
-            $revisores = \App\Models\User::where('activo', true)
+            $revisores = User::where('activo', true)
                 ->where('dependencia_id', $tramite->dependencia_id)
                 ->where('id', '!=', auth()->id())
                 ->orderBy('name')

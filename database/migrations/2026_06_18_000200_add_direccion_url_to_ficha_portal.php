@@ -17,10 +17,10 @@ return new class extends Migration
     {
         Schema::table('ficha_portal', function (Blueprint $table) {
             if (!Schema::hasColumn('ficha_portal', 'direccion')) {
-                $table->string('direccion', 500)->nullable()->after('oficina');
+                $table->string('direccion', 500)->nullable();
             }
             if (!Schema::hasColumn('ficha_portal', 'url')) {
-                $table->string('url', 500)->nullable()->after('direccion');
+                $table->string('url', 500)->nullable();
             }
         });
     }

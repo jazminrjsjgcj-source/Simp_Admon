@@ -23,12 +23,12 @@ return new class extends Migration
             // Información general
             $table->text('objetivo')->nullable();
             $table->string('poblacion_objetivo', 100)->nullable();
-            $table->enum('dirigido_a', ['fisica', 'moral', 'ambas'])->default('ambas');
+            $table->string('dirigido_a', 30)->default('ambas');
             $table->string('grupo_prioritario', 100)->nullable();
             $table->string('frecuencia', 50)->nullable();
             $table->unsignedInteger('volumen_anual')->nullable();
             $table->unsignedInteger('plazo_resolucion_cantidad')->nullable();
-            $table->enum('plazo_resolucion_unidad', ['habiles', 'naturales', 'meses'])->nullable()->default('habiles');
+            $table->string('plazo_resolucion_unidad', 30)->nullable()->default('habiles');
             // Operación y costos (ATDT)
             $table->unsignedTinyInteger('num_areas')->nullable();
             $table->string('areas_participantes', 500)->nullable();
@@ -50,7 +50,7 @@ return new class extends Migration
             $table->decimal('cbu_unitario', 14, 2)->nullable();
             $table->decimal('cbt_total', 14, 2)->nullable();
             // Estado
-            $table->enum('estatus', ['borrador', 'en_revision', 'observado', 'corregido', 'aprobado', 'firmado', 'publicado'])->default('borrador');
+            $table->string('estatus', 30)->default('borrador');
             $table->foreignId('created_by')->nullable()->constrained('users');
             $table->timestamps();
         });
@@ -63,7 +63,9 @@ return new class extends Migration
             $table->string('nombre', 500);
             $table->boolean('original')->default(false);
             $table->boolean('copia')->default(false);
-            $table->enum('tipo_presentacion', ['original', 'copia', 'digital', 'documento', 'formato', 'comprobante', 'producto_tramite'])->nullable();            $table->unsignedInteger('horas_estimadas')->nullable()->default(0);
+            // Guarda multiselección como lista separada por comas ("original,copia"),
+            // por eso es holgado. Los valores válidos los valida Laravel.
+            $table->string('tipo_presentacion', 150)->nullable();            $table->unsignedInteger('horas_estimadas')->nullable()->default(0);
             $table->unsignedInteger('minutos_estimados')->nullable()->default(0);
             $table->decimal('tiempo_homologado_hrs', 10, 2)->nullable();
             $table->decimal('costo_requisito', 12, 2)->nullable();
@@ -79,7 +81,7 @@ return new class extends Migration
         Schema::create('proceso_atencion', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tramite_id')->constrained('tramites')->cascadeOnDelete();
-            $table->enum('tipo', ['atencion', 'resolucion'])->default('atencion');
+            $table->string('tipo', 30)->default('atencion');
             $table->unsignedTinyInteger('paso');
             $table->string('accion', 500)->nullable();
             $table->string('detalle', 500)->nullable();

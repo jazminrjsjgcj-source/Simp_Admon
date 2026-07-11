@@ -10,6 +10,7 @@ use App\Notifications\AvisoPunta;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 /**
  * Servicio de detección y manejo de cambios post-firma.
@@ -150,7 +151,7 @@ class CambioPostFirmaService
                     url:     route('digitalizacion.show', [$tramite, 'tab' => 'reingenieria']),
                 ));
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('CambioPostFirma: error al notificar', ['error' => $e->getMessage()]);
         }
     }

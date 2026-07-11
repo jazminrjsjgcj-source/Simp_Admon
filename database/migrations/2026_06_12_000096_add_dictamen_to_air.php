@@ -17,17 +17,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('analisis_impacto_regulatorio', function (Blueprint $table) {
-            $table->enum('dictamen', ['pendiente', 'favorable', 'no_favorable'])
+            $table->string('dictamen', 30)
                   ->default('pendiente')
-                  ->after('estatus');
-            $table->text('dictamen_observaciones')->nullable()->after('dictamen');
-            $table->date('dictamen_fecha')->nullable()->after('dictamen_observaciones');
-            $table->foreignId('dictaminado_por')->nullable()->constrained('users')->after('dictamen_fecha');
+                  ;
+            $table->text('dictamen_observaciones')->nullable();
+            $table->date('dictamen_fecha')->nullable();
+            $table->foreignId('dictaminado_por')->nullable()->constrained('users');
         });
 
         // Agrega fracciones como JSON a exenciones_air
         Schema::table('exenciones_air', function (Blueprint $table) {
-            $table->json('fracciones')->nullable()->after('supuesto');
+            $table->json('fracciones')->nullable();
         });
     }
 

@@ -15,7 +15,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('regulaciones', function (Blueprint $table) {
-            $table->boolean('estructurada')->default(false)->after('indice');
+            $table->boolean('estructurada')->default(false);
         });
     }
 

@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
+use App\Models\Dependencia;
 
 use App\Models\PropuestaRegulatoria;
 use App\Models\PropuestaTramiteImpacto;
-use App\Models\Dependencia;
+use App\Models\User;
 use App\Services\CalendarioEventoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -38,8 +38,8 @@ class AgendaRegulatoriaController extends Controller
             })
             // Filtros de la URL (misma convención que trámites y regulaciones).
             ->when($request->q, fn ($q, $v) => $q->where(function ($sub) use ($v) {
-                $sub->where('nombre', 'like', "%{$v}%")
-                    ->orWhere('folio', 'like', "%{$v}%");
+                $sub->where('nombre', 'ILIKE', "%{$v}%")
+                    ->orWhere('folio', 'ILIKE', "%{$v}%");
             }))
             ->when($request->estatus, fn ($q, $v) => $q->where('estatus', $v))
             ->when($request->determinacion, fn ($q, $v) => $q->where('determinacion_air', $v))
@@ -185,7 +185,7 @@ class AgendaRegulatoriaController extends Controller
         if ($puedeObservar) {
             // Bug #51: excluir al propio usuario — no puede dirigirse
             // observaciones a sí mismo (misma protección que TramiteController).
-            $revisores = \App\Models\User::where('activo', true)
+            $revisores = User::where('activo', true)
                 ->where('dependencia_id', $propuesta->dependencia_id)
                 ->where('id', '!=', request()->user()->id)
                 ->orderBy('name')

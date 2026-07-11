@@ -23,7 +23,7 @@ return new class extends Migration
             // Después de dependencia_id para mantener cohesión semántica.
             $table->foreignId('unidad_id')
                 ->nullable()
-                ->after('dependencia_id')
+                
                 ->constrained('unidades_administrativas')
                 ->nullOnDelete();
         });

@@ -12,7 +12,7 @@ return new class extends Migration
         Schema::create('acciones_agenda', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tramite_id')->nullable()->constrained('tramites');
-            $table->enum('tipo', ['simplificacion', 'digitalizacion']);
+            $table->string('tipo', 30);
             $table->text('descripcion')->nullable();
             $table->string('meta', 500)->nullable();
             $table->date('fecha_inicio')->nullable();
@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('responsable')->nullable();
             $table->foreignId('dependencia_id')->nullable()->constrained('dependencias');
             $table->string('indicador', 500)->nullable();
-            $table->enum('estatus', ['borrador', 'en_revision', 'observado', 'aprobado', 'firmado', 'publicado'])->default('borrador');
+            $table->string('estatus', 30)->default('borrador');
             $table->foreignId('created_by')->nullable()->constrained('users');
             $table->timestamps();
         });
@@ -38,8 +38,8 @@ return new class extends Migration
             $table->text('justificacion')->nullable();
             $table->decimal('costo_burocratico', 14, 2)->nullable();
             $table->string('poblacion_afectada')->nullable();
-            $table->enum('determinacion_air', ['pendiente', 'requiere_air', 'exento'])->default('pendiente');
-            $table->enum('estatus', ['borrador', 'consulta', 'determinada', 'dictaminada', 'publicada'])->default('borrador');
+            $table->string('determinacion_air', 30)->default('pendiente');
+            $table->string('estatus', 30)->default('borrador');
             $table->string('archivo_propuesta', 500)->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users');
             $table->timestamps();
@@ -64,7 +64,7 @@ return new class extends Migration
             $table->text('consulta_publica')->nullable();
             $table->text('acciones_derivadas')->nullable();
             $table->text('anexos')->nullable();
-            $table->enum('estatus', ['borrador', 'enviado', 'en_dictamen', 'dictaminado'])->default('borrador');
+            $table->string('estatus', 30)->default('borrador');
             $table->foreignId('created_by')->nullable()->constrained('users');
             $table->timestamps();
         });
@@ -76,7 +76,7 @@ return new class extends Migration
             $table->string('supuesto')->nullable();
             $table->text('justificacion')->nullable();
             $table->decimal('costos_estimados', 14, 2)->nullable();
-            $table->enum('estatus', ['solicitada', 'aprobada', 'rechazada'])->default('solicitada');
+            $table->string('estatus', 30)->default('solicitada');
             $table->foreignId('created_by')->nullable()->constrained('users');
             $table->timestamps();
         });
@@ -85,7 +85,7 @@ return new class extends Migration
         Schema::create('dictamenes_air', function (Blueprint $table) {
             $table->id();
             $table->foreignId('air_id')->constrained('analisis_impacto_regulatorio');
-            $table->enum('estatus', ['pendiente', 'aprobado', 'condicionado', 'rechazado'])->default('pendiente');
+            $table->string('estatus', 30)->default('pendiente');
             $table->date('fecha')->nullable();
             $table->string('archivo_firmado', 500)->nullable();
             $table->text('observaciones')->nullable();
@@ -96,12 +96,12 @@ return new class extends Migration
         // 17. Calendario eventos
         Schema::create('calendario_eventos', function (Blueprint $table) {
             $table->id();
-            $table->enum('tipo', ['simplificacion', 'digitalizacion', 'regulatoria']);
+            $table->string('tipo', 30);
             $table->string('titulo', 500);
             $table->string('accion', 500)->nullable();
             $table->string('meta')->nullable();
             $table->date('fecha');
-            $table->enum('estatus', ['pendiente', 'cumplido', 'vencido'])->default('pendiente');
+            $table->string('estatus', 30)->default('pendiente');
             $table->unsignedTinyInteger('avance')->nullable()->default(0);
             $table->string('responsable')->nullable();
             $table->foreignId('dependencia_id')->nullable()->constrained('dependencias');
@@ -134,7 +134,7 @@ return new class extends Migration
         Schema::create('firmas', function (Blueprint $table) {
             $table->id();
             $table->morphs('firmable');
-            $table->enum('tipo', ['aceptacion_sujeto', 'aceptacion_enlace', 'aprobacion_revisora', 'firma_fisica']);
+            $table->string('tipo', 30);
             $table->foreignId('firmante_id')->constrained('users');
             $table->timestamp('fecha')->nullable();
             $table->string('hash_acuse', 128)->nullable();
@@ -144,7 +144,7 @@ return new class extends Migration
         Schema::create('documentos', function (Blueprint $table) {
             $table->id();
             $table->morphs('documentable');
-            $table->enum('tipo', ['acuse', 'ficha_portal', 'constancia', 'regulacion', 'evidencia', 'anexo']);
+            $table->string('tipo', 30);
             $table->string('nombre', 500)->nullable();
             $table->string('archivo', 500)->nullable();
             $table->string('hash_verificacion', 128)->nullable();

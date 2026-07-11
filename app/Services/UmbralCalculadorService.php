@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\UnidadValorReferencia;
+use RuntimeException;
 
 /**
  * Servicio auxiliar para convertir un monto entre distintas unidades
@@ -44,7 +45,7 @@ class UmbralCalculadorService
 
         $valorUnidad = $valores[$unidad] ?? null;
         if (!$valorUnidad) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 "No hay valor de referencia activo para {$unidad}. Cargue el valor en la pantalla de unidades de referencia."
             );
         }

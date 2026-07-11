@@ -31,11 +31,11 @@ return new class extends Migration
     {
         Schema::table('tramites', function (Blueprint $table) {
             if (!Schema::hasColumn('tramites', 'sujeto_obligado_id')) {
-                $table->foreignId('sujeto_obligado_id')->nullable()->after('homoclave')
+                $table->foreignId('sujeto_obligado_id')->nullable()
                     ->constrained('sujetos_obligados')->nullOnDelete();
             }
             if (!Schema::hasColumn('tramites', 'enlace_id')) {
-                $table->foreignId('enlace_id')->nullable()->after('sujeto_obligado_id')
+                $table->foreignId('enlace_id')->nullable()
                     ->constrained('users')->nullOnDelete();
             }
         });

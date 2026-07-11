@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\User;
-use App\Models\Tramite;
-use App\Models\Regulacion;
 use App\Models\AccionAgenda;
 use App\Models\PropuestaRegulatoria;
+use App\Models\Regulacion;
+use App\Models\Tramite;
+use App\Models\User;
 use App\Notifications\AvisoPunta;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Notification;

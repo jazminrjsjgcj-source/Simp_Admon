@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
-
 use App\Models\AccionAgenda;
+
 use App\Models\Firma;
 use App\Models\PropuestaRegulatoria;
 use App\Models\Tramite;
+use App\Models\User;
 use App\Services\FirmaDigitalService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Throwable;
 
 /**
  * Controlador del módulo de firmas digitales.
@@ -140,7 +141,7 @@ class FirmaController extends Controller
                     try {
                         app(\App\Services\AgendaDigitalizacionService::class)
                             ->vincularDesdeAgenda($modelo);
-                    } catch (\Throwable $e) {
+                    } catch (Throwable $e) {
                         // No reventar la firma si falla la vinculación
                         \Illuminate\Support\Facades\Log::warning('Firma: error al vincular agenda con digitalizador', [
                             'accion_id' => $modelo->id,
