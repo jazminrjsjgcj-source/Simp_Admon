@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Dependencia;
 
+use App\Http\Requests\PropuestaRegulatoriaRequest;
 use App\Models\PropuestaRegulatoria;
 use App\Models\PropuestaTramiteImpacto;
 use App\Models\User;
@@ -94,17 +95,15 @@ class AgendaRegulatoriaController extends Controller
         return compact('sectores', 'accionesSyd');
     }
 
-    public function store(Request $request)
+    public function store(PropuestaRegulatoriaRequest $request)
     {
         if (!$request->user()->tienePermiso('agenda_regulatoria.crear')) {
             abort(403, 'No tiene permiso para crear propuestas regulatorias.');
         }
 
-        $request->validate([
-            'nombre'          => 'required|string|max:500',
-            'dependencia_id'  => 'nullable|exists:dependencias,id',
-            'fecha_tentativa' => 'nullable|date',
-        ]);
+        // La validación vive en PropuestaRegulatoriaRequest: pide lo mínimo para un
+        // borrador y exige todo el sustento al enviar a revisión (antes solo se pedía
+        // el nombre y se podía enviar una propuesta prácticamente vacía).
 
         // Bug #10/#11: cuando el usuario elige "Otro" en el select de tipo,
         // el texto personalizado viaja en tipo_regulacion_otro. Si se guarda

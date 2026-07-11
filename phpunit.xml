@@ -23,9 +23,29 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+
+        <!--
+            Las pruebas corren contra PostgreSQL, no contra SQLite.
+
+            Es a propósito: el sistema se despliega en PostgreSQL y los motores no
+            se comportan igual (ILIKE, la búsqueda de texto completo, los tipos de
+            columna, la estrictez con las columnas inexistentes...). Una prueba que
+            pasara en SQLite podría fallar igualmente en producción, así que no
+            serviría de mucho.
+
+            Se usa una base APARTE (punta_testing) para no tocar los datos de
+            desarrollo. Hay que crearla una vez:
+
+              docker compose exec db createdb -U postgres punta_testing
+        -->
+        <env name="DB_CONNECTION" value="pgsql"/>
+        <env name="DB_HOST" value="db"/>
+        <env name="DB_PORT" value="5432"/>
+        <env name="DB_DATABASE" value="punta_testing"/>
+        <env name="DB_USERNAME" value="postgres"/>
+        <env name="DB_PASSWORD" value="punta123"/>
         <env name="DB_URL" value=""/>
+
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

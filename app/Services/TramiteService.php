@@ -61,10 +61,9 @@ class TramiteService
                 ? Tramite::ESTATUS_EN_OBSERVACION
                 : Tramite::ESTATUS_BORRADOR;
 
-            // costo_tipo / costo_monto / costo_unidad son ayudantes del formulario
-            // (validan y arman el texto portal_costo_publico); no son columnas del
-            // trámite, así que se quitan antes de crear para no romper el guardado.
-            unset($datos['costo_tipo'], $datos['costo_monto'], $datos['costo_unidad']);
+            // El formulario manda campos que NO son columnas del trámite (los del
+            // costo y los de la ficha del portal). Se descartan antes de guardar.
+            $datos = $this->soloColumnasDelTramite($datos);
 
             $tramite = Tramite::create($datos);
 
@@ -119,6 +118,9 @@ class TramiteService
 
             // Recalcular el costo a partir del estado actual + los datos nuevos.
             $datos = array_merge($datos, Tramite::calcularCostoDesde(array_merge($tramite->toArray(), $datos)));
+
+            // Igual que al crear: fuera los campos que no son columnas del trámite.
+            $datos = $this->soloColumnasDelTramite($datos);
 
             $tramite->update($datos);
 
@@ -449,6 +451,32 @@ class TramiteService
         $tramite->fichaPortal()->updateOrCreate(
             ['tramite_id' => $tramite->id],
             $fichaPortal
+        );
+    }
+
+    /**
+     * Deja en $datos solo lo que de verdad es columna de la tabla `tramites`.
+     *
+     * El formulario envía, junto con los datos del trámite, campos que pertenecen a
+     * otras tablas o que solo sirven para el propio formulario:
+     *
+     *   - costo_tipo / costo_monto / costo_unidad → ayudantes con los que se arma el
+     *     texto portal_costo_publico; no se guardan como tales.
+     *   - portal_*  → son la ficha ciudadana y se guardan aparte, en
+     *     sincronizarFichaPortal().
+     *
+     * Si se pasan a Tramite::create() o ->update(), Eloquent lanza una
+     * MassAssignmentException. Se descartan aquí, en un solo sitio, para que agregar
+     * un campo nuevo al portal no vuelva a romper el alta ni la edición.
+     */
+    private function soloColumnasDelTramite(array $datos): array
+    {
+        unset($datos['costo_tipo'], $datos['costo_monto'], $datos['costo_unidad']);
+
+        return array_filter(
+            $datos,
+            fn (string $campo) => ! str_starts_with($campo, 'portal_'),
+            ARRAY_FILTER_USE_KEY
         );
     }
 }

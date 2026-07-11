@@ -135,6 +135,13 @@ class TramiteController extends Controller
         }
 
         $tramites = Tramite::query()
+            // Solo trámites ya terminados: una acción de la agenda se hace sobre un
+            // trámite que existe formalmente (firmado o publicado), nunca sobre un
+            // borrador ni sobre uno que sigue en revisión o corrección.
+            ->whereIn('estatus', [
+                Tramite::ESTATUS_EN_FIRMA,
+                Tramite::ESTATUS_COMPLETADO,
+            ])
             ->where(function ($q) use ($termino) {
                 $q->where('nombre_oficial', 'ILIKE', '%' . $termino . '%')
                   ->orWhere('homoclave', 'ILIKE', '%' . $termino . '%');

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\UnidadValorReferencia;
 
 /**
  * Concepto de pago de derechos ligado a un trámite.
@@ -99,11 +100,20 @@ class TramiteDerecho extends Model
     {
         $valorUma = self::valorUmaVigente();
 
-        return collect($derechos)->sum(function ($d) use ($valorUma) {
-            $monto  = floatval($d['monto'] ?? 0);
-            $unidad = $d['unidad'] ?? self::UNIDAD_PESOS;
-            return $unidad === self::UNIDAD_UMA ? $monto * $valorUma : $monto;
-        });
+        return collect($derechos)
+            // Los derechos VARIABLES no se suman: su monto no está determinado (el
+            // predial, por ejemplo, depende de cada caso). La metodología exige que
+            // el Costo Burocrático Directo sea una suma de montos concretos; incluir
+            // una cifra que no es un costo real inflaría el indicador y lo haría
+            // incomparable. El monto que se haya capturado en ellos es solo una
+            // referencia y se muestra aparte.
+            ->reject(fn ($d) => (bool) ($d['es_variable'] ?? false))
+            ->sum(function ($d) use ($valorUma) {
+                $monto  = floatval($d['monto'] ?? 0);
+                $unidad = $d['unidad'] ?? self::UNIDAD_PESOS;
+
+                return $unidad === self::UNIDAD_UMA ? $monto * $valorUma : $monto;
+            });
     }
 
     /**

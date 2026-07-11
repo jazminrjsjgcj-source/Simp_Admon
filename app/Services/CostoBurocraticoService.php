@@ -6,8 +6,8 @@ use App\Models\ParametroCostoBurocratico;
 use App\Models\Tramite;
 use App\Models\TramiteCostoBurocratico;
 use App\Models\UmbralConfigurado;
+use App\Models\UnidadValorReferencia;
 use Illuminate\Support\Carbon;
-use Throwable;
 
 /**
  * Servicio que concentra toda la lógica del Costo Burocrático.
@@ -52,14 +52,24 @@ class CostoBurocraticoService
         $volumenAnual  = max(1, intval($tramite->volumen_anual ?? 1));
         $cbtTotalAnual = $cbuUnitario * $volumenAnual;
 
-        // Bandera para que el desglose muestre una nota cuando hay montos
+        // Ítem E: bandera para que el desglose muestre una nota cuando hay montos
         // no cuantificables (derechos variables del trámite o requisitos de costo
         // de mercado), que quedan fuera del CBD pero existen para la ciudadanía.
         if (!$tramite->relationLoaded('requisitos')) {
             $tramite->load('requisitos');
         }
-        $tieneCostosVariables = (bool) ($tramite->monto_derechos_variable
-            || $tramite->requisitos->contains(fn ($r) => (bool) $r->costo_variable));
+        // Se comprueban los derechos DE VERDAD, no solo la bandera del trámite: esa
+        // bandera la actualiza el formulario y puede quedar desincronizada si los
+        // derechos se modifican por otra vía. Mirar los datos reales siempre acierta.
+        if (! $tramite->relationLoaded('derechos')) {
+            $tramite->load('derechos');
+        }
+
+        $tieneCostosVariables = (bool) (
+            $tramite->monto_derechos_variable
+            || $tramite->derechos->contains(fn ($d) => (bool) $d->es_variable)
+            || $tramite->requisitos->contains(fn ($r) => (bool) $r->costo_variable)
+        );
 
         return array_merge($cbd, $cbi, [
             'cbu_unitario'           => round($cbuUnitario,   2),
@@ -250,7 +260,7 @@ class CostoBurocraticoService
             $tramite->load('requisitos');
         }
 
-        // Un requisito con costo variable (ej. plano arquitectónico) NO
+        // Ítem E: un requisito con costo variable (ej. plano arquitectónico) NO
         // suma al costo directo, porque su monto no es cuantificable de forma
         // objetiva. Su TIEMPO sí cuenta en el CBI (ver sumarTiempoRequisitos...).
         return $tramite->requisitos->sum(fn ($r) =>
@@ -304,7 +314,7 @@ class CostoBurocraticoService
             $registros = ParametroCostoBurocratico::activos()
                 ->pluck('valor', 'clave')
                 ->toArray();
-        } catch (Throwable $e) {
+        } catch (\Throwable $e) {
             $registros = [];
         }
 

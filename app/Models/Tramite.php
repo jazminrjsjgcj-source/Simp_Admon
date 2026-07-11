@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Tramite extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     /**
      * Columnas asignables en masa (sin id, timestamps ni deleted_at).
@@ -429,7 +430,12 @@ class Tramite extends Model
         $siglasDep    = $dependencia->siglas ?: static::siglasDesdeNombre($dependencia->nombre);
         $siglasUnidad = $unidad->siglas      ?: static::siglasDesdeNombre($unidad->nombre);
 
-        return static::formatearHomoclave($siglasDep, $siglasUnidad, $consecutivo);
+        // La homoclave lleva la naturaleza: 'T' para trámite, 'S' para servicio.
+        // (Faltaba pasarla desde que formatearHomoclave la exige, y eso hacía que la
+        // generación de homoclaves fallara con ArgumentCountError.)
+        $naturaleza = $this->esServicio() ? 'S' : 'T';
+
+        return static::formatearHomoclave($naturaleza, $siglasDep, $siglasUnidad, $consecutivo);
     }
 
     /**

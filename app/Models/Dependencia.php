@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -16,6 +17,9 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Dependencia extends Model
 {
+    /** Permite crear dependencias de prueba con Dependencia::factory(). */
+    use HasFactory;
+
     /**
      * Columnas asignables en masa. Excluye id y timestamps (gestionados por
      * Eloquent). Reconstruido desde las migraciones de la tabla dependencias.

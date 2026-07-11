@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ExtraeFichaPortal;
 
+use App\Http\Requests\AccionAgendaRequest;
 use App\Models\AccionAgenda;
 use App\Models\Dependencia;
 use App\Models\Tramite;
@@ -94,23 +95,15 @@ class AgendaController extends Controller
         return view('screens.agenda.create', compact('dependencias', 'tramites', 'tiposTramite', 'sectores', 'subsectoresPorSector', 'misUnidades'));
     }
 
-    public function store(Request $request)
+    public function store(AccionAgendaRequest $request)
     {
         if (!$request->user()->tienePermiso('agenda.crear')) {
             abort(403, 'No tiene permiso para crear acciones de agenda.');
         }
 
-        $request->validate([
-            'alcance'          => 'nullable|in:simplificacion,digitalizacion,ambas',
-            'tipo'             => 'nullable|in:simplificacion,digitalizacion,ambas',
-            'descripcion'      => 'required|string|min:10',
-            'dependencia_id'   => 'nullable|exists:dependencias,id',
-            'fecha_inicio'     => 'nullable|date',
-            'fecha_compromiso' => 'nullable|date|after_or_equal:fecha_inicio',
-            'tramite_id'       => 'nullable|exists:tramites,id',
-            'nivel_actual'     => 'nullable|integer|min:0|max:5',
-            'nivel_meta'       => 'nullable|integer|min:0|max:5',
-        ]);
+        // La validación vive en AccionAgendaRequest: pide lo mínimo para guardar un
+        // borrador y exige todo al enviar a revisión (antes casi todo era opcional y
+        // se podía enviar a revisión una acción prácticamente vacía).
 
         $esEnvio = $request->input('accion') === 'enviar';
         $autorId = $request->user()->id;

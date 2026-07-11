@@ -149,13 +149,20 @@ window.REGS_CITABLES = @json($regulacionesCitables);
         } else {
           indiceHtml = '<p class="cita-sin-idx">Sin índice disponible — escriba el artículo abajo.</p>';
         }
+        // El campo para escribir el artículo a mano solo se muestra cuando la
+        // regulación NO tiene índice. Si lo tiene, ya está el select de arriba:
+        // mostrar los dos hacía que el artículo elegido apareciera duplicado.
+        var manualHtml = ct.indice.length
+          ? ''
+          : '<input type="text" class="cita-art-manual" data-i="' + i + '" placeholder="Artículo o fracción (a mano)" value="' + esc(ct.articulo) + '">';
+
         return '<div class="cita-card">' +
             '<div class="cita-card-head">' +
               '<strong>' + ct.nombre + ' ' + tipo + '</strong>' +
               '<button type="button" class="cita-quitar" data-i="' + i + '">Quitar</button>' +
             '</div>' +
             indiceHtml +
-            '<input type="text" class="cita-art-manual" data-i="' + i + '" placeholder="Artículo o fracción (a mano)" value="' + esc(ct.articulo) + '">' +
+            manualHtml +
             '<input type="hidden" name="' + prefijo + '[' + i + '][regulacion_id]" value="' + ct.id + '">' +
             '<input type="hidden" class="cita-art-hidden" data-i="' + i + '" name="' + prefijo + '[' + i + '][articulo_fraccion]" value="' + esc(ct.articulo) + '">' +
           '</div>';

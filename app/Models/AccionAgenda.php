@@ -1,12 +1,13 @@
 <?php
 namespace App\Models;
 use App\Models\Concerns\GeneraFolio;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AccionAgenda extends Model
 {
-    use GeneraFolio, SoftDeletes;
+    use GeneraFolio, HasFactory, SoftDeletes;
 
     // Estatus del flujo de una acción de agenda.
     // Homologados con Tramite: ambos módulos comparten vocabulario.
