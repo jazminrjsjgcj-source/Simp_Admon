@@ -29,6 +29,11 @@ class AgendaController extends Controller
     {
         $user = $request->user();
         $acciones = AccionAgenda::with(['dependencia', 'unidad', 'tramite'])
+            // Las acciones que esperan a que su trámite se complete no aparecen para
+            // las demás personas: todavía no existen formalmente. Su AUTOR sí las ve,
+            // marcadas como pendientes, para que sepa que están ahí y por qué aún no
+            // cuentan.
+            ->visiblesPara($user)
             // Visibilidad por rol: admin y revisora ven todas las dependencias;
             // jurídico, enlace y sujeto solo ven las acciones de su propia
             // dependencia. Coincide con el show() (puedeVerRegistro), evitando

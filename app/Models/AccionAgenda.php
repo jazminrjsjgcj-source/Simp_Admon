@@ -1,13 +1,15 @@
 <?php
 namespace App\Models;
+use App\Models\Concerns\CongelaCatalogos;
 use App\Models\Concerns\GeneraFolio;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class AccionAgenda extends Model
 {
-    use GeneraFolio, HasFactory, SoftDeletes;
+    use CongelaCatalogos, GeneraFolio, HasFactory, SoftDeletes;
 
     // Estatus del flujo de una acción de agenda.
     // Homologados con Tramite: ambos módulos comparten vocabulario.
@@ -53,6 +55,8 @@ class AccionAgenda extends Model
      * de acciones. Reconstruido desde las migraciones de acciones_agenda.
      */
     protected $fillable = [
+        'activa',
+        'catalogos_al_firmar',
         'tramite_id',
         'tipo',
         'descripcion',
@@ -76,6 +80,7 @@ class AccionAgenda extends Model
 
     // Paquete 3: catálogos oficiales guardados como JSON.
     protected $casts = [
+        'catalogos_al_firmar' => 'array',
         'acciones_simplificacion' => 'array',
         'acciones_digitalizacion' => 'array',
         'fecha_inicio'            => 'date',
@@ -142,4 +147,67 @@ class AccionAgenda extends Model
 
     public function hitos() { return $this->hasMany(HitoAgenda::class, 'accion_agenda_id')->orderBy('orden'); }
 
+
+    /**
+     * ── Acciones activas ─────────────────────────────────────────────────
+     *
+     * Una acción está INACTIVA mientras el trámite sobre el que se apoya no esté
+     * completado. Ocurre cuando el trámite se registra desde la propia agenda: la
+     * mejora no puede darse por comprometida sobre algo que aún no existe de forma
+     * oficial.
+     *
+     * Mientras tanto la acción no aparece en los listados de las demás personas, ni
+     * en el calendario, ni en los indicadores. Su autor sí la ve, marcada como
+     * pendiente, para que sepa que existe y por qué todavía no cuenta.
+     */
+    public function scopeActivas($query)
+    {
+        return $query->where('activa', true);
+    }
+
+    /**
+     * Las acciones que un usuario debe ver: las activas, más las suyas propias
+     * aunque estén pendientes del trámite (si no, habría escrito una acción que no
+     * aparece en ninguna parte y no sabría por qué).
+     */
+    public function scopeVisiblesPara($query, User $usuario)
+    {
+        return $query->where(function ($q) use ($usuario) {
+            $q->where('activa', true)
+              ->orWhere('created_by', $usuario->id);
+        });
+    }
+
+    /** ¿Está esperando a que su trámite quede completado? */
+    public function estaPendienteDelTramite(): bool
+    {
+        return ! $this->activa;
+    }
+
+    /**
+     * ¿Debería estar activa? Lo está si su trámite ya está completado. Una acción sin
+     * trámite (caso raro, pero posible en un borrador) se considera activa: no hay
+     * nada a lo que esperar.
+     */
+    public function deberiaEstarActiva(): bool
+    {
+        if (! $this->tramite_id) {
+            return true;
+        }
+
+        return $this->tramite?->estatus === Tramite::ESTATUS_COMPLETADO;
+    }
+
+    /**
+     * Catálogos que se congelan al firmar la acción. Son los nombres que aparecen en
+     * el acuse: si la dependencia se renombra después, la acción firmada sigue
+     * diciendo lo que decía (ver el trait CongelaCatalogos).
+     */
+    public function catalogosCongelables(): array
+    {
+        return [
+            'dependencia' => 'nombre',
+            'unidad'      => 'nombre',
+        ];
+    }
 }

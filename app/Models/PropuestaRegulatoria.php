@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\CongelaCatalogos;
 use App\Models\Concerns\GeneraFolio;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 
 class PropuestaRegulatoria extends Model
 {
-    use GeneraFolio, SoftDeletes;
+    use CongelaCatalogos, GeneraFolio, SoftDeletes;
     protected $table   = 'propuestas_regulatorias';
 
     /**
@@ -18,6 +19,7 @@ class PropuestaRegulatoria extends Model
      * las migraciones de propuestas_regulatorias.
      */
     protected $fillable = [
+        'catalogos_al_firmar',
         'folio',
         'nombre',
         'tipo_regulacion',
@@ -50,6 +52,7 @@ class PropuestaRegulatoria extends Model
     public const AIR_EXENTO       = 'exento';
 
     protected $casts = [
+        'catalogos_al_firmar' => 'array',
         'fecha_tentativa'            => 'date',
         'genera_costos_burocraticos' => 'boolean',
         'impacta_comercio_inversion' => 'boolean',
@@ -183,5 +186,19 @@ class PropuestaRegulatoria extends Model
         return !is_null($this->genera_costos_burocraticos)
             && !is_null($this->impacta_comercio_inversion)
             && !is_null($this->impacta_tramites_existentes);
+    }
+
+    /**
+     * Catálogos que se congelan al firmar la propuesta: los nombres que aparecen en
+     * el documento. Si el catálogo cambia después, la propuesta firmada sigue
+     * diciendo lo que decía (ver el trait CongelaCatalogos).
+     */
+    public function catalogosCongelables(): array
+    {
+        return [
+            'dependencia' => 'nombre',
+            'sector'      => 'nombre',
+            'subsector'   => 'nombre',
+        ];
     }
 }

@@ -13,6 +13,7 @@ use App\Models\Tramite;
 use App\Models\User;
 use App\Observers\AuditObserver;
 use App\Observers\ProcesoAtencionObserver;
+use App\Observers\TramiteCompletadoObserver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
@@ -61,6 +62,12 @@ class AppServiceProvider extends ServiceProvider
 
         // Fase 6: detectar cambios en el flujo post-firma de reingeniería
         ProcesoAtencion::observe(ProcesoAtencionObserver::class);
+
+        // Cuando un trámite se completa, activa las acciones de agenda que estaban
+        // esperándolo. Ocurre cuando el trámite se registró desde la propia agenda:
+        // la acción se guarda inactiva y no cuenta hasta que el trámite existe
+        // formalmente (ver AccionAgenda::scopeActivas).
+        Tramite::observe(TramiteCompletadoObserver::class);
 
         // A1: los periodos activos se calculan aquí para que el layout no
         // haga queries directas a la BD. View::composer solo ejecuta la

@@ -24,6 +24,10 @@ use Illuminate\Support\Str;
  */
 class DashboardService
 {
+    // Nota: los indicadores solo cuentan acciones ACTIVAS. Una acción que espera a
+    // que su trámite se complete todavía no existe formalmente, así que no debe
+    // inflar las cifras del tablero (ver AccionAgenda::scopeActivas).
+
     // ─── Vista principal ──────────────────────────────────────────────────────
 
     /**
@@ -60,7 +64,7 @@ class DashboardService
                 ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->where('naturaleza', 'tramite')->count(),   'label' => 'Trámites'],
                 ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->where('naturaleza', 'servicio')->count(),  'label' => 'Servicios'],
                 ['value' => PropuestaRegulatoria::where('dependencia_id', $user->dependencia_id)->count(),                      'label' => 'Propuestas regulatorias'],
-                ['value' => AccionAgenda::where('dependencia_id', $user->dependencia_id)->count(),                              'label' => 'Acciones de agenda'],
+                ['value' => AccionAgenda::activas()->where('dependencia_id', $user->dependencia_id)->count(),                              'label' => 'Acciones de agenda'],
                 // Bug #37 (sesión anterior): contar en_observacion además de en_correccion.
                 ['value' => Tramite::where('dependencia_id', $user->dependencia_id)
                     ->whereIn('estatus', ['en_observacion', 'en_correccion'])->count(),    'label' => 'Observaciones pendientes'],
@@ -136,7 +140,7 @@ class DashboardService
                 ->where('naturaleza', 'servicio')
                 ->whereIn('estatus', ['en_correccion', 'en_observacion', 'borrador'])->latest()->take(5)->get();
 
-            $pendientesAgenda = AccionAgenda::when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
+            $pendientesAgenda = AccionAgenda::activas()->when($filtrarDep, fn ($q) => $q->where('dependencia_id', $depUsuario))
                 ->where($soloBorradoresPropios)
                 ->whereIn('estatus', ['en_correccion', 'en_observacion', 'borrador'])->latest()->take(5)->get();
 
@@ -171,7 +175,7 @@ class DashboardService
                 ]);
             }
 
-            $agendasFirma = AccionAgenda::where('estatus', AccionAgenda::ESTATUS_EN_FIRMA)
+            $agendasFirma = AccionAgenda::activas()->where('estatus', AccionAgenda::ESTATUS_EN_FIRMA)
                 ->whereDoesntHave('firmas', fn ($q) => $q->where('tipo', $tipoFirma)->where('firmante_id', $user->id)->where('estatus', 'activa'))
                 ->when($rol === 'enlace', fn ($q) => $q->where('created_by', $user->id))
                 ->when($rol === 'sujeto', fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
@@ -368,7 +372,7 @@ class DashboardService
         $rows = match ($tipo) {
             'tramites'   => $aplicarModulo(Tramite::query(), 'tramites')
                 ->latest()->take(20)->get(['id', 'homoclave', 'nombre_oficial', 'estatus', 'updated_at'])->map($filaTramite),
-            'agenda'     => $aplicarModulo(AccionAgenda::query(), 'agenda')
+            'agenda'     => $aplicarModulo(AccionAgenda::activas(), 'agenda')
                 ->latest()->take(20)->get(['id', 'descripcion', 'estatus', 'updated_at'])->map($filaAgenda),
             'propuestas' => $aplicarModulo(PropuestaRegulatoria::query(), 'propuestas')
                 ->latest()->take(20)->get(['id', 'folio', 'nombre', 'estatus', 'updated_at'])->map($filaPropuesta),
@@ -604,7 +608,7 @@ class DashboardService
             ]);
         }
 
-        $agendaComp = AccionAgenda::where('estatus', AccionAgenda::ESTATUS_COMPLETADO)
+        $agendaComp = AccionAgenda::activas()->where('estatus', AccionAgenda::ESTATUS_COMPLETADO)
             ->where('updated_at', '>=', $desde)
             ->with('dependencia')->latest('updated_at')->limit(20)->get();
         foreach ($agendaComp as $a) {

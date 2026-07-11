@@ -44,7 +44,7 @@ class FirmaDigitalService
         $cadenaOriginal = $this->generarCadenaOriginal($firmable, $firmante, $tipo);
         $hashAcuse      = $this->calcularHash($cadenaOriginal);
 
-        return Firma::create([
+        $firma = Firma::create([
             'firmable_type'    => get_class($firmable),
             'firmable_id'      => $firmable->id,
             'tipo'             => $tipo,
@@ -60,6 +60,23 @@ class FirmaDigitalService
             'observaciones'    => $observaciones,
             'estatus'          => Firma::ESTATUS_ACTIVA,
         ]);
+
+        // Al firmarse, el documento CONGELA los nombres de catálogo que usó
+        // (dependencia, unidad, sector, tipo de trámite...).
+        //
+        // A partir de aquí dice lo que decía: si mañana la dependencia se renombra, el
+        // documento firmado no cambia. El sistema detecta la diferencia y avisa —para
+        // que una persona decida si hay que rehacerlo—, pero no lo altera por su
+        // cuenta. Cambiar el contenido de un acto ya firmado no es aceptable.
+        //
+        // Se comprueba con method_exists porque la firma es polimórfica: vale para
+        // trámites, acciones de agenda y propuestas, y quizá mañana para algo que
+        // todavía no use el trait CongelaCatalogos.
+        if (method_exists($firmable, 'congelarCatalogos')) {
+            $firmable->congelarCatalogos();
+        }
+
+        return $firma;
     }
 
     /**

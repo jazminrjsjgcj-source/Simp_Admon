@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\CongelaCatalogos;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Tramite extends Model
 {
-    use HasFactory, SoftDeletes;
+    use CongelaCatalogos, HasFactory, SoftDeletes;
 
     /**
      * Columnas asignables en masa (sin id, timestamps ni deleted_at).
@@ -17,6 +18,8 @@ class Tramite extends Model
      * bug #B5). Agrupado por propósito para legibilidad.
      */
     protected $fillable = [
+        'catalogos_al_firmar',
+
         // Identificación
         'nombre_oficial',
         'naturaleza',       // ENUM: tramite | servicio
@@ -169,6 +172,7 @@ class Tramite extends Model
 
     protected $casts = [
         'tiene_homoclave' => 'boolean',
+        'catalogos_al_firmar' => 'array',
         'monto_derechos'  => 'decimal:2',
         'cbd_directo'     => 'decimal:2',
         'cbi_indirecto'   => 'decimal:2',
@@ -610,5 +614,24 @@ class Tramite extends Model
             self::DIG_REQUIERE_REVISION => 'Requiere revisión',
             default => ucfirst(str_replace('_', ' ', $this->digitalizacion_estado ?? 'no_iniciada')),
         };
+    }
+
+    /**
+     * Los catálogos que se congelan al firmar el trámite: la clave es la relación y
+     * el valor, el campo cuyo texto se guarda.
+     *
+     * Son los nombres que aparecen en el documento firmado. Si mañana la dependencia
+     * se renombra, el trámite sigue diciendo lo que decía cuando se firmó, y el
+     * sistema avisa de la diferencia (ver el trait CongelaCatalogos).
+     */
+    public function catalogosCongelables(): array
+    {
+        return [
+            'dependencia' => 'nombre',
+            'unidad'      => 'nombre',
+            'sector'      => 'nombre',
+            'subsector'   => 'nombre',
+            'tipoTramite' => 'nombre',
+        ];
     }
 }

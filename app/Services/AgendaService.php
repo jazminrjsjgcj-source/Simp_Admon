@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AccionAgenda;
+use App\Models\Tramite;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -97,7 +98,7 @@ class AgendaService
             // un resumen útil para la revisora.
             $resumen = sprintf(
                 'Trámite "%s" creado desde Agenda SyD · %d derecho(s) · %d requisito(s) · monto derechos $%s',
-                Str::limit($tramite->nombre_oficial, 60),
+                \Illuminate\Support\Str::limit($tramite->nombre_oficial, 60),
                 count($derechos),
                 count($requisitos),
                 number_format((float) ($tramite->monto_derechos ?? 0), 2)
@@ -132,11 +133,24 @@ class AgendaService
     private function insertarAccion(array $datos, int $autorId, bool $esEnvio): AccionAgenda
     {
         $accion = AccionAgenda::create([
+            // La acción nace INACTIVA si su trámite todavía no está completado (pasa
+            // cuando el trámite se registra desde la propia agenda: aún tiene que
+            // pasar por revisión y firma). Mientras tanto no aparece en los listados
+            // ajenos, ni en el calendario, ni en los indicadores: no se puede dar por
+            // comprometida la mejora de algo que formalmente no existe todavía.
+            // El observer de Tramite la activa sola cuando el trámite se completa.
+            'activa'           => $this->tramiteEstaCompletado($datos['tramite_id'] ?? null),
+
             'tipo'             => $datos['tipo'] ?? null,
             'descripcion'      => $datos['descripcion'] ?? null,
             'meta'             => $datos['meta'] ?? null,
-            'fecha_inicio'     => $datos['fecha_inicio']     ?: null,
-            'fecha_compromiso' => $datos['fecha_compromiso'] ?: null,
+            // Se usa ?? y no ?: porque en un borrador estas claves pueden no venir
+            // siquiera. El ?: exige que la clave exista y provocaba un
+            // "Undefined array key" al guardar una acción sin fechas —que es
+            // justamente lo que un borrador permite—. El ?: interno se conserva para
+            // que una cadena vacía también quede como null.
+            'fecha_inicio'     => ($datos['fecha_inicio']     ?? null) ?: null,
+            'fecha_compromiso' => ($datos['fecha_compromiso'] ?? null) ?: null,
             'responsable'      => $datos['responsable'] ?? null,
             'dependencia_id'   => $datos['dependencia_id'] ?? null,
             'unidad_id'        => $datos['unidad_id'] ?? null,
@@ -171,56 +185,65 @@ class AgendaService
         }
     }
 
-    /** Si la acción tiene fecha compromiso, crea su evento de calendario. */
+    /**
+     * Si la acción tiene fecha compromiso, crea su evento de calendario.
+     *
+     * Correcciones aplicadas:
+     *
+     * - Bug #22: 'titulo' usaba $accion->descripcion completa. La columna
+     *   titulo de calendario_eventos es VARCHAR(500) y la descripcion puede
+     *   ser texto legal de miles de caracteres → Data too long (SQLSTATE 22001).
+     *   Se trunca a 200 caracteres con Str::limit().
+     *
+     * - Bug #24/#26: 'tipo' pasaba $accion->tipo directamente. El ENUM de
+     *   calendario_eventos es ('simplificacion','digitalizacion','regulatoria');
+     *   la acción de agenda puede tener tipo 'ambas' (migración 000800),
+     *   que no existe en ese ENUM → Data truncated (SQLSTATE 01000).
+     *   Se normaliza 'ambas' → 'simplificacion' como categoría primaria de SyD.
+     */
     private function crearEventoSiHayFecha(AccionAgenda $accion): void
     {
         if (empty($accion->fecha_compromiso)) {
             return;
         }
-        $this->calendario->crear($accion, $this->datosEventoDesde($accion));
-    }
 
-    /**
-     * Sincroniza el evento de calendario de una acción ya existente (al editar).
-     * Usa exactamente los mismos datos normalizados que al crear, para que el
-     * evento se vea igual sin importar por qué camino se guardó.
-     */
-    public function sincronizarEvento(AccionAgenda $accion): void
-    {
-        if (empty($accion->fecha_compromiso)) {
-            return;
-        }
-        $this->calendario->actualizar($accion, $this->datosEventoDesde($accion));
-    }
-
-    /**
-     * Arma —en UN SOLO lugar— los datos del evento de calendario de una acción.
-     * Antes esta lógica estaba solo en la creación; ahora la comparten crear y
-     * editar, así el título y el tipo se calculan igual en ambos caminos.
-     *
-     * - Título: se trunca a 200 caracteres. La columna ya es TEXT (migración
-     *   #22), así que esto es por consistencia visual, no para evitar desborde.
-     * - Tipo: 'ambas' se guarda tal cual; el filtro y los KPIs del calendario
-     *   lo hacen aparecer en simplificación y en digitalización a la vez (#24/#26).
-     */
-    private function datosEventoDesde(AccionAgenda $accion): array
-    {
-        // 'ambas' se guarda tal cual (el ENUM ya lo acepta). El filtro y los KPIs
-        // del calendario lo hacen aparecer TANTO en simplificación como en
-        // digitalización, que es lo correcto para una acción que es de las dos.
-        $tipo = match ($accion->tipo) {
+        // 'ambas' no es un valor válido en el ENUM de calendario_eventos.tipo.
+        // El mapping queda explícito con match() para que futuras adiciones
+        // de tipo en AccionAgenda obliguen a revisar este punto (falla en compile-time).
+        $tipoCalendario = match ($accion->tipo) {
             'simplificacion' => 'simplificacion',
             'digitalizacion' => 'digitalizacion',
-            'ambas'          => 'ambas',
+            'ambas'          => 'simplificacion', // ambas → categoría primaria SyD
             default          => 'simplificacion',
         };
 
-        return [
-            'tipo'           => $tipo,
-            'titulo'         => Str::limit($accion->descripcion ?? '', 200) ?: 'Acción de Agenda',
+        // Truncar a 200 chars (bien dentro del VARCHAR(500)) para que incluso
+        // un párrafo de texto legal quepa sin desbordar la columna.
+        $tituloCalendario = Str::limit($accion->descripcion ?? '', 200) ?: 'Acción de Agenda';
+
+        $this->calendario->crear($accion, [
+            'tipo'           => $tipoCalendario,
+            'titulo'         => $tituloCalendario,
             'fecha'          => $accion->fecha_compromiso,
             'responsable'    => $accion->responsable,
             'dependencia_id' => $accion->dependencia_id,
-        ];
+        ]);
+    }
+
+    /**
+     * ¿El trámite al que se ligará la acción ya está completado?
+     *
+     * Una acción sin trámite se considera "lista" (no hay nada a lo que esperar); es
+     * un caso raro, pero puede darse en un borrador a medio capturar.
+     */
+    private function tramiteEstaCompletado(?int $tramiteId): bool
+    {
+        if (! $tramiteId) {
+            return true;
+        }
+
+        $tramite = Tramite::find($tramiteId);
+
+        return $tramite?->estatus === Tramite::ESTATUS_COMPLETADO;
     }
 }
