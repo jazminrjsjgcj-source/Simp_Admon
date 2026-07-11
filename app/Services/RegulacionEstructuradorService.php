@@ -62,6 +62,12 @@ class RegulacionEstructuradorService
             // Es portable a cualquier motor y no desactiva las FK ni un instante.
             $this->borrarArbolDeNodos($regulacion->id);
 
+            // Antes de estructurar se quita la maquetación del documento: los
+            // encabezados y pies que se repiten en cada página, y los números de
+            // página sueltos. Al extraer un PDF esa basura viene mezclada con el
+            // texto y se convertía en cientos de nodos sin contenido normativo.
+            $markdown = $this->quitarMaquetacion($markdown);
+
             $markdown = $this->normalizarFraccionesInline($markdown);
             $lineas = preg_split('/\r\n|\r|\n/', $markdown);
             $creados = 0;
@@ -346,7 +352,7 @@ class RegulacionEstructuradorService
         // Ejemplo: "TÍTULO I — Disposiciones Generales" → numero="I", texto="Disposiciones Generales"
         if (preg_match(
             '/^t[íi]tulo\s+' .
-            '([IVXLCDM]+|primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nico|preliminar|final|general)' .
+            '(primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nico|preliminar|final|general|[IVXLCDM]+\b)' .
             '[\s.\-–—]*(.*)$/iu',
             $limpio, $m
         )) {
@@ -369,7 +375,7 @@ class RegulacionEstructuradorService
         // Misma estrategia de dos niveles que el título.
         if (preg_match(
             '/^cap[íi]tulo\s+' .
-            '([IVXLCDM]+|primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nico)' .
+            '(primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nico|[IVXLCDM]+\b)' .
             '[\s.\-–—]*(.*)$/iu',
             $limpio, $m
         )) {
@@ -385,7 +391,7 @@ class RegulacionEstructuradorService
         // ── Sección ──────────────────────────────────────────────────────
         if (preg_match(
             '/^secci[óo]n\s+' .
-            '([IVXLCDM]+|primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nica?)' .
+            '(primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nica?|[IVXLCDM]+\b)' .
             '[\s.\-–—]*(.*)$/iu',
             $limpio, $m
         )) {
@@ -414,7 +420,9 @@ class RegulacionEstructuradorService
         // La parte del texto (.*)$ es opcional: el romano puede estar solo en la
         // línea si la normalización partió el texto después del punto.
         $texto = $this->limpiarFormatoInline($texto);
-        if (preg_match('/^([IVXLCDM]+)\s*[\.\-–—\)]+\s*(.*)$/u', $texto, $m)) {
+        // El \s* inicial permite que la fracción venga con sangría, como pasa en
+        // los PDF con maquetación ("    IV. La fusión de sociedades;").
+        if (preg_match('/^\s*([IVXLCDM]+)\s*[\.\-–—\)]+\s*(.*)$/u', $texto, $m)) {
             $romano = trim($m[1]);
             // Validar que sea un número romano canónico (rechaza "MIL", "IIII",
             // "VV", etc. que podrían colar palabras en mayúscula con puntuación).
@@ -446,43 +454,182 @@ class RegulacionEstructuradorService
      */
     private function normalizarFraccionesInline(string $markdown): string
     {
-        // 1. Fracción romana inline después de separador seguro.
-        //    "...servicios; II. Generar..." → "...servicios;\nII. Generar..."
-        //    Separadores: ; , : ) — los 4 más seguros. El punto (.) NO se
-        //    incluye aquí porque causa falsos positivos con siglas en
-        //    mayúsculas como "CIVIL." o "MUNICIPAL." (todas letras de [IVXLCDM]).
-        $markdown = preg_replace(
-            '/([;,:\)]\s*)([IVXLCDM]+[\.\-–—\)]+\s)/u',
-            "$1\n$2",
-            $markdown
-        );
+        // Las fracciones (I, II, III...) y los incisos (a, b, c...) de una ley van
+        // en SECUENCIA. Esa pista es la que hace fiable el corte: en vez de adivinar
+        // por la puntuación que los precede —lo que dejaba fracciones e incisos sin
+        // detectar cuando el documento venía con el texto corrido en un párrafo— se
+        // busca el SIGUIENTE marcador esperado.
+        //
+        // Así funciona igual aunque el texto venga mal formateado (que es como suele
+        // quedar al extraerlo de un PDF), sin depender de que cada fracción empiece
+        // en su propia línea.
+        return $this->separarMarcadores($markdown);
+    }
 
-        // 2. Fracción romana después de fin de oración (minúscula + punto).
-        //    "...obligación. II. Ser el vínculo..." → split seguro porque
-        //    la letra minúscula antes del punto confirma fin de oración
-        //    (no una sigla como "CIVIL." que termina en mayúscula).
-        $markdown = preg_replace(
-            '/([a-záéíóúñü]\.\s+)([IVXLCDM]+[\.\-–—\)]+\s)/u',
-            "$1\n$2",
-            $markdown
-        );
+    /** Romanos válidos como número de fracción (I a XL cubre de sobra). */
+    private const ROMANOS_FRACCION = [
+        'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X',
+        'XI', 'XII', 'XIII', 'XIV', 'XV', 'XVI', 'XVII', 'XVIII', 'XIX', 'XX',
+        'XXI', 'XXII', 'XXIII', 'XXIV', 'XXV', 'XXVI', 'XXVII', 'XXVIII', 'XXIX', 'XXX',
+        'XXXI', 'XXXII', 'XXXIII', 'XXXIV', 'XXXV', 'XXXVI', 'XXXVII', 'XXXVIII', 'XXXIX', 'XL',
+    ];
 
-        // 3. Inciso inline: "...siguientes: a) El Modelo...; b) El Modelo..."
-        $markdown = preg_replace(
-            '/([;,:\)]\s*)([a-z][\)\.\-–]+\s)/u',
-            "$1\n$2",
-            $markdown
-        );
+    /**
+     * Inserta un salto de línea antes de cada fracción e inciso, siguiendo su
+     * secuencia (I, II, III... y a, b, c...). Recorre el texto línea por línea.
+     *
+     * Reglas de reinicio, que reflejan la jerarquía de una ley:
+     *   - Un encabezado (Artículo, Capítulo...) reinicia fracciones e incisos.
+     *   - Una fracción nueva reinicia los incisos (cada fracción empieza en "a").
+     */
+    private function separarMarcadores(string $markdown): string
+    {
+        $resultado     = [];
+        $ultimaFraccion = -1; // índice del último romano aceptado
+        $ultimoInciso   = -1; // índice de la última letra aceptada
 
-        return $markdown;
+        foreach (preg_split('/\R/u', $markdown) as $linea) {
+            // Un encabezado reinicia la numeración; aun así se le buscan marcadores
+            // DENTRO, por si el artículo y sus fracciones vinieron en la misma línea.
+            if ($this->pareceEncabezado($linea)) {
+                $ultimaFraccion = -1;
+                $ultimoInciso   = -1;
+            }
+
+            [$piezas, $ultimaFraccion, $ultimoInciso] =
+                $this->cortarLinea($linea, $ultimaFraccion, $ultimoInciso);
+
+            foreach ($piezas as $pieza) {
+                $resultado[] = $pieza;
+            }
+        }
+
+        return implode("\n", $resultado);
+    }
+
+    /**
+     * Parte una línea en sus fracciones e incisos, en una sola pasada y respetando
+     * el orden en que aparecen. Devuelve las piezas y los índices actualizados, para
+     * que la secuencia continúe en la línea siguiente.
+     */
+    private function cortarLinea(string $linea, int $ultimaFraccion, int $ultimoInciso): array
+    {
+        $romanos = array_flip(self::ROMANOS_FRACCION);
+        $letras  = array_flip(range('a', 'z'));
+
+        // Se recogen todos los marcadores candidatos de la línea, con su posición.
+        $marcas = [];
+
+        // Fracciones: romano + separador + espacio + texto.
+        if (preg_match_all(
+            '/(?<![A-ZÁÉÍÓÚÑ0-9])([IVXLCDM]+)\s*[\.\-–—\)]+\s+(?=\S)/u',
+            $linea, $hallazgos, PREG_OFFSET_CAPTURE | PREG_SET_ORDER
+        )) {
+            foreach ($hallazgos as $m) {
+                $romano = $m[1][0];
+                $inicio = $m[0][1];
+                if (! isset($romanos[$romano]) || $this->esSigla($linea, $inicio)) {
+                    continue;
+                }
+                $marcas[] = ['pos' => $inicio, 'tipo' => 'fraccion', 'idx' => $romanos[$romano]];
+            }
+        }
+
+        // Incisos: letra minúscula suelta + separador + espacio + texto.
+        if (preg_match_all(
+            '/(?<![a-záéíóúñA-ZÁÉÍÓÚÑ0-9])([a-z])\s*[\)\.\-–—]+\s+(?=\S)/u',
+            $linea, $hallazgos, PREG_OFFSET_CAPTURE | PREG_SET_ORDER
+        )) {
+            foreach ($hallazgos as $m) {
+                $letra  = $m[1][0];
+                $inicio = $m[0][1];
+                if (! isset($letras[$letra])) {
+                    continue;
+                }
+                $marcas[] = ['pos' => $inicio, 'tipo' => 'inciso', 'idx' => $letras[$letra]];
+            }
+        }
+
+        // Se procesan en el orden en que aparecen en la línea.
+        usort($marcas, fn ($a, $b) => $a['pos'] <=> $b['pos']);
+
+        $piezas = [];
+        $pos    = 0;
+
+        foreach ($marcas as $marca) {
+            if ($marca['pos'] < $pos) {
+                continue; // ya quedó dentro de un corte anterior
+            }
+
+            if ($marca['tipo'] === 'fraccion') {
+                // Se acepta si continúa la secuencia, o si es la primera que aparece.
+                if ($marca['idx'] === $ultimaFraccion + 1 || $ultimaFraccion === -1) {
+                    $piezas[]       = rtrim(substr($linea, $pos, $marca['pos'] - $pos));
+                    $pos            = $marca['pos'];
+                    $ultimaFraccion = $marca['idx'];
+                    $ultimoInciso   = -1; // fracción nueva: los incisos empiezan en "a"
+                }
+            } else {
+                // Inciso: se acepta si sigue la secuencia, o si es la "a" inicial.
+                if ($marca['idx'] === $ultimoInciso + 1 || ($ultimoInciso === -1 && $marca['idx'] === 0)) {
+                    $piezas[]     = rtrim(substr($linea, $pos, $marca['pos'] - $pos));
+                    $pos          = $marca['pos'];
+                    $ultimoInciso = $marca['idx'];
+                }
+            }
+        }
+
+        $piezas[] = substr($linea, $pos);
+
+        $piezas = array_values(array_filter(
+            $piezas,
+            fn (string $p) => trim($p) !== ''
+        ));
+
+        return [$piezas, $ultimaFraccion, $ultimoInciso];
+    }
+
+    /**
+     * ¿El romano forma parte de una sigla en mayúsculas (y por tanto NO es una
+     * fracción)? Una fracción va precedida de puntuación o del inicio de la línea;
+     * una sigla va pegada a otra palabra en mayúsculas ("CODIGO CIVIL").
+     */
+    private function esSigla(string $linea, int $inicio): bool
+    {
+        $antes = rtrim(substr($linea, 0, $inicio));
+
+        if ($antes === '') {
+            return false; // al inicio de la línea: es fracción
+        }
+        if (preg_match('/[;:,\.\)\-–—]$/u', $antes)) {
+            return false; // precedida de puntuación: es fracción
+        }
+
+        return (bool) preg_match('/[A-ZÁÉÍÓÚÑ]{2,}$/u', $antes);
+    }
+
+    /**
+     * ¿La línea es el encabezado de un artículo, capítulo, título...? Se usa para
+     * reiniciar la numeración (cada artículo empieza de nuevo en la fracción I).
+     */
+    private function pareceEncabezado(string $linea): bool
+    {
+        return (bool) preg_match(
+            '/^\s*#{0,6}\s*(art[íi]culo|cap[íi]tulo|t[íi]tulo|secci[óo]n|libro|transitori)/iu',
+            $linea
+        );
     }
 
     /** Inciso: "a) texto", "b.- texto", "a)Que se admita". */
     private function detectarInciso(string $texto): ?array
     {
         $texto = $this->limpiarFormatoInline($texto);
-        // Una letra minúscula + uno o más separadores + texto (espacio opcional).
-        if (preg_match('/^([a-z])\s*[\)\.\-–—]+\s*(\S.*)$/u', $texto, $m)) {
+        // Una letra minúscula + uno o más separadores + el texto del inciso.
+        //
+        // El \s* inicial es imprescindible: en los PDF los incisos vienen con
+        // sangría ("    a)   En el acto..."). Sin él, el ^ exigía la letra en la
+        // primera columna y esos incisos no se detectaban.
+        if (preg_match('/^\s*([a-z])\s*[\)\.\-–—]+\s*(\S.*)$/u', $texto, $m)) {
             return [trim($m[1]), trim($m[2])];
         }
         return null;
@@ -614,5 +761,91 @@ class RegulacionEstructuradorService
 
             $hojas->forceDelete();
         }
+    }
+
+    /** Cuántas veces debe repetirse una línea para considerarla maquetación. */
+    private const REPETICIONES_MAQUETACION = 4;
+
+    /**
+     * Quita del texto la maquetación del documento: los encabezados y pies que se
+     * repiten en cada página ("LEY DE HACIENDA...", "H. Congreso del Estado...",
+     * "Oficialía Mayor") y los números de página sueltos.
+     *
+     * El criterio es la REPETICIÓN: el texto de un artículo aparece una vez, pero
+     * un encabezado de página aparece en las cien páginas. No hace falta conocer el
+     * documento: se detecta solo, sea la ley que sea.
+     *
+     * Salvaguarda: una línea con marcador de estructura (artículo, fracción, inciso)
+     * NUNCA se borra, aunque se repita. Una ley puede decir "I. La solicitud;" en
+     * varios artículos y eso es contenido legítimo, no maquetación.
+     */
+    private function quitarMaquetacion(string $markdown): string
+    {
+        $lineas = preg_split('/\R/u', $markdown);
+
+        // 1) Contar cuántas veces aparece cada línea (ignorando la sangría).
+        $conteo = [];
+        foreach ($lineas as $linea) {
+            $clave = trim($linea);
+            if ($clave === '') {
+                continue;
+            }
+            $conteo[$clave] = ($conteo[$clave] ?? 0) + 1;
+        }
+
+        // 2) Las que se repiten mucho y no son contenido: son maquetación.
+        $maquetacion = [];
+        foreach ($conteo as $texto => $veces) {
+            if ($veces >= self::REPETICIONES_MAQUETACION && ! $this->esLineaDeContenido((string) $texto)) {
+                $maquetacion[(string) $texto] = true;
+            }
+        }
+
+        // 3) Reconstruir el texto sin la maquetación ni los números de página.
+        $limpias = [];
+        foreach ($lineas as $linea) {
+            $clave = trim($linea);
+
+            if ($clave === '') {
+                $limpias[] = $linea; // las líneas en blanco separan párrafos
+                continue;
+            }
+            if (isset($maquetacion[$clave])) {
+                continue; // encabezado o pie de página
+            }
+            if (preg_match('/^\d{1,4}$/', $clave)) {
+                continue; // número de página suelto
+            }
+
+            $limpias[] = $linea;
+        }
+
+        return implode("\n", $limpias);
+    }
+
+    /**
+     * ¿La línea lleva un marcador de estructura legal (artículo, capítulo, fracción,
+     * inciso...)? Esas líneas son contenido y no se descartan aunque se repitan.
+     */
+    private function esLineaDeContenido(string $linea): bool
+    {
+        // Encabezados: Artículo, Capítulo, Título, Sección, Libro, Transitorios.
+        if (preg_match('/^\s*#{0,6}\s*(art[íi]culo|cap[íi]tulo|t[íi]tulo|secci[óo]n|libro|transitori)\b/iu', $linea)) {
+            return true;
+        }
+
+        // Fracción: romano en mayúscula + separador + espacio ("VII. La...").
+        if (preg_match('/^\s*[IVXLCDM]+\s*[\.\-–—\)]+\s/u', $linea)) {
+            return true;
+        }
+
+        // Inciso: letra MINÚSCULA + separador + espacio ("a) En el acto...").
+        // Se exige minúscula a propósito: así una línea como "H. Congreso del
+        // Estado..." (pie de página) no se confunde con un inciso.
+        if (preg_match('/^\s*[a-záéíóúñ]\s*[\)\.\-–—]+\s/u', $linea)) {
+            return true;
+        }
+
+        return false;
     }
 }

@@ -27,6 +27,9 @@ class RegulacionConversorService
 {
     public function __construct(
         private SegmentadorPalabrasService $segmentador,
+        // Se reutiliza para localizar LibreOffice: ya sabe dónde buscarlo
+        // (variable de entorno, PATH del sistema o rutas conocidas).
+        private PdfConversorService $pdfConversor,
     ) {}
 
     private const DIRECTORIO_ORIGINALES = 'regulaciones/originales';
@@ -276,19 +279,90 @@ class RegulacionConversorService
 
     private function extraerTextoPdf(string $ruta): string
     {
+        // Primero pdftotext con -layout: conserva la disposición del documento,
+        // incluidos los saltos de línea que separan artículos y fracciones.
+        //
+        // La librería PHP (Smalot\PdfParser) devuelve el texto corrido, sin esos
+        // saltos, y así el estructurador no puede distinguir dónde termina un
+        // artículo y empieza el siguiente. pdftotext (de poppler-utils) es la
+        // herramienta estándar para esto y respeta la maquetación original.
+        $texto = $this->extraerPdfConPdftotext($ruta);
+        if ($texto !== null && trim($texto) !== '') {
+            return $texto;
+        }
+
+        // Respaldo: si pdftotext no está instalado, se usa la librería PHP.
         if (!class_exists(\Smalot\PdfParser\Parser::class)) {
             throw new RuntimeException(
                 'Librería smalot/pdfparser no instalada. Ejecute: composer require smalot/pdfparser'
             );
         }
 
-        $parser   = new \Smalot\PdfParser\Parser();
+        $parser    = new \Smalot\PdfParser\Parser();
         $documento = $parser->parseFile($ruta);
+
         return $documento->getText();
+    }
+
+    /**
+     * Extrae el texto de un PDF con pdftotext (poppler-utils), preservando la
+     * disposición del documento. Devuelve null si la herramienta no está disponible
+     * o si falla, para que el llamador recurra al respaldo.
+     */
+    private function extraerPdfConPdftotext(string $ruta): ?string
+    {
+        // ¿Está instalada la herramienta?
+        exec('command -v pdftotext 2>/dev/null', $donde, $codigo);
+        if ($codigo !== 0 || empty($donde)) {
+            return null;
+        }
+
+        $salida = tempnam(sys_get_temp_dir(), 'punta_pdf_') . '.txt';
+
+        // -layout → conserva la disposición del texto (con sus saltos de línea).
+        // -enc UTF-8 → para no perder los acentos.
+        $comando = 'pdftotext -layout -enc UTF-8 '
+                 . escapeshellarg($ruta) . ' '
+                 . escapeshellarg($salida) . ' 2>&1';
+
+        exec($comando, $mensajes, $codigo);
+
+        if ($codigo !== 0 || ! file_exists($salida)) {
+            \Illuminate\Support\Facades\Log::warning(
+                'pdftotext no pudo extraer el PDF: ' . implode(' ', (array) $mensajes)
+            );
+            @unlink($salida);
+
+            return null;
+        }
+
+        $texto = (string) file_get_contents($salida);
+        @unlink($salida);
+
+        return $texto;
     }
 
     private function extraerTextoWord(string $ruta, string $extension): string
     {
+        // ── Camino principal: LibreOffice → PDF → pdftotext ────────────────
+        //
+        // PHPWord no extrae la numeración de las listas automáticas de Word: cuando
+        // los incisos se escriben como lista (Word dibuja la "a)", pero no es texto
+        // del documento), esa letra se pierde y el estructurador ya no reconoce el
+        // inciso. En una ley eso significa perder la mayoría de los incisos.
+        //
+        // LibreOffice sí RENDERIZA esa numeración al generar el PDF —igual que al
+        // imprimir—, así que la letra pasa a ser texto real. Desde ahí, pdftotext
+        // con -layout conserva la disposición y el estructurador la reconoce.
+        //
+        // Es una conversión más, y por tanto más lenta, pero recupera contenido que
+        // de otro modo desaparecía.
+        $texto = $this->extraerWordViaPdf($ruta);
+        if ($texto !== null && trim($texto) !== '') {
+            return $texto;
+        }
+
+        // ── Respaldo: PHPWord (si LibreOffice no está disponible) ──────────
         if (!class_exists(\PhpOffice\PhpWord\IOFactory::class)) {
             throw new RuntimeException(
                 'Librería phpoffice/phpword no instalada. Ejecute: composer require phpoffice/phpword'
@@ -298,6 +372,31 @@ class RegulacionConversorService
         // Para .docx (ZIP/XML), siempre usar Word2007 — no hay ambigüedad.
         if ($extension === 'docx') {
             return $this->extraerConPhpWord($ruta, 'Word2007');
+        }
+
+        // ── .doc: primero LibreOffice ──────────────────────────────────────
+        // El .doc es el formato binario viejo de Word. Ni PHPWord ni la lectura
+        // directa de bytes conservan la estructura del documento: devuelven el
+        // texto corrido, sin los saltos de línea que separan artículos y
+        // fracciones (y así el estructurador ya no puede distinguirlos).
+        //
+        // LibreOffice sí entiende el formato de forma nativa. Se usa para pasar
+        // el .doc a .docx, que PHPWord lee bien y con los párrafos intactos.
+        // Si LibreOffice no está instalado, se sigue con los métodos de abajo.
+        $rutaDocx = $this->convertirDocConLibreOffice($ruta);
+        if ($rutaDocx !== null) {
+            try {
+                $texto = $this->extraerConPhpWord($rutaDocx, 'Word2007');
+                @unlink($rutaDocx); // archivo temporal, ya no hace falta
+                if (trim($texto) !== '') {
+                    return $texto;
+                }
+            } catch (Throwable $e) {
+                @unlink($rutaDocx);
+                \Illuminate\Support\Facades\Log::warning(
+                    'LibreOffice convirtió el .doc pero PHPWord no pudo leerlo: ' . $e->getMessage()
+                );
+            }
         }
 
         // Para .doc, detectar el formato REAL leyendo los primeros bytes.
@@ -529,11 +628,28 @@ class RegulacionConversorService
         }
 
         if (method_exists($elemento, 'getElements')) {
-            $texto = '';
+            // El separador depende de QUÉ agrupa el elemento:
+            //
+            //   - Un TextRun son los trozos de UN MISMO párrafo (por ejemplo, una
+            //     palabra en negritas dentro de una frase). Sus hijos van en la
+            //     misma línea, así que se unen con un ESPACIO.
+            //
+            //   - Cualquier otro contenedor (tabla, celda, lista...) agrupa
+            //     PÁRRAFOS distintos, así que sus hijos se separan con un SALTO
+            //     DE LÍNEA.
+            //
+            // Antes se unía todo con espacio, y eso fusionaba las fracciones de un
+            // artículo en un único párrafo corrido: al perderse los saltos de línea
+            // del documento original, el estructurador ya no podía separarlas.
+            $esMismoParrafo = $elemento instanceof \PhpOffice\PhpWord\Element\TextRun;
+            $separador      = $esMismoParrafo ? ' ' : "\n";
+
+            $partes = [];
             foreach ($elemento->getElements() as $hijo) {
-                $texto .= $this->extraerTextoDeElemento($hijo) . ' ';
+                $partes[] = $this->extraerTextoDeElemento($hijo);
             }
-            return $texto;
+
+            return implode($separador, $partes);
         }
 
         return '';
@@ -652,5 +768,127 @@ class RegulacionConversorService
         $base = Str::slug($regulacion->nombre, '-');
         $base = Str::limit($base, 80, '');
         return $regulacion->id . '-' . $base . '.' . $extension;
+    }
+
+    /**
+     * Convierte un .doc a .docx usando LibreOffice, y devuelve la ruta del archivo
+     * generado (temporal). Devuelve null si LibreOffice no está disponible o si la
+     * conversión falla: en ese caso el llamador sigue con los otros métodos.
+     *
+     * Se hace porque el .doc (formato binario viejo de Word) no se puede leer bien
+     * desde PHP: se pierden los párrafos y el texto llega corrido. LibreOffice sí
+     * entiende el formato y conserva la estructura.
+     */
+    private function convertirDocConLibreOffice(string $ruta): ?string
+    {
+        $soffice = $this->pdfConversor->rutaLibreOffice();
+        if ($soffice === null) {
+            return null; // no está instalado: se usa la ruta alterna
+        }
+
+        // Carpeta temporal propia, para no dejar basura junto al original.
+        $dirSalida = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'punta_doc_' . uniqid();
+        if (! @mkdir($dirSalida) && ! is_dir($dirSalida)) {
+            return null;
+        }
+
+        // Perfil de usuario aparte: LibreOffice lo necesita para correr sin
+        // interfaz y sin chocar con otra instancia.
+        $perfil    = $dirSalida . DIRECTORY_SEPARATOR . 'perfil';
+        $perfilUrl = 'file:///' . str_replace('\\', '/', $perfil);
+
+        $comando = escapeshellarg($soffice)
+                 . ' --headless'
+                 . ' -env:UserInstallation=' . escapeshellarg($perfilUrl)
+                 . ' --convert-to docx'
+                 . ' --outdir ' . escapeshellarg($dirSalida)
+                 . ' ' . escapeshellarg($ruta)
+                 . ' 2>&1';
+
+        exec($comando, $salida, $codigo);
+
+        $nombreDocx = pathinfo(basename($ruta), PATHINFO_FILENAME) . '.docx';
+        $generado   = $dirSalida . DIRECTORY_SEPARATOR . $nombreDocx;
+
+        if ($codigo !== 0 || ! file_exists($generado)) {
+            \Illuminate\Support\Facades\Log::warning(
+                'LibreOffice no pudo convertir el .doc: ' . implode(' ', (array) $salida)
+            );
+            return null;
+        }
+
+        return $generado;
+    }
+
+    /**
+     * Extrae el texto de un documento de Word pasándolo por LibreOffice a PDF y de
+     * ahí a texto con pdftotext. Devuelve null si LibreOffice o pdftotext no están
+     * disponibles, o si algo falla: en ese caso el llamador usa PHPWord.
+     *
+     * Se hace así porque LibreOffice renderiza la numeración de las listas (los
+     * "a)", "b)" que Word dibuja pero no guarda como texto), y pdftotext -layout
+     * conserva la disposición. Es el mismo camino que ya da buen resultado con los
+     * PDF originales.
+     */
+    private function extraerWordViaPdf(string $ruta): ?string
+    {
+        $rutaPdf = $this->convertirConLibreOffice($ruta, 'pdf');
+        if ($rutaPdf === null) {
+            return null;
+        }
+
+        try {
+            $texto = $this->extraerPdfConPdftotext($rutaPdf);
+        } finally {
+            @unlink($rutaPdf); // el PDF era temporal
+        }
+
+        return $texto;
+    }
+
+    /**
+     * Convierte un documento con LibreOffice al formato indicado (pdf, docx, txt...)
+     * y devuelve la ruta del archivo generado (temporal), o null si no se pudo.
+     */
+    private function convertirConLibreOffice(string $ruta, string $formato): ?string
+    {
+        $soffice = $this->pdfConversor->rutaLibreOffice();
+        if ($soffice === null) {
+            return null; // no está instalado
+        }
+
+        // Carpeta temporal propia, para no dejar archivos junto al original.
+        $dirSalida = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'punta_conv_' . uniqid();
+        if (! @mkdir($dirSalida) && ! is_dir($dirSalida)) {
+            return null;
+        }
+
+        // Perfil de usuario aparte: LibreOffice lo necesita para correr sin interfaz
+        // y para no chocar con otra instancia que estuviera abierta.
+        $perfil    = $dirSalida . DIRECTORY_SEPARATOR . 'perfil';
+        $perfilUrl = 'file:///' . str_replace('\\', '/', $perfil);
+
+        $comando = escapeshellarg($soffice)
+                 . ' --headless'
+                 . ' -env:UserInstallation=' . escapeshellarg($perfilUrl)
+                 . ' --convert-to ' . escapeshellarg($formato)
+                 . ' --outdir ' . escapeshellarg($dirSalida)
+                 . ' ' . escapeshellarg($ruta)
+                 . ' 2>&1';
+
+        exec($comando, $salida, $codigo);
+
+        $nombre   = pathinfo(basename($ruta), PATHINFO_FILENAME) . '.' . $formato;
+        $generado = $dirSalida . DIRECTORY_SEPARATOR . $nombre;
+
+        if ($codigo !== 0 || ! file_exists($generado)) {
+            \Illuminate\Support\Facades\Log::warning(
+                "LibreOffice no pudo convertir a {$formato}: " . implode(' ', (array) $salida)
+            );
+
+            return null;
+        }
+
+        return $generado;
     }
 }

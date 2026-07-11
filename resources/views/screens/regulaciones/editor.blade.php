@@ -89,7 +89,7 @@
       <form method="POST" action="{{ route('regulaciones.estructurar', $regulacion) }}" class="d-inline">
         @csrf
         <button type="submit" class="btn btn-outline"
-          onclick="return confirm('Se releerá el archivo original y se volverá a construir el articulado desde cero (puede tardar unos segundos). ATENCIÓN: esto descarta los ajustes manuales que hayas hecho en el editor. ¿Continuar?')">
+          onclick="return confirmarAccion(this, 'Se releerá el archivo original y se volverá a construir el articulado desde cero (puede tardar unos segundos). Atención: esto descarta los ajustes manuales que hayas hecho en el editor.', '¿Re-estructurar el articulado?')">
           Re-estructurar
         </button>
       </form>

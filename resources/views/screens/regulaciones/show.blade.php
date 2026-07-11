@@ -47,7 +47,7 @@
           <form method="POST" action="{{ route('regulaciones.estructurar', $regulacion) }}" class="d-inline">
             @csrf
             <button type="submit" class="btn btn-outline"
-              onclick="return confirm('Se releerá el archivo original y se construirá la estructura de artículos desde cero (puede tardar unos segundos). Podrás ajustarla luego en el editor. ¿Continuar?')">
+              onclick="return confirmarAccion(this, 'Se releerá el archivo original y se construirá la estructura de artículos desde cero (puede tardar unos segundos). Podrás ajustarla luego en el editor.', '¿Estructurar el articulado?')">
               Estructurar articulado
             </button>
           </form>
@@ -121,7 +121,7 @@
           <form method="POST" action="{{ route('regulaciones.reintentar', $regulacion) }}" class="d-inline">
             @csrf
             <button type="submit" class="btn btn-outline btn-sm"
-              onclick="return confirm('¿Reconvertir el archivo? Se reemplazará el contenido Markdown actual.')">
+              onclick="return confirmarAccion(this, 'Se volverá a leer el archivo original y se reemplazará el contenido extraído actual.', '¿Reconvertir el archivo?')">
               Reintentar conversión
             </button>
           </form>
