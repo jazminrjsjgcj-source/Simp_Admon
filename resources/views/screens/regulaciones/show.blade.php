@@ -320,6 +320,41 @@
   </div>
   @endif
 
+  {{-- ── LA ESTRUCTURACIÓN FALLÓ ──
+
+       Va ANTES del articulado, no después: si el usuario tiene que bajar hasta el final para
+       enterarse de que su articulado no existe, no se entera.
+
+       Este aviso rompe un silencio muy concreto. Desde que la estructuración ocurre en segundo
+       plano, un fallo se comportaba así: el usuario daba a "Estructurar articulado", veía "la
+       página se actualizará sola cuando termine", el job fallaba, se escribía una línea en el
+       log... y ya.
+
+       La conversión SÍ había ido bien, así que la regulación se veía normal, con su botón de
+       "Estructurar" invitando a darle otra vez. Nada indicaba que algo hubiera fallado. El
+       usuario recargaba, y recargaba, y suponía que el sistema seguía trabajando.
+
+       Fíjate en que el mensaje NO dice "hubo un error". Dice qué pasó y QUÉ HACER: capturar el
+       articulado a mano, o reintentar la conversión, según el caso. Un mensaje que no lleva a
+       una acción concreta es casi tan inútil como el silencio — el usuario sabe que algo se
+       rompió y sigue sin saber qué hacer. --}}
+  @if($regulacion->estructuracion_error)
+  <div class="card">
+    <div class="card-body-padded">
+      <div class="assist-box" style="border-color:var(--chip-red);background:var(--chip-red-bg)">
+        <strong>No se pudo construir el articulado.</strong><br>
+        {{ $regulacion->estructuracion_error }}
+        @if(auth()->user()->puedeEditarRegulacion($regulacion) && $regulacion->estructurada)
+          <br><span class="label-meta">
+            Puedes capturarlo a mano en el
+            <a href="{{ route('regulaciones.editor', $regulacion) }}" style="color:var(--chip-red);text-decoration:underline">editor</a>.
+          </span>
+        @endif
+      </div>
+    </div>
+  </div>
+  @endif
+
   {{-- Articulado estructurado: empieza cerrado porque puede ser muy largo
        (200+ artículos). El usuario hace clic para expandirlo cuando lo necesita. --}}
   @if($regulacion->estructurada)

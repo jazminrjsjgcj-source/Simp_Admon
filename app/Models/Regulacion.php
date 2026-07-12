@@ -44,6 +44,15 @@ class Regulacion extends Model
         'archivo_markdown',
         'conversion_estatus',
         'conversion_error',
+
+        // Por qué falló la construcción del articulado. Null si fue bien o si nunca se intentó.
+        //
+        // Existe por el mismo motivo que conversion_error: un fallo que solo queda en el log no
+        // lo lee nadie que esté esperando su articulado. Desde que la estructuración ocurre en
+        // segundo plano, el usuario daba a "Estructurar", veía "la página se actualizará sola", y
+        // la página se refrescaba eternamente sin que nada indicara que algo salió mal.
+        'estructuracion_error',
+
         'extension_original',
         'materia',
         'fundamento_juridico',
@@ -221,6 +230,29 @@ class Regulacion extends Model
     public function tieneIndice(): bool
     {
         return !empty($this->indice) && is_array($this->indice);
+    }
+
+    /**
+     * ¿Falló el último intento de construir el articulado?
+     *
+     * Ojo con lo que esto NO significa: no significa que la CONVERSIÓN haya fallado. Son dos
+     * cosas distintas y hay que mantenerlas separadas.
+     *
+     *   conversion_error       → el texto del archivo no se pudo extraer.
+     *   estructuracion_error   → el texto está bien, pero no se pudo construir el árbol de
+     *                            artículos a partir de él.
+     *
+     * En el segundo caso, la regulación es perfectamente utilizable: se puede leer, descargar y
+     * consultar. Lo único que falta es el articulado navegable.
+     *
+     * Confundir las dos cosas tiene un coste concreto: si el sistema dijera "error de conversión"
+     * cuando lo que falló fue el parser, el usuario tiraría el archivo y subiría otro sin ninguna
+     * necesidad. Un mensaje de error que apunta al problema equivocado hace perder más tiempo que
+     * no dar ninguno.
+     */
+    public function estructuracionFallo(): bool
+    {
+        return ! empty($this->estructuracion_error);
     }
 
     /**

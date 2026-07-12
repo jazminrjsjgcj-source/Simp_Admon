@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\FirmaDuplicadaException;
 use App\Models\AccionAgenda;
-
+use App\Models\AnalisisImpactoRegulatorio;
 use App\Models\Firma;
 use App\Models\PropuestaRegulatoria;
 use App\Models\Tramite;
@@ -105,13 +106,27 @@ class FirmaController extends Controller
         // bueno se queda en hash común.
         // ─────────────────────────────────────────────────────────────────
 
-        $this->firmaService->firmar(
-            $modelo,
-            $user,
-            $request->tipo_firma,
-            $request,
-            $request->observaciones
-        );
+        // La comprobación de yaFirmadoPor() de arriba atrapa el caso normal: el usuario le da a
+        // "Firmar" en algo que ya firmó.
+        //
+        // Este try/catch atrapa el OTRO: dos peticiones simultáneas —un doble clic, o un reintento
+        // de la red— que pasan las dos esa comprobación antes de que ninguna haya escrito.
+        //
+        // En esa carrera es el índice único de la base el que frena a la segunda, y
+        // FirmaDigitalService traduce el error de PostgreSQL a FirmaDuplicadaException. Sin
+        // capturarla aquí, el usuario vería un error 500 justo después de firmar; con ella, ve el
+        // mismo mensaje que en el caso normal.
+        try {
+            $this->firmaService->firmar(
+                $modelo,
+                $user,
+                $request->tipo_firma,
+                $request,
+                $request->observaciones
+            );
+        } catch (FirmaDuplicadaException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         // Auto-completar según las firmas requeridas por módulo:
         //   Trámite      → sujeto + enlace + revisora (las tres)
@@ -161,6 +176,23 @@ class FirmaController extends Controller
             }
         }
 
+        // ── OJO: ESTA RAMA TODAVÍA NO SE PUEDE ALCANZAR ──
+        //
+        // Hasta ahora la clase AnalisisImpactoRegulatorio NO estaba importada arriba. Sin el `use`,
+        // PHP la interpretaba como App\Http\Controllers\AnalisisImpactoRegulatorio: una clase
+        // inexistente.
+        //
+        // Y aquí está lo traicionero: `instanceof` contra una clase que NO EXISTE no lanza ningún
+        // error. Devuelve false. Siempre. Así que esta rama nunca se ejecutaba — sin excepción, sin
+        // log, sin nada. Un AIR aprobado por la revisora nunca pasaba a 'dictaminado', y el sistema
+        // funcionaba con toda normalidad.
+        //
+        // Ya está importada, así que el `instanceof` por fin dice la verdad. Pero la rama sigue sin
+        // poder alcanzarse por otro motivo: resolverModelo() no acepta el tipo 'air', así que un AIR
+        // no puede llegar a este controlador.
+        //
+        // Se deja así a propósito. Activarla exigiría añadir 'air' a resolverModelo(), y el flujo
+        // del AIR todavía no está terminado. Cuando se retome ese módulo, esta rama está lista.
         if ($modelo instanceof AnalisisImpactoRegulatorio && $modelo->estatus === 'enviado') {
             $firmasActivas = $this->firmaService->firmasActivas($modelo)->pluck('tipo')->toArray();
             if (in_array('aprobacion_revisora', $firmasActivas)) {
@@ -201,16 +233,30 @@ class FirmaController extends Controller
         return back()->with('success', 'Firma revocada. La acción queda registrada en bitácora.');
     }
 
+    /**
+     * Verifica una firma y devuelve el resultado en JSON.
+     *
+     * Los mensajes cambiaron con el arreglo de FirmaDigitalService. Antes decían "el hash coincide
+     * con la cadena original", que describía exactamente lo único que el servicio comprobaba: que
+     * la fila `firmas` no se hubiera manipulado.
+     *
+     * Ahora la verificación hace DOS cosas: comprueba que la fila no se haya tocado, Y que el
+     * documento firmado siga diciendo lo que decía al firmarse.
+     *
+     * El mensaje tenía que decirlo, porque para el usuario no es lo mismo "alguien tocó la base de
+     * datos" que "alguien editó el trámite después de firmarlo".
+     */
     public function verificar(Firma $firma)
     {
         $valida = $this->firmaService->verificarIntegridad($firma);
 
         return response()->json([
-            'firma_id'  => $firma->id,
-            'integra'   => $valida,
-            'mensaje'   => $valida
-                ? 'La firma es íntegra: el hash coincide con la cadena original.'
-                : 'La firma NO es íntegra: el hash no coincide con la cadena original.',
+            'firma_id' => $firma->id,
+            'integra'  => $valida,
+            'mensaje'  => $valida
+                ? 'La firma es válida: el documento no ha cambiado desde que se firmó.'
+                : 'La firma NO es válida: el documento fue modificado después de firmarse, '
+                  . 'o el registro de la firma no coincide con su hash.',
         ]);
     }
 

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Regulacion;
+use App\Models\RegulacionNodo;
 use App\Models\User;
 use App\Services\DefinitionExtractorService;
 use App\Services\NotificadorService;
@@ -116,13 +117,19 @@ class EstructurarRegulacionJob implements ShouldQueue
         // job se ejecuta en un mundo que pudo cambiar desde que se encoló. Es más barato
         // comprobarlo que depurar un articulado construido sobre un Markdown a medias.
         if (! $regulacion->conversionListaParaCitar()) {
-            Log::warning('Estructuración cancelada: la conversión no está lista.', [
-                'regulacion_id' => $regulacion->id,
-                'estatus'       => $regulacion->conversion_estatus,
-            ]);
+            $this->registrarError(
+                $regulacion,
+                'No se pudo construir el articulado porque el contenido del archivo no está '
+                . 'convertido. Use el botón «Reintentar conversión» y vuelva a intentarlo.'
+            );
 
             return;
         }
+
+        // Se limpia el error de la vez anterior. Si no, un reintento que sale bien dejaría el
+        // mensaje viejo en pantalla: la regulación tendría su articulado Y un aviso rojo
+        // diciendo que la estructuración falló. Contradictorio y desconcertante.
+        $regulacion->update(['estructuracion_error' => null]);
 
         // (1) Foto del articulado anterior, antes de destruirlo.
         $this->guardarSnapshot($regulacion);
@@ -135,13 +142,41 @@ class EstructurarRegulacionJob implements ShouldQueue
         // (3) El articulado.
         $creados = $estructurador->importarDesdeMarkdown($regulacion);
 
-        if ($creados === 0) {
-            Log::warning('La estructuración no encontró ningún artículo en el texto.', [
-                'regulacion_id' => $regulacion->id,
-                'nombre'        => $regulacion->nombre,
-                'pista'         => 'El parser busca "Artículo 1.", "TÍTULO PRIMERO", "CAPÍTULO I". '
-                                 . 'Si el documento no usa esos formatos, hay que capturarlo a mano en el editor.',
-            ]);
+        // ── ¿SE CONSTRUYÓ UN ARTICULADO, O SOLO UN MONTÓN DE PÁRRAFOS? ──
+        //
+        // Ojo con la trampa: NO basta con comprobar $creados > 0.
+        //
+        // El estructurador vuelca cualquier línea de texto suelta como un nodo "párrafo". Un
+        // documento de texto corrido, sin un solo artículo, produce DECENAS de nodos — y por
+        // tanto $creados sale alto y el sistema lo da por bueno.
+        //
+        // El usuario vería entonces un "articulado" que no es un articulado: una lista de
+        // párrafos colgando de la nada, sin ningún artículo que citar. Y sin ningún aviso,
+        // porque técnicamente no falló nada.
+        //
+        // Lo que hace útil a una regulación estructurada es poder CITARLA: "Artículo 15,
+        // fracción II". Si no hay artículos, no hay nada que citar, y todo el articulado no
+        // sirve para el único propósito por el que existe.
+        //
+        // Por eso la pregunta correcta no es "¿se creó algo?", sino "¿se creó algún ARTÍCULO?".
+        $articulos = $regulacion->nodos()
+            ->where('tipo', RegulacionNodo::TIPO_ARTICULO)
+            ->count();
+
+        if ($articulos === 0) {
+            // Esto NO es un error técnico: el sistema funcionó perfectamente y no encontró
+            // artículos. El documento simplemente no usa los formatos que el parser reconoce.
+            //
+            // Por eso el mensaje no dice "error interno" ni pide reintentar: dice exactamente qué
+            // busca el parser y qué hacer si el documento no lo usa. Un mensaje que no lleva a una
+            // acción concreta es casi tan inútil como el silencio — el usuario sabe que algo se
+            // rompió y sigue sin saber qué hacer.
+            $this->registrarError(
+                $regulacion,
+                'No se encontró ningún artículo en el texto del documento. '
+                . 'El sistema reconoce formatos como «Artículo 1.», «TÍTULO PRIMERO» y «CAPÍTULO I». '
+                . 'Si el documento no los usa, capture el articulado a mano desde el editor.'
+            );
 
             return;
         }
@@ -159,6 +194,7 @@ class EstructurarRegulacionJob implements ShouldQueue
         Log::info('Regulación estructurada en segundo plano.', [
             'regulacion_id'     => $regulacion->id,
             'nodos_creados'     => $creados,
+            'articulos'         => $articulos,
             'tramites_avisados' => $citaciones['total'],
         ]);
     }
@@ -300,6 +336,30 @@ class EstructurarRegulacionJob implements ShouldQueue
     }
 
     /**
+     * Deja el motivo del fallo DONDE EL USUARIO LO VA A MIRAR: en la ficha de la regulación.
+     *
+     * Antes de esto, un fallo de estructuración solo dejaba una línea en el log. Y el log no lo
+     * lee nadie que esté esperando su articulado.
+     *
+     * El usuario daba a "Estructurar", veía "la página se actualizará sola cuando termine", y la
+     * página se refrescaba eternamente. La conversión sí había ido bien, así que la regulación se
+     * veía normal, con su botón de "Estructurar" invitando a darle otra vez. Nada indicaba que
+     * algo hubiera fallado.
+     *
+     * El log sigue escribiéndose —hace falta para depurar—, pero ya no es lo único.
+     */
+    private function registrarError(Regulacion $regulacion, string $mensaje): void
+    {
+        $regulacion->update(['estructuracion_error' => $mensaje]);
+
+        Log::warning('No se pudo construir el articulado de una regulación.', [
+            'regulacion_id' => $regulacion->id,
+            'nombre'        => $regulacion->nombre,
+            'motivo'        => $mensaje,
+        ]);
+    }
+
+    /**
      * Si la estructuración falla, la CONVERSIÓN sigue siendo válida: el texto se extrajo bien,
      * lo que falló fue el parser al construir el árbol.
      *
@@ -309,8 +369,39 @@ class EstructurarRegulacionJob implements ShouldQueue
      */
     public function failed(Throwable $e): void
     {
+        // El modelo puede haber desaparecido mientras el job esperaba en la cola. Recargarlo con
+        // cuidado evita que el manejador de errores lance su propia excepción y tumbe al worker.
+        $regulacion = Regulacion::find($this->regulacion->id);
+
+        if (! $regulacion) {
+            Log::warning('Falló la estructuración, pero la regulación ya no existe.', [
+                'regulacion_id' => $this->regulacion->id,
+            ]);
+
+            return;
+        }
+
+        // ── LA CONVERSIÓN SIGUE SIENDO VÁLIDA ──
+        //
+        // Aquí NO se toca conversion_estatus, y es importante entender por qué.
+        //
+        // Si la estructuración falla, el texto se extrajo perfectamente: lo que falló fue el
+        // parser al construir el árbol. Marcar la conversión como error sería MENTIR — diría que
+        // el archivo no se pudo leer, cuando se leyó bien. Y el usuario tiraría el archivo y
+        // subiría otro sin ninguna necesidad.
+        //
+        // Un mensaje de error que apunta al problema equivocado hace perder más tiempo que no
+        // dar ninguno.
+        $regulacion->update([
+            'estructuracion_error' => 'Error interno al construir el articulado. '
+                . 'El contenido del documento sí se extrajo correctamente, así que puede consultarlo '
+                . 'y descargarlo con normalidad. Si el problema persiste, capture el articulado a mano '
+                . 'desde el editor.',
+        ]);
+
         Log::error('Falló la estructuración de una regulación en segundo plano.', [
-            'regulacion_id' => $this->regulacion->id,
+            'regulacion_id' => $regulacion->id,
+            'nombre'        => $regulacion->nombre,
             'error'         => $e->getMessage(),
         ]);
     }

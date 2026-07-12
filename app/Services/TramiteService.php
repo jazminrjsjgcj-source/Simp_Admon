@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\RequisitoAjenoException;
 use App\Models\Requisito;
 use App\Models\Tramite;
 use Illuminate\Support\Facades\DB;
@@ -96,41 +97,34 @@ class TramiteService
     /**
      * ── POR QUÉ ESTOS PARÁMETROS NO TIENEN VALOR POR DEFECTO ──
      *
-     * Antes eran `array $requisitos = []`, y los demás igual. Parecía cómodo. Era una
-     * trampa.
+     * Antes eran `array $requisitos = []`, y los demás igual. Parecía cómodo. Era una trampa.
      *
-     * Este método SINCRONIZA las colecciones del trámite: borra los requisitos que
-     * tiene y los recrea desde el array que recibe. Lo mismo con los derechos, la
-     * ficha del portal y los procesos. Es el comportamiento correcto — así es como el
-     * formulario de edición refleja que el usuario quitó una fila.
+     * Este método SINCRONIZA las colecciones del trámite: los requisitos que no vuelven en el
+     * envío se borran (así es como el sistema entiende que el usuario quitó una fila del
+     * formulario). Lo mismo con los derechos, la ficha del portal y los procesos.
      *
-     * El problema era el valor por defecto. Con `= []`, estas dos frases se escriben
-     * exactamente igual:
+     * El problema era el valor por defecto. Con `= []`, estas dos frases se escriben igual:
      *
      *     "el trámite no tiene ningún requisito"
      *     "no te estoy mandando los requisitos, no los toques"
      *
-     * Hoy no hay ningún llamador que caiga en la trampa: el único que existe
-     * (TramiteController::update) viene de un formulario que manda todos los campos
-     * del trámite en un solo envío, así que los requisitos siempre llegan.
+     * Hoy ningún llamador cae en la trampa: el único que existe (TramiteController::update) viene
+     * de un formulario que manda todos los campos en un solo envío.
      *
-     * Pero el día que alguien añada un endpoint de API, o una acción de "atender
-     * observación" que solo toque un campo, o un botón de "cambiar dependencia",
-     * escribirá lo que parece razonable:
+     * Pero el día que alguien añada un endpoint de API, o una acción de "atender observación" que
+     * solo toque un campo, escribirá lo que parece razonable:
      *
      *     $this->tramiteService->actualizar($tramite, ['dependencia_id' => 5]);
      *
-     * Y esa línea borraría TODOS los requisitos, TODOS los derechos y TODA la ficha del
-     * portal del trámite. En silencio. Sin error, sin aviso, sin nada en la bitácora
-     * que explique por qué.
+     * Y esa línea borraría TODOS los requisitos, TODOS los derechos y TODA la ficha del portal.
+     * En silencio. Sin error, sin aviso, sin nada en la bitácora que lo explique.
      *
-     * Al quitar los valores por defecto, esa línea deja de compilar. El error salta al
-     * escribir el código, no en producción tres meses después. Quien quiera vaciar los
-     * requisitos tendrá que pedirlo a la cara, pasando un array vacío a propósito.
+     * Sin valores por defecto, esa línea no arranca: PHP se queja de que faltan argumentos. El
+     * fallo salta al escribir el código, no en producción tres meses después.
      *
-     * crear() SÍ conserva sus valores por defecto, y es deliberado: al crear no hay
-     * nada que perder. Un array vacío significa "todavía no hay ninguno", que es cierto.
-     * La ambigüedad solo existe al actualizar.
+     * crear() SÍ conserva sus valores por defecto, y es deliberado: al crear no hay nada que
+     * perder. Un array vacío significa "todavía no hay ninguno", que es cierto. La ambigüedad
+     * solo existe al actualizar.
      */
     public function actualizar(
         Tramite $tramite,
@@ -393,8 +387,47 @@ class TramiteService
             ];
 
             if (!empty($req['id'])) {
-                Requisito::where('id', $req['id'])->update($datos);
                 $reqId = (int) $req['id'];
+
+                // ── EL CANDADO ──
+                //
+                // El `->where('tramite_id', $tramite->id)` es lo único que impide que este
+                // formulario modifique un requisito de OTRA dependencia.
+                //
+                // El id viaja en un campo oculto del formulario de edición. Cambiándolo con las
+                // herramientas del navegador, un enlace de Comercio podía escribir el id del
+                // "Dictamen estructural" de un trámite de Desarrollo Urbano —una revisión de
+                // seguridad de quince días— y dejarlo en "Ninguno, trámite exprés". Desde su
+                // propia sesión. Sin permisos especiales. Sin dejar rastro.
+                //
+                // Es una vulnerabilidad clásica: referencia directa a objeto sin control de
+                // propiedad. El resto del sistema sí valida por dependencia (FirmaController usa
+                // esDeSuDependencia); aquí ese control no estaba.
+                //
+                // update() devuelve cuántas filas tocó. Si es 0, ese requisito no es de este
+                // trámite: o no existe, o es de otro. En los dos casos, el formulario está
+                // mandando algo que PUNTA nunca manda.
+                $filasTocadas = Requisito::where('id', $reqId)
+                    ->where('tramite_id', $tramite->id)
+                    ->update($datos);
+
+                if ($filasTocadas === 0) {
+                    // Se ABORTA, no se ignora.
+                    //
+                    // Ignorarlo también cerraría el agujero —el update no habría hecho nada— y
+                    // era más simple. Pero un id que no cuadra NO ES UN DATO RARO: es un
+                    // formulario manipulado. El formulario de PUNTA nunca manda el id de un
+                    // requisito ajeno; si llega uno, alguien lo puso ahí a mano.
+                    //
+                    // Y si alguien manipuló UN campo, no hay razón para confiar en el resto: por
+                    // eso se cancela el guardado entero, no solo esa fila.
+                    //
+                    // La excepción sube hasta TramiteService::actualizar(), que corre dentro de
+                    // una transacción. Al propagarse, la transacción se deshace: el trámite
+                    // queda exactamente como estaba.
+                    throw new RequisitoAjenoException($reqId, $tramite->id);
+                }
+
                 $actualizados[] = $reqId;
             } else {
                 $nuevo = $tramite->requisitos()->create($datos);

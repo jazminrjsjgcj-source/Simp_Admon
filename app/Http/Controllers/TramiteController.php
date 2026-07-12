@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\RequisitoAjenoException;
+use Illuminate\Support\Facades\Log;
+
 use App\Http\Controllers\Concerns\ExtraeFichaPortal;
 
 use App\Http\Requests\TramiteRequest;
@@ -415,14 +418,47 @@ class TramiteController extends Controller
         // Campos comunes con store() (fundamento, fj_*, catálogos, derechos var.).
         $data = array_merge($data, $this->camposComunesDesde($request));
 
-        $this->tramiteService->actualizar(
-            tramite:     $tramite,
-            datos:       $data,
-            derechos:    $this->leerDerechos($request),
-            requisitos:  $request->input('requisitos', []),
-            fichaPortal: $this->extraerFichaPortal($request),
-            procesos:    $this->extraerProcesos($request),
-        );
+        try {
+            $this->tramiteService->actualizar(
+                tramite:     $tramite,
+                datos:       $data,
+                derechos:    $this->leerDerechos($request),
+                requisitos:  $request->input('requisitos', []),
+                fichaPortal: $this->extraerFichaPortal($request),
+                procesos:    $this->extraerProcesos($request),
+            );
+        } catch (RequisitoAjenoException $e) {
+            // ── EL FORMULARIO VENÍA MANIPULADO ──
+            //
+            // Llegó el id de un requisito que NO es de este trámite. El formulario de PUNTA nunca
+            // manda eso: el id viaja en un campo oculto, y alguien lo cambió a mano con las
+            // herramientas del navegador para sobrescribir un requisito de OTRA dependencia desde
+            // su propia sesión.
+            //
+            // El servicio ya abortó el guardado —la excepción deshizo su transacción—, así que el
+            // trámite quedó exactamente como estaba y el requisito ajeno no se tocó.
+            //
+            // Lo que falta es DEJAR CONSTANCIA. Sin este registro, alguien podría probar mil ids
+            // distintos, tanteando cuáles existen y de quién son, y nadie lo sabría nunca. Un
+            // intento fallido es tan informativo como uno que sale bien: dice que hay alguien
+            // buscando.
+            //
+            // Nivel WARNING y no ERROR, a propósito: el sistema funcionó perfectamente, hizo justo
+            // lo que debía. Lo anómalo no es el sistema — es quien lo está usando.
+            Log::warning('Intento de modificar un requisito ajeno.', [
+                'usuario_id'      => $request->user()->id,
+                'usuario'         => $request->user()->name,
+                'dependencia_id'  => $request->user()->dependencia_id,
+                'tramite_id'      => $tramite->id,
+                'requisito_ajeno' => $e->requisitoId,
+                'ip'              => $request->ip(),
+                'user_agent'      => $request->userAgent(),
+            ]);
+
+            return back()
+                ->withInput()
+                ->with('error', $e->getMessage());
+        }
 
         $this->sincronizarRelacionados($tramite, $request);
 
