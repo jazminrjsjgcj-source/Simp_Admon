@@ -368,6 +368,34 @@
         </tr>
       @endforeach
     </tbody></table></div>
+
+    {{-- ── "MOSTRANDO 5 DE 60" ──
+
+         Esta tabla enseña un máximo de 5 pendientes. Antes NO tenía ningún límite: cargaba TODOS
+         los documentos en firma, aunque fueran quinientos. Quinientos modelos en memoria y
+         quinientas filas de HTML en una tabla que nadie iba a leer.
+
+         Pero poner el límite y callarse habría sido cambiar un problema por otro, y por uno peor.
+
+         Alguien con 60 documentos esperando su firma vería CINCO, y la tarjeta le diría "Estos
+         registros están esperando que los firmes". Firmaría esos cinco y se iría tranquilo,
+         creyendo que ya terminó. Los otros 55 se quedarían ahí, sin que nadie supiera.
+
+         Un problema de rendimiento se NOTA: la página tarda. Un problema de información no se
+         nota nunca — y por eso es peor.
+
+         Un resumen que no dice que es un resumen no es un resumen: es un dato falso. --}}
+    @if(($totalPendientesFirma ?? 0) > $pendientesFirma->count())
+      <div class="card-body-padded" style="text-align:center;border-top:1px solid var(--border)">
+        <span class="text-muted-sm">
+          Mostrando {{ $pendientesFirma->count() }} de
+          <strong>{{ $totalPendientesFirma }}</strong> documentos que esperan tu firma.
+        </span>
+        <a href="{{ route('firmas.index') }}" class="btn btn-outline btn-sm" style="margin-left:8px">
+          Ver los {{ $totalPendientesFirma }}
+        </a>
+      </div>
+    @endif
   </div>
   @endif
 

@@ -34,6 +34,18 @@ class DashboardService
      * Devuelve el array de variables para la vista screens.dashboard.
      * El controlador lo pasa directamente a compact() o a view()->with().
      */
+    /**
+     * Cuántos pendientes se enseñan en cada tarjeta del dashboard.
+     *
+     * El dashboard es un RESUMEN, no un listado. Cada tarjeta muestra unos pocos y ofrece un botón
+     * para ver el resto en su pantalla propia.
+     *
+     * Antes este 5 estaba escrito a mano en cuatro sitios distintos... y OLVIDADO en un quinto,
+     * que cargaba la lista entera sin ningún límite. Un número mágico repetido cinco veces es un
+     * número mágico que alguien va a olvidar en uno de los cinco.
+     */
+    private const MAX_PENDIENTES = 5;
+
     public function datosVista(User $user, string $rol): array
     {
         // Panorama del admin (solo se calcula para ese rol).
@@ -155,18 +167,75 @@ class DashboardService
                 ->latest()->take(5)->get();
         }
 
+        // ══════════════════════════════════════════════════════════════════════
         // Pendientes de firma (sujeto y enlace).
-        $pendientesFirma = collect();
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // ── QUÉ ESTABA MAL ──
+        //
+        // Las otras cuatro listas de pendientes limitan con ->take(5). Esta NO tenía ningún límite:
+        //
+        //     $tramitesFirma = Tramite::where('estatus', 'en_firma')
+        //         ->whereDoesntHave('firmas', ...)
+        //         ->get();            // ← todos. Los que haya.
+        //
+        // Con 500 trámites en firma, el dashboard cargaba 500 modelos en memoria, recorría 500
+        // vueltas de bucle y pintaba 500 filas en una tabla que nadie iba a leer. Y otro tanto con
+        // las agendas, justo debajo.
+        //
+        // No es un N+1 —es UNA sola consulta— y por eso es MÁS fácil de pasar por alto: no hay un
+        // número de consultas que crezca. Lo que crece es la memoria y el HTML.
+        //
+        // ── POR QUÉ NO BASTABA CON PONER ->take(5) ──
+        //
+        // Porque entonces alguien con 28 documentos esperando su firma vería CINCO, y ninguna
+        // indicación de que hay 23 más. La tarjeta dice "Estos registros están esperando que los
+        // firmes" — y estaría mintiendo por omisión. Se iría tranquilo creyendo que ya firmó todo.
+        //
+        // Sería cambiar un problema de rendimiento por uno de información, y el segundo es peor:
+        // el primero se nota y el segundo no. Un resumen que no dice que es un resumen no es un
+        // resumen: es un dato falso.
+        //
+        // Por eso se cuenta el total y se le pasa a la vista, que enseña "y N más".
+        //
+        // ── Y EL ORDEN ──
+        //
+        // La consulta original no tenía ORDER BY. Sin límite eso daba igual: salían todos. Con
+        // límite, "los 5 que ves" serían arbitrarios y podrían CAMBIAR ENTRE RECARGAS — el usuario
+        // firmaría uno, recargaría, y vería cinco distintos sin entender por qué.
+        //
+        // El latest() lo hace determinista: siempre los cinco más recientes. Ese detalle solo
+        // aparece cuando pones el límite; sin él, nadie lo habría notado nunca.
+        $pendientesFirma      = collect();
+        $totalPendientesFirma = 0;
+
         if (in_array($rol, ['sujeto', 'enlace'])) {
             $tipoFirma = $rol === 'sujeto' ? 'aceptacion_sujeto' : 'aceptacion_enlace';
 
-            $tramitesFirma = Tramite::where('estatus', 'en_firma')
-                ->whereDoesntHave('firmas', fn ($q) => $q->where('tipo', $tipoFirma)->where('firmante_id', $user->id)->where('estatus', 'activa'))
-                ->when($rol === 'enlace', fn ($q) => $q->where('created_by', $user->id))
-                ->when($rol === 'sujeto', fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
-                ->get();
+            // Las consultas se construyen SIN ejecutarse, para poder contarlas primero y leer solo
+            // unas pocas después. Un COUNT(*) no trae ni una fila a memoria: cuenta en la base y
+            // devuelve un número.
+            $sinFirmarPor = fn ($q) => $q->where('tipo', $tipoFirma)
+                ->where('firmante_id', $user->id)
+                ->where('estatus', 'activa');
 
-            foreach ($tramitesFirma as $t) {
+            $queryTramites = Tramite::where('estatus', 'en_firma')
+                ->whereDoesntHave('firmas', $sinFirmarPor)
+                ->when($rol === 'enlace', fn ($q) => $q->where('created_by', $user->id))
+                ->when($rol === 'sujeto', fn ($q) => $q->where('dependencia_id', $user->dependencia_id));
+
+            $queryAgendas = AccionAgenda::activas()
+                ->where('estatus', AccionAgenda::ESTATUS_EN_FIRMA)
+                ->whereDoesntHave('firmas', $sinFirmarPor)
+                ->when($rol === 'enlace', fn ($q) => $q->where('created_by', $user->id))
+                ->when($rol === 'sujeto', fn ($q) => $q->where('dependencia_id', $user->dependencia_id));
+
+            // Se clona antes de contar. count() sobre el propio builder lo deja en un estado que
+            // luego confunde al ->take(): clonar cuesta nada y evita un bug de los que no dan la
+            // cara hasta que alguien reordena dos líneas.
+            $totalPendientesFirma = (clone $queryTramites)->count() + (clone $queryAgendas)->count();
+
+            foreach ($queryTramites->latest()->take(self::MAX_PENDIENTES)->get() as $t) {
                 $pendientesFirma->push([
                     'folio'     => $t->homoclave ?? 'Sin folio',
                     'nombre'    => $t->nombre_oficial,
@@ -175,13 +244,7 @@ class DashboardService
                 ]);
             }
 
-            $agendasFirma = AccionAgenda::activas()->where('estatus', AccionAgenda::ESTATUS_EN_FIRMA)
-                ->whereDoesntHave('firmas', fn ($q) => $q->where('tipo', $tipoFirma)->where('firmante_id', $user->id)->where('estatus', 'activa'))
-                ->when($rol === 'enlace', fn ($q) => $q->where('created_by', $user->id))
-                ->when($rol === 'sujeto', fn ($q) => $q->where('dependencia_id', $user->dependencia_id))
-                ->get();
-
-            foreach ($agendasFirma as $a) {
+            foreach ($queryAgendas->latest()->take(self::MAX_PENDIENTES)->get() as $a) {
                 $pendientesFirma->push([
                     'folio'     => $a->folio ?? 'AGD-' . str_pad($a->id, 3, '0', STR_PAD_LEFT),
                     'nombre'    => Str::limit($a->descripcion, 60),
@@ -189,6 +252,9 @@ class DashboardService
                     'url_firma' => route('firmas.mostrar', ['tipo' => 'agenda', 'id' => $a->id]),
                 ]);
             }
+
+            // Se leyeron hasta 5 de cada fuente; la tarjeta enseña 5 en total, como las demás.
+            $pendientesFirma = $pendientesFirma->take(self::MAX_PENDIENTES);
         }
 
         // Feed de actividad reciente para el carrusel de transparencia del dashboard.
@@ -197,7 +263,7 @@ class DashboardService
         return compact(
             'rol', 'kpis', 'kpiRoutes', 'kpiTipos',
             'pendientesTramites', 'pendientesServicios', 'pendientesAgenda', 'pendientesPropu', 'pendientesAir',
-            'panorama', 'sistemaTotales', 'pendientesFirma', 'actividadGeneral'
+            'panorama', 'sistemaTotales', 'pendientesFirma', 'totalPendientesFirma', 'actividadGeneral'
         );
     }
 

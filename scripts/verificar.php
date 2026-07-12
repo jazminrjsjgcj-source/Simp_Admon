@@ -94,6 +94,13 @@ $comprobaciones = [
         ['docker-compose.yml', 'schedule:work', 'el scheduler existe (sin él, NADA programado corre)'],
     ],
 
+    'Fase 7 — Escalabilidad' => [
+        ['app/Services/DashboardService.php', 'MAX_PENDIENTES', 'la lista de pendientes de firma tiene límite'],
+        ['app/Services/DashboardService.php', 'totalPendientesFirma', 'y el dashboard sabe cuántos hay de verdad'],
+        ['resources/views/screens/dashboard.blade.php', 'totalPendientesFirma', 'Y LA PANTALLA LO DICE (sin esto, enseña 5 de 60 y calla)'],
+        ['tests/Feature/DashboardEscalaTest.php', null, 'la prueba de que el coste no crece con los datos'],
+    ],
+
     'Vistas — el sistema sabía y la pantalla callaba' => [
         ['resources/views/screens/tramites/show.blade.php', 'costoDeEsperaCalculable', 'aviso de costo incompleto'],
         ['resources/views/screens/tramites/show.blade.php', 'catalogosDesactualizados', 'aviso de catálogo cambiado tras firmar'],
