@@ -65,29 +65,44 @@ class DatabaseSeeder extends Seeder
             ['clave'=>'umbral_proporcionalidad', 'valor'=>'0',    'created_at'=>now(),'updated_at'=>now()],
         ]);
 
-        // Periodo SyD (semestral)
-        DB::table('periodos')->insertOrIgnore([
-            'nombre'       => 'Periodo SyD Enero-Junio 2026',
-            'tipo'         => 'agenda_syd',
-            'fecha_inicio' => '2026-01-01',
-            'fecha_fin'    => '2026-06-30',
-            'estatus'      => 'activo',
-            'descripcion'  => 'Primer semestre — Agenda de Simplificación y Desarrollo.',
-            'created_at'   => now(),
-            'updated_at'   => now(),
-        ]);
+      // ── Periodos: UNO ACTIVO POR TIPO ──
+        //
+        // Antes esto eran dos insertOrIgnore con query builder crudo, y la migración de la
+        // tabla insertaba TODAVÍA OTRO periodo activo de agenda_syd. Cada instalación limpia
+        // arrancaba con dos SyD activos, rompiendo la regla central del módulo.
+        //
+        // Se usan las constantes del modelo (Periodo::ESTATUS_ACTIVO) y no las cadenas a
+        // mano: de la palabra exacta 'activo' cuelgan el scope, el servicio y el índice único
+        // de la base. Un 'Activo' con mayúscula se guardaría sin queja, y ese periodo no
+        // estaría activo para nadie.
+        //
+        // updateOrInsert por `nombre` mantiene el seeder idempotente: correrlo dos veces no
+        // duplica nada.
+        DB::table('periodos')->updateOrInsert(
+            ['nombre' => 'Periodo SyD Enero-Junio 2026'],
+            [
+                'tipo'         => \App\Models\Periodo::TIPO_SYD,
+                'fecha_inicio' => '2026-01-01',
+                'fecha_fin'    => '2026-06-30',
+                'estatus'      => \App\Models\Periodo::ESTATUS_ACTIVO,
+                'descripcion'  => 'Primer semestre — Agenda de Simplificación y Desarrollo.',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ]
+        );
 
-        // Periodo Regulatorio (anual)
-        DB::table('periodos')->insertOrIgnore([
-            'nombre'       => 'Periodo Regulatorio 2026',
-            'tipo'         => 'agenda_regulatoria',
-            'fecha_inicio' => '2026-01-01',
-            'fecha_fin'    => '2026-12-31',
-            'estatus'      => 'activo',
-            'descripcion'  => 'Ejercicio anual — Agenda Regulatoria.',
-            'created_at'   => now(),
-            'updated_at'   => now(),
-        ]);
+        DB::table('periodos')->updateOrInsert(
+            ['nombre' => 'Periodo Regulatorio 2026'],
+            [
+                'tipo'         => \App\Models\Periodo::TIPO_REGULATORIA,
+                'fecha_inicio' => '2026-01-01',
+                'fecha_fin'    => '2026-12-31',
+                'estatus'      => \App\Models\Periodo::ESTATUS_ACTIVO,
+                'descripcion'  => 'Ejercicio anual — Agenda Regulatoria.',
+                'created_at'   => now(),
+                'updated_at'   => now(),
+            ]
+        );
 
         // SCIAN: catálogo oficial de sectores económicos
         $this->call(ScianSeeder::class);

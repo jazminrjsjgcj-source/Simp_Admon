@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ConvertirRegulacionJob;
+use App\Jobs\EstructurarRegulacionJob;
 use App\Models\Dependencia;
 use App\Models\Regulacion;
 use App\Models\SectorScian;
@@ -11,6 +13,7 @@ use App\Services\PdfConversorService;
 use App\Services\RegulacionConversorService;
 use App\Services\RegulacionEstructuradorService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 use ZipArchive;
@@ -139,11 +142,28 @@ class RegulacionController extends Controller
         $regulacion->save();
 
         $this->conversor->guardarOriginal($regulacion, $request->file('archivo'));
-        $this->conversor->convertirAMarkdown($regulacion);
         $this->pdfConversor->invalidarCache($regulacion);
 
+        // La conversión pasa a la COLA. Antes ocurría aquí mismo, en el hilo de la petición:
+        // el usuario se quedaba mirando la ruedecita mientras LibreOffice masticaba un PDF de
+        // doscientas páginas. Y si el proceso moría a medias —nginx cortaba, el kernel mataba
+        // a LibreOffice por memoria—, la regulación se quedaba en 'procesando' PARA SIEMPRE:
+        // sin error, sin aparecer en ninguna lista de fallos, sin avisar a nadie.
+        //
+        // El estado se marca AQUÍ y no dentro del job, a propósito: entre el dispatch y el
+        // momento en que el worker coge el trabajo pasan segundos. Si no se marcara ahora, el
+        // usuario llegaría a la ficha y vería 'pendiente' — como si el sistema no hubiera
+        // hecho nada con su archivo.
+        $regulacion->update([
+            'conversion_estatus' => Regulacion::CONVERSION_PROCESANDO,
+            'conversion_error'   => null,
+        ]);
+
+        ConvertirRegulacionJob::dispatch($regulacion);
+
         return redirect()->route('regulaciones.show', $regulacion)
-            ->with('success', 'Regulación registrada y contenido convertido.');
+            ->with('success', 'Regulación registrada. El contenido se está convirtiendo; '
+                . 'la página se actualizará sola cuando termine.');
     }
 
     public function show(Regulacion $regulacion)
@@ -249,8 +269,15 @@ class RegulacionController extends Controller
         $teniaArticulado = $regulacion->estructurada;
 
         $this->conversor->guardarOriginal($regulacion, $request->file('archivo'));
-        $this->conversor->convertirAMarkdown($regulacion);
         $this->pdfConversor->invalidarCache($regulacion);
+
+        // Igual que en store(): la conversión se encola. Ver el comentario de allí.
+        $regulacion->update([
+            'conversion_estatus' => Regulacion::CONVERSION_PROCESANDO,
+            'conversion_error'   => null,
+        ]);
+
+        ConvertirRegulacionJob::dispatch($regulacion);
 
         // Invalidar el articulado existente: el archivo cambió, así que los
         // nodos (artículos, títulos, capítulos) del archivo anterior ya no
@@ -586,14 +613,23 @@ class RegulacionController extends Controller
         }
 
         $regulacion->update([
-            'conversion_estatus' => Regulacion::CONVERSION_PENDIENTE,
+            'conversion_estatus' => Regulacion::CONVERSION_PROCESANDO,
             'conversion_error'   => null,
         ]);
 
-        $this->conversor->convertirAMarkdown($regulacion);
         $this->pdfConversor->invalidarCache($regulacion);
 
-        return back()->with('success', 'Contenido reconvertido.');
+        // ShouldBeUnique (en el job) hace que dar cinco veces al botón NO encole cinco
+        // conversiones del mismo archivo.
+        //
+        // Antes eso no podía pasar: era síncrono, el usuario estaba bloqueado esperando. Al
+        // pasar a la cola se vuelve posible — y serían cinco trabajos idénticos pisándose el
+        // resultado y ocupando al worker media hora. Cada capacidad nueva trae su propio
+        // fallo nuevo.
+        ConvertirRegulacionJob::dispatch($regulacion);
+
+        return back()->with('success', 'Reconvirtiendo el archivo. '
+            . 'La página se actualizará sola cuando termine.');
     }
 
     /**
@@ -637,18 +673,48 @@ class RegulacionController extends Controller
         // propia validación interna y simplemente no hace nada — se sigue
         // usando el Markdown existente, igual que el comportamiento anterior.
         if (!empty($regulacion->archivo_original)) {
-            $reconvertido = $this->conversor->convertirAMarkdown($regulacion);
+            // ── LA CADENA: convertir → y SOLO SI sale bien, estructurar ──
+            //
+            // Esto es lo que permite que "Estructurar articulado" siga siendo UN BOTÓN.
+            //
+            // El código anterior reconvertía a propósito antes de estructurar, y el comentario
+            // de arriba explica por qué: alguien ya se comió la confusión de tener que apretar
+            // dos botones en el orden correcto, y lo arregló uniéndolos.
+            //
+            // Al pasar la conversión a segundo plano, ese arreglo se rompería: el controlador
+            // despacharía la conversión, seguiría de largo, e intentaría estructurar el
+            // Markdown VIEJO — o uno que todavía no existe.
+            //
+            // Bus::chain() garantiza el orden y CORTA si el primero falla: no se construye un
+            // árbol de artículos sobre un texto que no se pudo extraer. El usuario da a un
+            // botón, como siempre; solo que ahora no se queda esperando.
+            $regulacion->update([
+                'conversion_estatus' => Regulacion::CONVERSION_PROCESANDO,
+                'conversion_error'   => null,
+            ]);
 
-            if ($reconvertido) {
-                $this->pdfConversor->invalidarCache($regulacion);
-            } else {
-                return back()->with('error',
-                    'No se pudo reconvertir el archivo original: '
-                    . ($regulacion->conversion_error ?? 'error desconocido')
-                    . '. Verifique el archivo o súbalo de nuevo.'
-                );
-            }
+            // Se le pasa el ID del usuario al job. Dentro de una cola NO HAY PETICIÓN:
+            // request()->user() y auth()->user() devuelven null. El job lo necesita para dos
+            // cosas: firmar el snapshot del articulado, y firmar el aviso que se manda a los
+            // enlaces de los trámites que citan esta regulación.
+            //
+            // Sin esto, el aviso diría que la reestructuró "nadie".
+            Bus::chain([
+                new ConvertirRegulacionJob($regulacion),
+                new EstructurarRegulacionJob($regulacion, request()->user()?->id),
+            ])->dispatch();
+
+            return back()->with('success',
+                'Releyendo el archivo original y construyendo el articulado. '
+                . 'La página se actualizará sola cuando termine.'
+            );
         }
+
+        // A partir de aquí: el camino SIN archivo original.
+        //
+        // Es el caso raro (el archivo se perdió, o la regulación se armó sin él). No hay nada
+        // que reconvertir, así que no hay nada lento que hacer: se estructura con el Markdown
+        // que haya, en el mismo hilo, igual que siempre.
 
         if (!$regulacion->conversionListaParaCitar()) {
             return back()->with('error', 'La regulación aún no tiene su contenido convertido. Use el botón «Reintentar conversión» primero.');

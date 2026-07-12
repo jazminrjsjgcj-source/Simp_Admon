@@ -2,6 +2,20 @@
 @section('title', $regulacion->nombre)
 
 @section('content')
+@php
+  use App\Models\Regulacion;
+
+  // El estado de la conversión gobierna casi toda esta pantalla: qué botones se ven, qué
+  // avisos se muestran, y si la página tiene que refrescarse sola.
+  //
+  // Antes se comparaba con cadenas a mano ('listo', 'error', 'pendiente') repartidas por el
+  // blade. Ahora se usan las constantes del modelo: un typo en una constante no compila; un
+  // typo en una cadena se guarda tan tranquilo y rompe la pantalla en silencio.
+  $conv        = $regulacion->conversion_estatus;
+  $convirtiendo = $conv === Regulacion::CONVERSION_PROCESANDO;
+  $convLista   = $conv === Regulacion::CONVERSION_LISTO;
+  $convError   = $conv === Regulacion::CONVERSION_ERROR;
+@endphp
 <style>
   .indice-nav { display:flex; flex-direction:column; gap:2px; }
   .indice-nav-item { font-size:13px; padding:4px 8px; border-radius:4px; }
@@ -43,11 +57,16 @@
         {{-- Estructurar: construye el árbol de artículos para el editor
              jerárquico. Solo si ya se convirtió el contenido y aún no se ha
              estructurado. --}}
-        @if($regulacion->conversion_estatus === 'listo' && !$regulacion->estructurada)
+        {{-- Mientras se convierte, este botón NO se muestra: estructurar dispara una
+             reconversión, y encolar otra sobre una que ya está corriendo no tiene sentido.
+             En su lugar se enseña que hay trabajo en marcha. --}}
+        @if($convirtiendo)
+          <button type="button" class="btn btn-outline" disabled>Convirtiendo…</button>
+        @elseif($convLista && !$regulacion->estructurada)
           <form method="POST" action="{{ route('regulaciones.estructurar', $regulacion) }}" class="d-inline">
             @csrf
             <button type="submit" class="btn btn-outline"
-              onclick="return confirmarAccion(this, 'Se releerá el archivo original y se construirá la estructura de artículos desde cero (puede tardar unos segundos). Podrás ajustarla luego en el editor.', '¿Estructurar el articulado?')">
+              onclick="return confirmarAccion(this, 'Se releerá el archivo original y se construirá la estructura de artículos desde cero. El trabajo ocurre en segundo plano: puedes seguir usando el sistema mientras tanto.', '¿Estructurar el articulado?')">
               Estructurar articulado
             </button>
           </form>
@@ -117,11 +136,11 @@
         <p>Vista previa, descargas y estado de la extracción de contenido.</p>
       </div>
       <div class="head-actions">
-        @if(auth()->user()->puedeEditarRegulacion($regulacion))
+        @if(auth()->user()->puedeEditarRegulacion($regulacion) && !$convirtiendo)
           <form method="POST" action="{{ route('regulaciones.reintentar', $regulacion) }}" class="d-inline">
             @csrf
             <button type="submit" class="btn btn-outline btn-sm"
-              onclick="return confirmarAccion(this, 'Se volverá a leer el archivo original y se reemplazará el contenido extraído actual.', '¿Reconvertir el archivo?')">
+              onclick="return confirmarAccion(this, 'Se volverá a leer el archivo original y se reemplazará el contenido extraído actual. El trabajo ocurre en segundo plano.', '¿Reconvertir el archivo?')">
               Reintentar conversión
             </button>
           </form>
@@ -129,17 +148,56 @@
       </div>
     </div>
 
-    {{-- Estado de conversión (solo si hay error o está pendiente) --}}
-    @if($regulacion->conversion_estatus === 'error')
+    {{-- ── ESTADO DE LA CONVERSIÓN ──
+
+         Antes este bloque contemplaba 'error' y 'pendiente'. NO contemplaba 'procesando',
+         porque la conversión era síncrona y ese estado no llegaba a verse nunca.
+
+         Ahora la conversión la hace un worker en segundo plano, así que 'procesando' es
+         justo lo que el usuario ve SIEMPRE después de subir un archivo. Sin este bloque,
+         llegaría a la ficha, no vería nada, y supondría que el sistema no hizo nada. --}}
+    @if($convirtiendo)
       <div class="card-body-padded">
-        <div class="assist-box" style="border-color:var(--chip-red);background:var(--chip-red-bg)">
-          <strong>Error en la conversión:</strong> {{ $regulacion->conversion_error ?? 'No se pudo extraer el contenido del archivo.' }}
+        <div class="assist-box" style="border-color:#fbbf24;background:#fffbeb;color:#92400e;display:flex;align-items:center;gap:12px">
+          <strong style="font-size:18px">⏳</strong>
+          <div>
+            <strong>Convirtiendo el archivo…</strong><br>
+            Se está extrayendo el texto del documento. Puede tardar desde unos segundos hasta
+            un par de minutos, según el tamaño del archivo.
+            <span class="label-meta">Esta página se actualizará sola cuando termine. Puedes irte y volver.</span>
+          </div>
         </div>
       </div>
-    @elseif($regulacion->conversion_estatus === 'pendiente')
+
+      {{-- Refresco automático.
+
+           Cada 5 segundos, no cada uno: un PDF grande tarda minutos, y recargar la página
+           sesenta veces por minuto solo carga el servidor sin que el usuario gane nada.
+
+           Se detiene solo, porque cuando la conversión termine el estado ya no será
+           'procesando' y este bloque entero desaparecerá del HTML. No hace falta cancelar
+           nada: el bucle vive solo mientras la condición de arriba sea cierta. --}}
+      <script>
+        setTimeout(function () { window.location.reload(); }, 5000);
+      </script>
+
+    @elseif($convError)
+      <div class="card-body-padded">
+        <div class="assist-box" style="border-color:var(--chip-red);background:var(--chip-red-bg)">
+          <strong>Error en la conversión:</strong>
+          {{ $regulacion->conversion_error ?? 'No se pudo extraer el contenido del archivo.' }}
+        </div>
+      </div>
+
+    @elseif($conv === Regulacion::CONVERSION_PENDIENTE)
       <div class="card-body-padded">
         <div class="assist-box">
-          La conversión está pendiente. Si no se ejecuta automáticamente, use el botón «Reintentar conversión».
+          La conversión está pendiente. Si no arranca sola en unos segundos, use el botón
+          «Reintentar conversión».
+          <span class="label-meta">
+            Si esto se queda así, lo más probable es que el worker de la cola no esté
+            corriendo (docker compose up -d).
+          </span>
         </div>
       </div>
     @endif
@@ -172,7 +230,7 @@
   @php
     $esWord           = in_array($regulacion->extension_original, ['doc', 'docx']);
     $esPdf            = $regulacion->extension_original === 'pdf';
-    $tieneConv        = $regulacion->conversion_estatus === 'listo' && $regulacion->archivo_markdown;
+    $tieneConv        = $convLista && $regulacion->archivo_markdown;
     $puedeVerMd       = auth()->user()->veVariasDependencias(); // admin y revisora
     // $tieneLibreOffice viene del controlador (show() lo inyecta). Si LibreOffice
     // no está disponible, el botón Word para PDFs no se muestra para no generar

@@ -3,6 +3,7 @@
 namespace App\Models\Concerns;
 
 use App\Models\Contador;
+use App\Support\Siglas;
 
 /**
  * Genera folios con formato LPZ-{TIPO}-{SIGLAS}-{AÑO}-{consecutivo}.
@@ -27,19 +28,46 @@ trait GeneraFolio
     }
 
     /**
-     * Siglas de la dependencia asociada. Cada modelo decide de dónde
-     * sacarlas (puede tener la relación directa o vía propuesta).
+     * Siglas de la dependencia asociada. Cada modelo decide de dónde sacarlas (puede tener la
+     * relación directa o vía propuesta).
+     *
+     * ── AQUÍ HABÍA UN BUG, Y ERA DE LOS QUE NO DAN LA CARA ──
+     *
+     * La versión anterior hacía esto:
+     *
+     *     return strtoupper(substr($dep->nombre, 0, 4));
+     *
+     * `substr()` cuenta BYTES, no caracteres. Y en UTF-8 una "Ñ" ocupa dos bytes.
+     *
+     *     substr("Ñuñez", 0, 4)  →  C3 91 75 C3
+     *                            →  "Ñu" + medio byte de la ñ
+     *                            →  un carácter ROTO
+     *
+     * Ese byte suelto, que no es ninguna letra, acababa dentro del folio. Impreso. Sin ningún
+     * error, sin ninguna alarma: el folio se guardaba tan tranquilo con basura dentro.
+     *
+     * Y `strtoupper()` tampoco pone en mayúsculas las letras acentuadas —también trabaja por
+     * bytes—, así que una "ó" se quedaba minúscula en unas siglas que deberían ser mayúsculas.
+     *
+     * Lo curioso es que Tramite::siglasDesdeNombre() SÍ lo hacía bien, con mb_substr. Había dos
+     * sitios calculando lo mismo, uno correcto y otro no, y nadie los comparó nunca. Esa
+     * duplicación era la causa del bug, no un detalle de estilo.
+     *
+     * Ahora los dos usan App\Support\Siglas, que además quita los acentos: un identificador
+     * oficial tiene que poder escribirse en una URL, en un nombre de archivo y en un CSV sin
+     * sorpresas.
      */
     protected function folioSiglas(): string
     {
         $dep = $this->dependencia ?? null;
-        if ($dep && !empty($dep->siglas)) {
-            return $dep->siglas;
+
+        if (! $dep) {
+            return Siglas::GENERICAS;
         }
-        if ($dep && !empty($dep->nombre)) {
-            return strtoupper(substr($dep->nombre, 0, 4));
-        }
-        return 'GRAL';
+
+        // Las siglas capturadas a mano también se limpian: si alguien escribió "VÚ" en la
+        // columna, la tilde entraría en el folio igual.
+        return Siglas::normalizar($dep->siglas) ?: Siglas::desdeNombre($dep->nombre);
     }
 
     /**

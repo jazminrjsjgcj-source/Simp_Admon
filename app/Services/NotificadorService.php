@@ -9,6 +9,7 @@ use App\Models\Tramite;
 use App\Models\User;
 use App\Notifications\AvisoPunta;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -114,13 +115,41 @@ class NotificadorService
             : '';
 
         foreach ($citaciones['tramites'] as $tramite) {
-            // Buscar al enlace del trámite (quien debe revisar) y al creador.
+            // Se avisa al ENLACE (quien mantiene el trámite) y al CREADOR (quien puso la cita
+            // y sabe por qué). A los dos: el enlace puede haber cambiado desde que se registró.
             $enlace  = $tramite->enlace_id  ? User::find($tramite->enlace_id)  : null;
             $creador = $tramite->created_by ? User::find($tramite->created_by) : null;
 
             $destinatarios = collect([$enlace, $creador])->filter()->unique('id');
 
             if ($destinatarios->isEmpty()) {
+                // ── POR QUÉ ESTE LOG NO ES OPCIONAL ──
+                //
+                // Antes aquí solo había un `continue;`. Sin log, sin aviso, sin rastro.
+                //
+                // Y resultó no ser un caso borde: era EL caso. citacionesEnTramites() cargaba
+                // el trámite con `tramite:id,nombre_oficial,homoclave` — sin enlace_id ni
+                // created_by. Los dos salían null, esta lista salía siempre vacía, y el aviso
+                // NO SE ENVIABA NUNCA. Para ningún trámite. Ni una vez.
+                //
+                // El bug sobrevivió porque este `continue` se lo tragaba todo. Con un log,
+                // alguien lo habría visto el primer día.
+                //
+                // La lección: en un bucle de notificaciones, un `continue` silencioso es un
+                // fallo esperando a pasar. Si no hay a quién avisar, eso ES la noticia —
+                // significa que un trámite quedó afectado y nadie va a revisarlo.
+                Log::warning(
+                    'Regulación re-estructurada: no se pudo avisar a nadie de un trámite afectado '
+                    . '(sin destinatarios). El trámite puede quedar con un fundamento jurídico que '
+                    . 'apunta a un artículo que ya dice otra cosa, y nadie lo revisará.',
+                    [
+                        'regulacion_id' => $regulacion->id,
+                        'tramite_id'    => $tramite->id,
+                        'tramite'       => $tramite->nombre_oficial ?? null,
+                        'articulos'     => $citaciones['articulos'] ?? [],
+                    ]
+                );
+
                 continue;
             }
 

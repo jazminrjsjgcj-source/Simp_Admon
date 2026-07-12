@@ -251,7 +251,7 @@ class Regulacion extends Model
     public function citacionesEnTramites(): array
     {
         $fundamentos = FundamentoJuridico::where('regulacion_id', $this->id)
-            ->with('tramite:id,nombre_oficial,homoclave')
+            ->with('tramite:id,nombre_oficial,homoclave,enlace_id,created_by')
             ->get();
 
         if ($fundamentos->isEmpty()) {

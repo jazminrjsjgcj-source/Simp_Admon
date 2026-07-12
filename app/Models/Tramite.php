@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\CongelaCatalogos;
+use App\Support\Siglas;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -496,8 +497,18 @@ class Tramite extends Model
         // Si la dependencia o la unidad no tienen siglas capturadas, las
         // derivamos de su nombre (iniciales de las primeras palabras), para
         // que la homoclave siempre se pueda generar.
-        $siglasDep    = $dependencia->siglas ?: static::siglasDesdeNombre($dependencia->nombre);
-        $siglasUnidad = $unidad->siglas      ?: static::siglasDesdeNombre($unidad->nombre);
+        // Las siglas capturadas a mano TAMBIÉN se limpian.
+        //
+        // Si alguien escribió "VÚ" en la columna `siglas` de la unidad, la tilde entraría en la
+        // homoclave igual: esa columna se usaba tal cual, sin pasar por ninguna limpieza.
+        // Sanear solo el respaldo automático habría dejado el problema en pie justo en el caso
+        // más común — el de las dependencias bien configuradas.
+        //
+        // Siglas::normalizar() devuelve cadena vacía si no queda nada utilizable, y entonces se
+        // cae al respaldo por nombre. Así, TODO lo que entra en un identificador pasa por el
+        // mismo filtro, venga de donde venga.
+        $siglasDep    = Siglas::normalizar($dependencia->siglas) ?: Siglas::desdeNombre($dependencia->nombre);
+        $siglasUnidad = Siglas::normalizar($unidad->siglas)      ?: Siglas::desdeNombre($unidad->nombre);
 
         // La homoclave lleva la naturaleza: 'T' para trámite, 'S' para servicio.
         // (Faltaba pasarla desde que formatearHomoclave la exige, y eso hacía que la
@@ -513,25 +524,29 @@ class Tramite extends Model
      * Ejemplo: "Dirección General de Gobierno Digital" -> "DGGD".
      * Se usa como respaldo cuando un catálogo no tiene siglas capturadas.
      */
+    /**
+     * Siglas a partir de un nombre. Delega en App\Support\Siglas.
+     *
+     * ── Por qué la lógica se mudó de aquí ──
+     *
+     * Había DOS sitios calculando siglas, y hacían cosas distintas:
+     *
+     *   Tramite::siglasDesdeNombre()  → iniciales de cada palabra, con mb_substr (bien)
+     *   GeneraFolio::folioSiglas()    → primeras 4 letras, con substr (MAL)
+     *
+     * Ese `substr` era un bug: cuenta BYTES, no caracteres, y en UTF-8 una "Ñ" ocupa dos. Al
+     * cortar a los 4 bytes, partía el carácter por la mitad y metía un byte suelto —que no es
+     * ninguna letra— dentro del folio impreso.
+     *
+     * La duplicación era la causa. Uno de los dos estaba bien y el otro no, y nadie los comparó
+     * nunca. Ahora hay una sola implementación, y las dos la usan.
+     *
+     * Este método se conserva porque es la API que ya usaba el resto del sistema. Ahora es un
+     * atajo hacia el sitio donde vive la lógica de verdad.
+     */
     public static function siglasDesdeNombre(?string $nombre): string
     {
-        if (!$nombre) {
-            return 'GRAL';
-        }
-
-        $ignoradas = ['de', 'del', 'la', 'las', 'el', 'los', 'y', 'e', 'para', 'por', 'a'];
-        $palabras = preg_split('/\s+/', trim($nombre));
-        $iniciales = '';
-        foreach ($palabras as $palabra) {
-            $limpia = mb_strtolower($palabra);
-            if (in_array($limpia, $ignoradas, true)) {
-                continue;
-            }
-            $iniciales .= mb_strtoupper(mb_substr($palabra, 0, 1));
-        }
-
-        // Respaldo: si no quedó nada (nombre raro), usa las primeras 4 letras.
-        return $iniciales !== '' ? $iniciales : mb_strtoupper(mb_substr($nombre, 0, 4));
+        return Siglas::desdeNombre($nombre);
     }
 
     /**

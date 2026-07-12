@@ -125,6 +125,25 @@
                 @php $estatusEf = $reg->estatusEfectivo(); @endphp
                 <span class="reg-estatus-badge reg-estatus-{{ $estatusEf }}">{{ ucfirst(str_replace('_', ' ', $estatusEf)) }}</span>
                 · {{ optional($reg->fecha_publicacion)->format('Y') ?? '' }}
+
+                {{-- ── ESTADO DE LA CONVERSIÓN, EN LA PORTADA ──
+
+                     La conversión ahora ocurre en segundo plano. Sin este indicador, un
+                     usuario que sube diez regulaciones no tiene forma de saber cuáles ya
+                     están listas y cuáles siguen procesándose, salvo entrando a cada una.
+
+                     Y lo más importante: sin él, una conversión FALLIDA es invisible desde
+                     el catálogo. La regulación se ve igual que las demás, y nadie descubre
+                     que su texto nunca se extrajo hasta que intenta citarla y no puede.
+
+                     Solo se pinta cuando hay algo que decir: una conversión terminada bien
+                     no necesita adorno, y un catálogo lleno de etiquetas verdes es un
+                     catálogo donde nadie mira las etiquetas. --}}
+                @if($reg->conversion_estatus === \App\Models\Regulacion::CONVERSION_PROCESANDO)
+                  <span class="reg-estatus-badge" style="background:#fffbeb;color:#92400e" title="Se está extrayendo el texto del documento">⏳ Convirtiendo</span>
+                @elseif($reg->conversion_estatus === \App\Models\Regulacion::CONVERSION_ERROR)
+                  <span class="reg-estatus-badge" style="background:var(--chip-red-bg);color:var(--chip-red)" title="{{ $reg->conversion_error }}">⚠ Sin convertir</span>
+                @endif
               </div>
             </a>
           </div>

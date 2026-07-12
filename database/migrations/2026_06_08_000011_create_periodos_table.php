@@ -20,15 +20,22 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        DB::table('periodos')->insert([
-            'nombre'      => 'Primer Periodo de Revisión 2026',
-            'fecha_inicio'=> '2026-06-01',
-            'fecha_fin'   => '2026-06-30',
-            'estatus'     => 'activo',
-            'descripcion' => 'Periodo inicial de carga y revisión de trámites y agenda.',
-            'created_at'  => now(),
-            'updated_at'  => now(),
-        ]);
+        // ── AQUÍ HABÍA UN INSERT, Y CREABA UN BUG ──
+        //
+        // Esta migración insertaba un periodo llamado "Primer Periodo de Revisión 2026" con
+        // estatus 'activo'. Sin especificar el tipo, así que caía al default de la columna:
+        // agenda_syd.
+        //
+        // Y el DatabaseSeeder inserta OTRO periodo activo de agenda_syd ("Periodo SyD
+        // Enero-Junio 2026"). Ninguno de los dos sabía del otro.
+        //
+        // Resultado: cada instalación limpia arrancaba con DOS periodos SyD activos, lo cual
+        // rompe la regla central del módulo ("solo uno activo por tipo"). Nadie lo notó nunca,
+        // porque no produce ningún error: el sistema simplemente elige uno.
+        //
+        // El insert está borrado, no movido. Sembrar datos es trabajo del seeder; una
+        // migración crea ESTRUCTURA. Que hiciera las dos cosas es justo lo que permitió que el
+        // conflicto pasara desapercibido: nadie va a buscar datos dentro de una migración.
     }
 
     public function down(): void
