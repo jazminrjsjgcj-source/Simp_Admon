@@ -32,6 +32,12 @@ class TramiteCostoBurocratico extends Model
         'cbd_unitario',
         'cbi_requisitos',
         'cbi_resolucion',
+
+        // ¿El costo de espera de arriba es de fiar? Cuando es false, cbi_resolucion vale
+        // cero porque NO SE PUDO CALCULAR (faltan parámetros económicos), no porque el
+        // trámite se resuelva al instante. La ficha tiene que distinguirlo.
+        'resolucion_calculable',
+        'resolucion_motivo',
         'cbi_unitario',
         'cbu_unitario',
         'volumen_anual',
@@ -64,6 +70,7 @@ class TramiteCostoBurocratico extends Model
         'cbd_unitario'                => 'decimal:2',
         'cbi_requisitos'              => 'decimal:2',
         'cbi_resolucion'              => 'decimal:2',
+        'resolucion_calculable'       => 'boolean',
         'cbi_unitario'                => 'decimal:2',
         'cbu_unitario'                => 'decimal:2',
         'cbt_total_anual'             => 'decimal:2',

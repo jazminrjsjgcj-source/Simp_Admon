@@ -76,6 +76,40 @@
   </div>
   @endif
 
+  {{-- CATÁLOGOS DESACTUALIZADOS --}}
+  {{-- Va arriba, antes de cualquier dato: quien abre una acción firmada tiene que enterarse
+       de esto antes de leer nada, porque afecta a todo lo que va a leer.
+
+       El mecanismo llevaba tiempo funcionando —congelarCatalogos() guarda una foto de los
+       nombres al firmar, y tieneCatalogosDesactualizados() detecta si alguno cambió después—
+       pero ninguna pantalla lo pintaba. Una acción firmada cuya dependencia se renombró
+       mostraba el nombre viejo y nadie se enteraba de que había discrepancia.
+
+       Ojo con lo que este aviso NO dice: no dice que haya un error. El documento firmado DEBE
+       seguir diciendo lo que decía; cambiarlo por su cuenta sería alterar un acto jurídico ya
+       firmado. Lo que hace falta es que una PERSONA decida si hay que rehacerlo.
+
+       AccionAgenda congela dependencia y unidad (ver catalogosCongelables() en el modelo). --}}
+  @if($agenda->catalogosCongelados() && $agenda->tieneCatalogosDesactualizados())
+  <div class="assist-box" style="border-color:#fbbf24;background:#fffbeb;color:#92400e;display:flex;align-items:flex-start;gap:12px">
+    <strong style="font-size:18px">⚠️</strong>
+    <div>
+      <strong>Un catálogo cambió de nombre después de que esta acción se firmara.</strong><br>
+      La acción sigue mostrando los nombres que tenía al firmarse, y eso es lo correcto: un
+      documento firmado no puede cambiar de contenido por su cuenta. Pero conviene que alguien
+      decida si hay que rehacerla.
+      <ul style="margin:8px 0 0;padding-left:18px">
+        @foreach($agenda->catalogosDesactualizados() as $catalogo => $cambio)
+          <li>
+            <strong>{{ ucfirst($catalogo) }}:</strong>
+            al firmar decía «{{ $cambio['al_firmar'] }}», ahora se llama «{{ $cambio['ahora'] }}».
+          </li>
+        @endforeach
+      </ul>
+    </div>
+  </div>
+  @endif
+
   {{-- DATOS DE LA ACCIÓN --}}
   <div class="card">
     <div class="panel-head">
@@ -147,16 +181,54 @@
 
   {{-- COSTO BUROCRÁTICO DEL TRÁMITE (heredado, solo lectura) --}}
   @if($agenda->tramite && $agenda->tramite->cbu_unitario !== null && (float)$agenda->tramite->cbu_unitario > 0)
+  @php
+    // ¿El costo de espera del trámite es un número de verdad, o un cero que tapa una laguna?
+    //
+    // Cuando faltan los parámetros económicos (PIB, población y tasa libre de riesgo para las
+    // personas físicas; datos de la actividad económica para las personas morales), el costo
+    // del plazo de resolución sale CERO. Y ese cero se parece muchísimo al de un trámite que
+    // de verdad se resuelve en el acto — pero uno es un hecho y el otro es una laguna.
+    //
+    // Aquí el riesgo es MAYOR que en la ficha del trámite. Allí el CBT viene acompañado de su
+    // desglose, del umbral y del impacto: hay contexto. Aquí aparece suelto, en una rejilla de
+    // cinco cifras. Y un número sin contexto se lee como un hecho.
+    //
+    // La pregunta la contesta el trámite, no esta vista: si cada pantalla lo resolviera por su
+    // cuenta, una se olvidaría. De hecho, esta era la que se había olvidado.
+    $costoCompleto = $agenda->tramite->costoDeEsperaCalculable();
+  @endphp
   <div class="card">
     <div class="panel-head">
       <div><h3>Costo burocrático</h3><p>Calculado a partir de los datos del trámite o servicio (metodología ATDT).</p></div>
     </div>
     <div class="card-body-padded">
+
+      @unless($costoCompleto)
+        {{-- El aviso va ANTES de las cifras. Debajo, la mitad de la gente ya habría leído el
+             CBT y sacado su conclusión: un aviso solo sirve si llega antes que el dato al que
+             se refiere. --}}
+        <div class="assist-box" style="border-color:#fbbf24;background:#fffbeb;color:#92400e;margin-bottom:12px">
+          <strong>Estas cifras están incompletas.</strong><br>
+          No incluyen el costo del tiempo que la ciudadanía espera la resolución, porque faltan
+          parámetros económicos. El costo real es <strong>mayor</strong> que el que se muestra.
+          <a href="{{ route('tramites.show', $agenda->tramite) }}" style="color:#92400e;text-decoration:underline">Ver el detalle en el trámite</a>.
+        </div>
+      @endunless
+
       <div class="costo-heredado-grid">
         <div class="costo-item"><span>Costo Directo (CBD)</span><strong>${{ number_format($agenda->tramite->cbd_directo, 2) }}</strong></div>
-        <div class="costo-item"><span>Costo Indirecto (CBI)</span><strong>${{ number_format($agenda->tramite->cbi_indirecto, 2) }}</strong></div>
-        <div class="costo-item"><span>Costo Unitario (CBU)</span><strong>${{ number_format($agenda->tramite->cbu_unitario, 2) }}</strong></div>
-        <div class="costo-item"><span>Costo Total (CBT)</span><strong>${{ number_format($agenda->tramite->cbt_total, 2) }}</strong></div>
+        <div class="costo-item">
+          <span>Costo Indirecto (CBI)</span>
+          <strong>${{ number_format($agenda->tramite->cbi_indirecto, 2) }} @unless($costoCompleto)<span class="chip chip-amber">Parcial</span>@endunless</strong>
+        </div>
+        <div class="costo-item">
+          <span>Costo Unitario (CBU)</span>
+          <strong>${{ number_format($agenda->tramite->cbu_unitario, 2) }} @unless($costoCompleto)<span class="chip chip-amber">Parcial</span>@endunless</strong>
+        </div>
+        <div class="costo-item">
+          <span>Costo Total (CBT)</span>
+          <strong>${{ number_format($agenda->tramite->cbt_total, 2) }} @unless($costoCompleto)<span class="chip chip-amber">Parcial</span>@endunless</strong>
+        </div>
         <div class="costo-item"><span>Categoría</span><strong>{{ ucfirst($agenda->tramite->categoriaPorCostoUnitario()) }}</strong></div>
       </div>
     </div>

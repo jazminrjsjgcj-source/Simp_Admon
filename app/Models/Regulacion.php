@@ -3,12 +3,23 @@
 namespace App\Models;
 
 use App\Models\Concerns\GeneraFolio;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Regulacion extends Model
 {
-    use GeneraFolio, SoftDeletes;
+    /**
+     * HasFactory es lo que habilita Regulacion::factory() en las pruebas.
+     *
+     * Lo tienen Tramite, AccionAgenda, Dependencia, UnidadAdministrativa y User;
+     * a este modelo se le había pasado. Sin el trait, Regulacion::factory() no
+     * existe como método, y cualquier prueba que necesite una regulación tendría
+     * que escribir sus veinte columnas a mano.
+     *
+     * No cambia nada en producción: solo añade el punto de entrada de las factories.
+     */
+    use GeneraFolio, HasFactory, SoftDeletes;
 
     protected $table   = 'regulaciones';
 

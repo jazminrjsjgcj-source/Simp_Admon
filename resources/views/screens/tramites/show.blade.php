@@ -73,6 +73,38 @@
     </p>
   </div>
 
+  {{-- CATÁLOGOS DESACTUALIZADOS --}}
+  {{-- Va JUSTO DEBAJO DEL HEADER, antes que cualquier dato. Quien abre un trámite firmado
+       tiene que enterarse de esto antes de leer nada, porque afecta a todo lo que va a leer.
+
+       El mecanismo lleva tiempo funcionando —congelarCatalogos() guarda una foto de los
+       nombres al firmar, y tieneCatalogosDesactualizados() detecta si alguno cambió después—
+       pero ninguna pantalla lo pintaba. Un trámite firmado cuya dependencia se renombró
+       mostraba el nombre viejo y nadie se enteraba de que había discrepancia.
+
+       Ojo con lo que este aviso NO dice: no dice que haya un error. El documento firmado DEBE
+       seguir diciendo lo que decía; cambiarlo por su cuenta sería alterar un acto jurídico ya
+       firmado. Lo que hace falta es que una PERSONA decida si hay que rehacerlo. --}}
+  @if($tramite->catalogosCongelados() && $tramite->tieneCatalogosDesactualizados())
+  <div class="assist-box" style="border-color:#fbbf24;background:#fffbeb;color:#92400e;display:flex;align-items:flex-start;gap:12px">
+    <strong style="font-size:18px">⚠️</strong>
+    <div>
+      <strong>Un catálogo cambió de nombre después de que este trámite se firmara.</strong><br>
+      El trámite sigue mostrando los nombres que tenía al firmarse, y eso es lo correcto: un
+      documento firmado no puede cambiar de contenido por su cuenta. Pero conviene que alguien
+      decida si hay que rehacerlo.
+      <ul style="margin:8px 0 0;padding-left:18px">
+        @foreach($tramite->catalogosDesactualizados() as $catalogo => $cambio)
+          <li>
+            <strong>{{ ucfirst($catalogo) }}:</strong>
+            al firmar decía «{{ $cambio['al_firmar'] }}», ahora se llama «{{ $cambio['ahora'] }}».
+          </li>
+        @endforeach
+      </ul>
+    </div>
+  </div>
+  @endif
+
   {{-- DATOS GENERALES --}}
   <div class="card">
     <div class="panel-head">
@@ -210,22 +242,73 @@
       @endif
 
       {{-- Costo indirecto - desglose --}}
+      @php
+        // ¿El costo de espera es un número de verdad, o un cero que tapa una laguna?
+        //
+        // El servicio devuelve CERO cuando no puede calcularlo (faltan el PIB, la población y
+        // la tasa libre de riesgo para las personas físicas; o los datos económicos de la
+        // actividad para las personas morales) y lo deja anotado en el snapshot.
+        //
+        // Sin esta comprobación, ese cero se pintaría igual que el de un trámite que de verdad
+        // se resuelve en el acto. El usuario leería "esperar no cuesta nada" cuando la verdad
+        // es "no lo sabemos".
+        $costoDeEsperaCompleto = $tramite->costoDeEsperaCalculable();
+      @endphp
+
       <div class="section-divided">
         <span class="label-meta">Costo indirecto (CBI)</span>
         <div class="modal-grid mt-2">
           <div class="modal-data-item"><span>Tiempo por requisitos</span><strong>${{ number_format($tramite->cbi_requisitos ?? 0, 2) }}</strong></div>
-          <div class="modal-data-item"><span>Tiempo por resolución</span><strong>${{ number_format($tramite->cbi_resolucion ?? 0, 2) }}</strong></div>
+          <div class="modal-data-item">
+            <span>Tiempo por resolución</span>
+            <strong>
+              @if($costoDeEsperaCompleto)
+                ${{ number_format($tramite->cbi_resolucion ?? 0, 2) }}
+              @else
+                {{-- No se pinta $0.00. Un cero es una AFIRMACIÓN ("esperar no cuesta nada"), y
+                     eso no es lo que el sistema sabe: lo que sabe es que no lo sabe. --}}
+                <span class="chip chip-gray">Sin calcular</span>
+              @endif
+            </strong>
+          </div>
           <div class="modal-data-item cost-total"><span><strong>CBI unitario</strong></span><strong>${{ number_format($tramite->cbi_indirecto ?? 0, 2) }} MXN</strong></div>
         </div>
+
+        @unless($costoDeEsperaCompleto)
+          <div class="assist-box mt-2" style="border-color:#fbbf24;background:#fffbeb;color:#92400e">
+            <strong>El costo de espera no se pudo calcular.</strong><br>
+            {{ $tramite->motivoCostoDeEsperaSinCalcular() }}<br>
+            <span class="label-meta">Mientras falten esos datos, el tiempo que la ciudadanía espera la resolución cuenta como cero: el CBI, el CBU y el CBT están subestimados.</span>
+          </div>
+        @endunless
       </div>
 
       {{-- Totales --}}
       <div class="section-divided">
         <span class="label-meta">Totales</span>
+
+        @unless($costoDeEsperaCompleto)
+          {{-- El aviso va ARRIBA de los números, no debajo. Debajo, la mitad de la gente ya
+               habría leído el CBT y sacado su conclusión: un aviso solo sirve si llega antes
+               que el dato al que se refiere. --}}
+          <div class="assist-box mt-2" style="border-color:#fbbf24;background:#fffbeb;color:#92400e">
+            <strong>Estos totales están incompletos.</strong><br>
+            No incluyen el costo del tiempo que la ciudadanía espera la resolución. El CBT real
+            es <strong>mayor</strong> que el que se muestra, y con él pueden cambiar el
+            porcentaje del umbral, el nivel de impacto y el resultado AIR.
+          </div>
+        @endunless
+
         <div class="modal-grid mt-2">
-          <div class="modal-data-item cost-total"><span>CBU — Costo Unitario</span><strong>${{ number_format($tramite->cbu_unitario ?? 0, 2) }} MXN</strong></div>
+          <div class="modal-data-item cost-total">
+            <span>CBU — Costo Unitario</span>
+            <strong>${{ number_format($tramite->cbu_unitario ?? 0, 2) }} MXN @unless($costoDeEsperaCompleto)<span class="chip chip-amber">Parcial</span>@endunless</strong>
+          </div>
           <div class="modal-data-item"><span>Volumen anual</span><strong>{{ number_format($tramite->volumen_anual ?? 0) }}</strong></div>
-          <div class="modal-data-item cost-total"><span>CBT — Costo Total Anual</span><strong>${{ number_format($tramite->cbt_total ?? 0, 2) }} MXN</strong></div>
+          <div class="modal-data-item cost-total">
+            <span>CBT — Costo Total Anual</span>
+            <strong>${{ number_format($tramite->cbt_total ?? 0, 2) }} MXN @unless($costoDeEsperaCompleto)<span class="chip chip-amber">Parcial</span>@endunless</strong>
+          </div>
           <div class="modal-data-item"><span>Categoría por costo unitario</span><strong>{{ ucfirst($tramite->categoriaPorCostoUnitario()) }}</strong></div>
         </div>
       </div>
@@ -235,6 +318,20 @@
         <span class="label-meta">Impacto contra umbral configurado</span>
 
         @if($snapshotCosto && $snapshotCosto->umbral_id)
+
+          @unless($costoDeEsperaCompleto)
+            {{-- El impacto sale de dividir el CBT entre el umbral. Con un CBT incompleto, el
+                 porcentaje sale bajo, el impacto sale "Bajo", y el sistema concluye que el
+                 trámite NO requiere AIR.
+                 Un "Bajo" falso es peor que un "No determinado" honesto: el primero cierra la
+                 conversación, el segundo la abre. --}}
+            <div class="assist-box mt-2" style="border-color:#fbbf24;background:#fffbeb;color:#92400e">
+              <strong>Este impacto no es concluyente.</strong><br>
+              Se calculó con un CBT incompleto (falta el costo de espera). El impacto real puede
+              ser mayor, y el resultado AIR podría cambiar.
+            </div>
+          @endunless
+
           <div class="modal-grid mt-2">
             <div class="modal-data-item">
               <span>Nivel de impacto</span>

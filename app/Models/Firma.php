@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -17,6 +18,21 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Firma extends Model
 {
+    /**
+     * HasFactory habilita Firma::factory() en las pruebas.
+     *
+     * Le pasaba lo mismo que a Regulacion: se le había olvidado, así que no se podía
+     * construir una firma de prueba sin escribir sus veinte columnas a mano.
+     *
+     * OJO con lo que la factory NO hace: crea la FILA, pero mete un hash de relleno.
+     * Una firma hecha con la factory nunca verificará bien, y debe ser así — si
+     * verificara, el hash no estaría comprobando nada. Para probar la verificación hay
+     * que firmar de verdad, con FirmaDigitalService::firmar().
+     *
+     * No cambia nada en producción: solo añade el punto de entrada de las factories.
+     */
+    use HasFactory;
+
     protected $table   = 'firmas';
 
     /**

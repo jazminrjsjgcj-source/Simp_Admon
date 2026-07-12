@@ -73,15 +73,24 @@ class HomoclaveTest extends TestCase
         $this->assertSame('LPZ-T-CCC-DDD-2', $segundo->fresh()->homoclave, 'El segundo debe tomar el consecutivo 2.');
     }
 
-    public function test_el_consecutivo_se_lee_del_ultimo_segmento_aunque_las_siglas_tengan_guiones(): void
+    public function test_cada_llamada_entrega_un_consecutivo_distinto_y_creciente(): void
     {
-        // Esta es la prueba clave del cambio de MySQL a PostgreSQL: el consecutivo
-        // sale del ÚLTIMO segmento de la homoclave. Antes se extraía con
-        // SUBSTRING_INDEX; ahora se hace en PHP y debe dar el mismo resultado.
-        $tramite = $this->tramiteCon('DGGD', 'DSA');
-        $tramite->update(['homoclave' => 'LPZ-T-DGGD-DSA-41']);
+        // Esta prueba sustituye a la anterior, que afirmaba que el consecutivo se
+        // "leía del último segmento de la homoclave". Eso era el MECANISMO, no la
+        // regla: describía cómo estaba hecho por dentro, no qué tenía que cumplir.
+        //
+        // Al cambiar el mecanismo (el número ahora lo reserva el Contador, en vez
+        // de deducirse leyendo el máximo de la tabla), aquella prueba se ponía roja
+        // aunque el sistema siguiera siendo correcto. Señal de que probaba lo que
+        // no debía.
+        //
+        // La regla de verdad es esta: pedir dos veces nunca devuelve lo mismo, y la
+        // serie siempre avanza. Eso es lo que impide que dos trámites compartan
+        // identificador oficial, y sigue siendo cierto con cualquier mecanismo.
+        $primero = Tramite::siguienteConsecutivoGlobal();
+        $segundo = Tramite::siguienteConsecutivoGlobal();
 
-        $this->assertSame(42, Tramite::siguienteConsecutivoGlobal(), 'Debe leer el 41 y devolver 42.');
+        $this->assertSame($primero + 1, $segundo);
     }
 
     public function test_sin_siglas_capturadas_se_derivan_del_nombre(): void
@@ -118,14 +127,28 @@ class HomoclaveTest extends TestCase
         );
     }
 
-    public function test_los_tramites_en_papelera_tambien_cuentan_para_el_consecutivo(): void
+    public function test_un_tramite_en_la_papelera_no_libera_su_numero(): void
     {
-        // Un trámite borrado no libera su número: si lo hiciera, dos trámites
-        // distintos podrían acabar con la misma homoclave.
-        $tramite = $this->tramiteCon('DGGD', 'DSA');
-        $tramite->update(['homoclave' => 'LPZ-T-DGGD-DSA-10']);
-        $tramite->delete(); // soft delete
+        // La regla no ha cambiado: un trámite borrado NO devuelve su número a la
+        // serie. Si lo devolviera, el siguiente trámite recibiría una homoclave que
+        // ya salió impresa en un acuse firmado.
+        //
+        // Lo que cambia es CÓMO se comprueba. Antes se escribía la homoclave a mano
+        // en la base y se afirmaba sobre el número calculado; eso ataba la prueba al
+        // mecanismo viejo. Ahora se comprueba el efecto observable: el trámite nuevo
+        // no puede recibir la homoclave del borrado.
+        $borrado = $this->tramiteCon('DGGD', 'DSA');
+        $borrado->update(['homoclave' => $borrado->generarHomoclave()]);
+        $homoclaveGastada = $borrado->fresh()->homoclave;
+        $borrado->delete(); // soft delete
 
-        $this->assertSame(11, Tramite::siguienteConsecutivoGlobal());
+        $nuevo = $this->tramiteCon('DGGD', 'DSA');
+        $nuevo->update(['homoclave' => $nuevo->generarHomoclave()]);
+
+        $this->assertNotSame(
+            $homoclaveGastada,
+            $nuevo->fresh()->homoclave,
+            'El trámite nuevo se llevó la homoclave de uno que está en la papelera.'
+        );
     }
 }

@@ -268,6 +268,69 @@ class Tramite extends Model
     public function fundamentos()      { return $this->hasMany(FundamentoJuridico::class); }
     public function fichaPortal()      { return $this->hasOne(FichaPortal::class); }
     public function derechos()         { return $this->hasMany(TramiteDerecho::class); }
+
+    /** Todas las fotos del cálculo de costo, de la más reciente a la más antigua. */
+    public function costosBurocraticos()
+    {
+        return $this->hasMany(TramiteCostoBurocratico::class)->latest('calculado_en');
+    }
+
+    /**
+     * La ÚLTIMA foto del cálculo de costo. Es la que refleja el estado actual del trámite.
+     *
+     * Existe para que cualquier vista pueda preguntarle al trámite por su costo sin que el
+     * controlador tenga que ir a buscarlo. Hasta ahora solo TramiteController lo hacía (le
+     * pasaba $snapshotCosto a la ficha), así que la vista de agenda —que también pinta el
+     * CBT del trámite vinculado— no tenía forma de enterarse de nada.
+     */
+    public function ultimoCostoBurocratico()
+    {
+        return $this->hasOne(TramiteCostoBurocratico::class)->latestOfMany('calculado_en');
+    }
+
+    /**
+     * ¿El costo de espera de este trámite es un número de verdad?
+     *
+     * ── Por qué esto vive en el modelo y no en la vista ──
+     *
+     * El servicio calcula el costo del plazo de resolución y, cuando no puede (faltan el PIB,
+     * la población y la tasa libre de riesgo para las personas físicas; o los datos económicos
+     * de la actividad para las personas morales), devuelve CERO y lo deja anotado en el
+     * snapshot.
+     *
+     * Ese cero es peligroso. Se pinta exactamente igual que el de un trámite que de verdad se
+     * resuelve en el acto:
+     *
+     *     "Este trámite se resuelve al momento: esperar no cuesta nada."
+     *     "No sabemos cuánto cuesta esperar, porque nos faltan datos."
+     *
+     * Si las dos frases producen la misma pantalla, el usuario lee la primera cuando la verdad
+     * es la segunda. Y el CBU, el CBT, el porcentaje del umbral, el nivel de impacto y el
+     * resultado AIR salen todos subestimados sin que nada lo advierta.
+     *
+     * Lo pintan DOS vistas: la ficha del trámite y el detalle de la acción de agenda (que
+     * hereda el costo del trámite vinculado). Si cada una resolviera esto por su cuenta, una
+     * de las dos se olvidaría — que es justamente lo que ya pasaba: la agenda pintaba el CBT
+     * sin ningún aviso, y encima suelto, sin el desglose que le diera contexto.
+     *
+     * Por eso la pregunta la contesta el trámite, una sola vez, para todo el que la haga.
+     *
+     * Un snapshot antiguo (anterior a la columna) devuelve `true`: aquellos cálculos SÍ
+     * produjeron un número. Estaba equivocado, pero existía. Marcarlos como "no calculables"
+     * sería mentir de otra manera.
+     */
+    public function costoDeEsperaCalculable(): bool
+    {
+        return (bool) ($this->ultimoCostoBurocratico?->resolucion_calculable ?? true);
+    }
+
+    /** Qué falta para poder calcular el costo de espera. Null si no falta nada. */
+    public function motivoCostoDeEsperaSinCalcular(): ?string
+    {
+        return $this->costoDeEsperaCalculable()
+            ? null
+            : $this->ultimoCostoBurocratico?->resolucion_motivo;
+    }
     public function acciones()         { return $this->hasMany(AccionAgenda::class); }
     public function observaciones()    { return $this->morphMany(Observacion::class, 'observable'); }
     public function firmas()           { return $this->morphMany(Firma::class, 'firmable'); }
@@ -426,7 +489,9 @@ class Tramite extends Model
             return null;
         }
 
-        $consecutivo = static::siguienteConsecutivoGlobal($this->id);
+        // Ya no se pasa un ID a excluir: el consecutivo no se deduce leyendo la
+        // tabla de trámites, se le pide al Contador. No hay nada de lo que excluirse.
+        $consecutivo = static::siguienteConsecutivoGlobal();
 
         // Si la dependencia o la unidad no tienen siglas capturadas, las
         // derivamos de su nombre (iniciales de las primeras palabras), para
@@ -492,34 +557,44 @@ class Tramite extends Model
     }
 
     /**
-     * Devuelve el siguiente consecutivo global del sistema.
+     * Reserva y devuelve el siguiente consecutivo global de homoclaves.
      *
-     * El consecutivo es único a nivel de TODOS los trámites (no por
-     * dependencia ni unidad): LPZ-DGSP-VU-5 significa "quinto trámite
-     * registrado en el sistema". Se calcula con MAX sobre el último
-     * segmento de la homoclave para no chocar con el índice único,
-     * incluso si hay trámites eliminados (SoftDelete).
+     * El consecutivo es único a nivel de TODOS los trámites y servicios (no por
+     * dependencia ni unidad): LPZ-T-DGSP-VU-5 significa "quinto trámite registrado
+     * en el sistema".
      *
-     * @param  int|null  $excluirId  ID del trámite actual al editar (se excluye).
-     * @return int  El siguiente consecutivo disponible.
+     * ── Qué había antes y por qué estaba mal ──
+     *
+     * Se traían TODAS las homoclaves de la base a memoria, se les extraía el número
+     * final en PHP y se cogía el máximo. Dos problemas:
+     *
+     *   1. CORRECCIÓN. Entre leer el máximo y guardar la homoclave nueva pasa un
+     *      instante. Si dos personas dan de alta un trámite a la vez, las dos leen
+     *      el mismo máximo, las dos calculan el mismo número y la segunda choca
+     *      contra el índice único de `homoclave`. Al usuario le sale un error 500
+     *      después de haber llenado un formulario de siete pasos. Y la homoclave es
+     *      el identificador oficial impreso en el acuse firmado: repetirla no es un
+     *      fallo técnico, es un fallo legal.
+     *
+     *   2. ESCALA. pluck() traía una fila por cada trámite EXISTENTE, en CADA alta.
+     *      Con 200 trámites no se nota. Con 50.000, cada alta mueve 50.000 cadenas
+     *      de texto a memoria para quedarse con un número.
+     *
+     * ── Qué hace ahora y por qué es mejor ──
+     *
+     * Le pide el número al Contador, que lo entrega bajo bloqueo de fila. Dos altas
+     * simultáneas reciben números distintos —la segunda espera su turno— y la
+     * operación toca UNA fila, no todas: da igual que haya 50 trámites o 50.000.
+     *
+     * Se mantiene la regla de que un trámite borrado NO libera su número: el
+     * contador nunca retrocede, así que la regla se cumple sola, sin tener que ir a
+     * mirar la papelera.
+     *
+     * @return int  El consecutivo reservado para este trámite.
      */
-    public static function siguienteConsecutivoGlobal(?int $excluirId = null): int
+    public static function siguienteConsecutivoGlobal(): int
     {
-        // El consecutivo es el último segmento de la homoclave (LPZ-T-DEP-UNI-42 → 42).
-        // Se extrae en PHP y no con SQL crudo, porque SUBSTRING_INDEX y
-        // CAST(... AS UNSIGNED) son sintaxis exclusiva de MySQL: así el cálculo
-        // funciona igual en MySQL y en PostgreSQL.
-        $maxConsecutivo = static::withTrashed()
-            ->whereNotNull('homoclave')
-            ->when($excluirId, fn ($q) => $q->where('id', '!=', $excluirId))
-            ->pluck('homoclave')
-            ->map(function (string $homoclave): int {
-                $ultimo = substr((string) strrchr($homoclave, '-'), 1);
-                return ctype_digit($ultimo) ? (int) $ultimo : 0;
-            })
-            ->max();
-
-        return ((int) $maxConsecutivo) + 1;
+        return Contador::siguiente(Contador::HOMOCLAVE_TRAMITE);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

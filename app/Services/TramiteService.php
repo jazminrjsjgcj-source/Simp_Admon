@@ -93,13 +93,52 @@ class TramiteService
      * con una copia divergente de la sincronización (origen del bug C1). Al
      * unificarla aquí, alta y edición guardan exactamente igual.
      */
+    /**
+     * ── POR QUÉ ESTOS PARÁMETROS NO TIENEN VALOR POR DEFECTO ──
+     *
+     * Antes eran `array $requisitos = []`, y los demás igual. Parecía cómodo. Era una
+     * trampa.
+     *
+     * Este método SINCRONIZA las colecciones del trámite: borra los requisitos que
+     * tiene y los recrea desde el array que recibe. Lo mismo con los derechos, la
+     * ficha del portal y los procesos. Es el comportamiento correcto — así es como el
+     * formulario de edición refleja que el usuario quitó una fila.
+     *
+     * El problema era el valor por defecto. Con `= []`, estas dos frases se escriben
+     * exactamente igual:
+     *
+     *     "el trámite no tiene ningún requisito"
+     *     "no te estoy mandando los requisitos, no los toques"
+     *
+     * Hoy no hay ningún llamador que caiga en la trampa: el único que existe
+     * (TramiteController::update) viene de un formulario que manda todos los campos
+     * del trámite en un solo envío, así que los requisitos siempre llegan.
+     *
+     * Pero el día que alguien añada un endpoint de API, o una acción de "atender
+     * observación" que solo toque un campo, o un botón de "cambiar dependencia",
+     * escribirá lo que parece razonable:
+     *
+     *     $this->tramiteService->actualizar($tramite, ['dependencia_id' => 5]);
+     *
+     * Y esa línea borraría TODOS los requisitos, TODOS los derechos y TODA la ficha del
+     * portal del trámite. En silencio. Sin error, sin aviso, sin nada en la bitácora
+     * que explique por qué.
+     *
+     * Al quitar los valores por defecto, esa línea deja de compilar. El error salta al
+     * escribir el código, no en producción tres meses después. Quien quiera vaciar los
+     * requisitos tendrá que pedirlo a la cara, pasando un array vacío a propósito.
+     *
+     * crear() SÍ conserva sus valores por defecto, y es deliberado: al crear no hay
+     * nada que perder. Un array vacío significa "todavía no hay ninguno", que es cierto.
+     * La ambigüedad solo existe al actualizar.
+     */
     public function actualizar(
         Tramite $tramite,
         array $datos,
-        array $derechos = [],
-        array $requisitos = [],
-        array $fichaPortal = [],
-        array $procesos = [],
+        array $derechos,
+        array $requisitos,
+        array $fichaPortal,
+        array $procesos,
     ): Tramite {
         return DB::transaction(function () use ($tramite, $datos, $derechos, $requisitos, $fichaPortal, $procesos) {
 
