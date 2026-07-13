@@ -22,7 +22,14 @@
 
       <div class="buscar-ayuda-bloque">
         <strong><i class="ti ti-search"></i> Campo de búsqueda</strong>
-        <p>Escriba palabras clave y presione <em>Buscar</em>. No necesita escribir frases completas — palabras sueltas como <code>licencia</code>, <code>ambulantes</code> o <code>construcción</code> funcionan bien. El buscador encuentra coincidencias en el texto de artículos, regulaciones, trámites, requisitos y fundamentos.</p>
+        {{-- Este texto DECÍA lo contrario: "no necesita escribir frases completas".
+             Y era verdad cuando el buscador exigía todas las palabras: una pregunta entera
+             ("cuánto paga un semifijo en basura") no encontraba nada, porque ninguna ley
+             contiene las palabras "cuanto" ni "paga".
+             Ahora el buscador entiende preguntas: descarta las palabras de relleno y se queda
+             con el tema. Así que la ayuda tenía que cambiar, o seguiría empujando a la gente
+             a buscar como buscaba un sistema que ya no existe. --}}
+        <p>Pregunte con sus propias palabras, como le hablaría a una persona: <code>cuánto cuesta el permiso para ambulantes</code> o <code>qué necesito para abrir un negocio</code>. También puede buscar por palabras sueltas (<code>licencia</code>, <code>ambulantes</code>, <code>construcción</code>). El buscador encuentra coincidencias en el texto de artículos, regulaciones, trámites, requisitos y fundamentos.</p>
       </div>
 
       <div class="buscar-ayuda-bloque">
@@ -32,7 +39,7 @@
 
       <div class="buscar-ayuda-bloque">
         <strong><i class="ti ti-category"></i> Filtrar por tipo</strong>
-        <p>Los botones de tipo (Articulado, Regulaciones, Trámites, Requisitos, Fundamentos, Agenda) permiten buscar solo en las fuentes que le interesen. Por defecto busca en todas. Haga clic en uno o varios para activarlos — solo los activados se consultarán. Combine con el filtro de regulación para búsquedas muy específicas, por ejemplo: <code>ambulantes</code> en la <em>Ley de Hacienda</em> solo en <em>Trámites / Servicios</em>.</p>
+        <p>Los botones de tipo (Articulado, Regulaciones, Trámites, Requisitos, Fundamentos, Agenda) permiten buscar solo en las fuentes que le interesen. Por defecto busca en todas. Haga clic en uno o varios para activarlos: solo los activados se consultarán. Combine con el filtro de regulación para búsquedas muy específicas, por ejemplo: <code>ambulantes</code> en la <em>Ley de Hacienda</em> solo en <em>Trámites / Servicios</em>.</p>
       </div>
 
       <div class="buscar-ayuda-bloque">
@@ -47,7 +54,7 @@
 
       <div class="buscar-ayuda-bloque">
         <strong><i class="ti ti-sparkles"></i> Consejos</strong>
-        <p>Use palabras clave simples (no preguntas largas). Si no encuentra resultados, pruebe con sinónimos o menos términos. El enlace <em>"Ver todos los resultados relacionados"</em> aparece cuando el buscador enfocó automáticamente su búsqueda en una sola fuente — haga clic para ver el panorama completo.</p>
+        <p>Puede preguntar con frases completas. Si no encuentra lo que busca, pruebe con otras palabras: a veces la ley usa un término distinto al de la calle (dice <em>cuota</em> donde usted diría <em>permiso</em>, o <em>residuos sólidos</em> donde usted diría <em>basura</em>). El enlace <em>"Ver todos los resultados relacionados"</em> aparece cuando el buscador enfocó automáticamente su búsqueda en una sola fuente: haga clic para ver el panorama completo.</p>
       </div>
 
     </div>
@@ -120,49 +127,171 @@
     </div>
   </form>
 
-  {{-- RESPUESTA DESTACADA (Modo respuesta) --}}
+  {{-- ════════════════════════════════════════════════════════════════════
+       RESPUESTA DESTACADA
+       ════════════════════════════════════════════════════════════════════
+
+       Hay TRES clases de respuesta, y la pantalla TIENE que distinguirlas:
+
+         alta     → Definición curada A MANO por una persona del Ayuntamiento.
+         media    → Extraída automáticamente del articulado de una regulación.
+         generada → REDACTADA POR UNA INTELIGENCIA ARTIFICIAL.
+
+       Antes las tres se pintaban igual, con una etiqueta gris que decía
+       "Confianza: Generada". Eso no le dice nada a un ciudadano.
+
+       Y el riesgo es concreto: una persona lee un texto sobre lo que tiene que pagar,
+       en el portal oficial de su Ayuntamiento, y NO TIENE FORMA DE SABER que lo redactó
+       una máquina. Se lo cree, porque está en la web del gobierno.
+
+       Un ciudadano tiene derecho a saber si lo que lee lo escribió el Ayuntamiento o lo
+       redactó un modelo. No es un detalle de diseño: es una cuestión de honestidad.
+       ════════════════════════════════════════════════════════════════════ --}}
   @if($consulta && $respuestaDestacada)
-    <div class="buscar-destacada">
+    @php
+      $confianza = $respuestaDestacada['confianza'] ?? '';
+
+      // 'generada'    → la IA respondió la pregunta.
+      // 'relacionada' → la IA NO pudo responder, pero cuenta qué SÍ dicen las regulaciones
+      //                 sobre el tema. Es una respuesta A MEDIAS, y el ciudadano tiene que
+      //                 saberlo: si cree que le respondieron y no fue así, se va con una
+      //                 conclusión que nadie le dio.
+      $esGenerada    = $confianza === 'generada';
+      $esRelacionada = $confianza === 'relacionada';
+      $esIA          = $esGenerada || $esRelacionada;
+
+      // La cita bien formada.
+      //
+      // ANTES el blade anteponía la palabra "Artículo" a lo que le llegara:
+      //
+      //     , Artículo {{ $respuestaDestacada['articulo'] }}
+      //
+      // Y cuando la fuente era un inciso, el resultado era "Artículo Inciso e".
+      // Eso no existe. Una cita mal formada en una respuesta legal es peor que ninguna:
+      // el ciudadano no puede comprobarla, y el Ayuntamiento no puede defenderla.
+      //
+      // Ahora se usa la etiqueta TAL COMO VIENE ("Artículo 15", "Inciso e", "Fracción II"),
+      // porque el buscador ya la construye completa.
+      $cita = trim((string) ($respuestaDestacada['articulo'] ?? ''));
+    @endphp
+
+    <div class="buscar-destacada {{ $esIA ? 'buscar-destacada-ia' : '' }} {{ $esRelacionada ? 'buscar-destacada-parcial' : '' }}">
+
+      @if($esRelacionada)
+        {{-- Respuesta A MEDIAS.
+             La IA no encontró lo que se preguntaba, pero SÍ encontró cosas del tema y las
+             cuenta. Es útil —a veces muy útil— pero NO es la respuesta, y decirlo importa.
+
+             Caso real: preguntan "¿cuánto dura el permiso de ambulantes?" y las fuentes solo
+             dicen que se cobra 0.05 UMA por día. La IA lo cuenta, sin deducir nada. El ciudadano
+             deduce solo que la vigencia depende de lo que pague — y esa conclusión es SUYA, no
+             del Ayuntamiento.
+
+             Si la pantalla lo pintara como una respuesta normal, esa persona se iría creyendo
+             que el Ayuntamiento le dijo algo que nunca le dijo. --}}
+        <div class="buscar-destacada-aviso-ia">
+          <strong>No encontré una respuesta directa a tu pregunta.</strong>
+          Esto es lo que sí dicen las regulaciones sobre el tema. Puede que no sea lo que
+          buscabas: revisa las fuentes citadas o consulta con la dependencia.
+        </div>
+      @elseif($esGenerada)
+        {{-- El aviso va ARRIBA, antes del texto. Debajo, la mitad de la gente ya lo habría
+             leído y se lo habría creído. Un aviso solo sirve si llega antes que el dato al
+             que se refiere. --}}
+        <div class="buscar-destacada-aviso-ia">
+          <strong>Respuesta redactada automáticamente.</strong>
+          Un asistente automático resumió las regulaciones que ves abajo. No es una respuesta
+          oficial del Ayuntamiento: <strong>compruébala en las fuentes citadas</strong> antes de
+          tomar cualquier decisión.
+        </div>
+      @endif
+
       <div class="buscar-destacada-encabezado">
         <i class="ti ti-bulb"></i>
-        <strong>{{ $respuestaDestacada['termino'] }}</strong>
-        <span class="buscar-destacada-confianza buscar-destacada-confianza-{{ $respuestaDestacada['confianza'] }}">
-          Confianza: {{ ucfirst($respuestaDestacada['confianza']) }}
+        @if($respuestaDestacada['termino'])
+          <strong>{{ $respuestaDestacada['termino'] }}</strong>
+        @endif
+        <span class="buscar-destacada-confianza buscar-destacada-confianza-{{ $confianza }}">
+          @if($esRelacionada)
+            Información relacionada
+          @elseif($esGenerada)
+            Redactada por IA
+          @elseif($confianza === 'alta')
+            Definición oficial
+          @else
+            Extraída del articulado
+          @endif
         </span>
       </div>
+
       <p class="buscar-destacada-texto">{{ $respuestaDestacada['definicion'] }}</p>
+
       <div class="buscar-destacada-fuente">
-        <a href="{{ route('regulaciones.show', $respuestaDestacada['regulacion_id']) }}">
-          {{ $respuestaDestacada['fuente'] }}
-          @if($respuestaDestacada['articulo'])
-            — Artículo {{ $respuestaDestacada['articulo'] }}
-          @endif
-          @if($respuestaDestacada['fraccion'])
-            , fracción {{ $respuestaDestacada['fraccion'] }}
-          @endif
-        </a>
+        @if($respuestaDestacada['regulacion_id'])
+          <a href="{{ route('regulaciones.show', $respuestaDestacada['regulacion_id']) }}">
+            {{ $respuestaDestacada['fuente'] }}{{ $cita ? ', ' . $cita : '' }}{{ $respuestaDestacada['fraccion'] ? ', fracción ' . $respuestaDestacada['fraccion'] : '' }}
+          </a>
+        @else
+          <span>{{ $respuestaDestacada['fuente'] }}{{ $cita ? ', ' . $cita : '' }}</span>
+        @endif
       </div>
+
       @if(!empty($respuestaDestacada['definiciones_adicionales']))
         <details class="buscar-destacada-adicionales">
           <summary>
             {{ count($respuestaDestacada['definiciones_adicionales']) }}
-            {{ count($respuestaDestacada['definiciones_adicionales']) === 1 ? 'definición adicional encontrada' : 'definiciones adicionales encontradas' }}
-            en otras regulaciones
+            {{ count($respuestaDestacada['definiciones_adicionales']) === 1 ? 'fuente adicional' : 'fuentes adicionales' }}
+            {{ $esIA ? 'usadas en esta respuesta' : 'en otras regulaciones' }}
           </summary>
           <ul>
             @foreach($respuestaDestacada['definiciones_adicionales'] as $adicional)
               <li>
-                <a href="{{ route('regulaciones.show', $adicional['regulacion_id']) }}">
-                  {{ $adicional['fuente'] }}
-                  @if($adicional['articulo'])
-                    — Artículo {{ $adicional['articulo'] }}
-                  @endif
-                </a>
+                @if($adicional['regulacion_id'])
+                  <a href="{{ route('regulaciones.show', $adicional['regulacion_id']) }}">
+                    {{ $adicional['fuente'] }}{{ $adicional['articulo'] ? ', ' . $adicional['articulo'] : '' }}
+                  </a>
+                @else
+                  <span>{{ $adicional['fuente'] }}</span>
+                @endif
               </li>
             @endforeach
           </ul>
         </details>
       @endif
+    </div>
+
+  {{-- ════════════════════════════════════════════════════════════════════
+       NO HAY RESPUESTA, Y HAY QUE DECIRLO
+       ════════════════════════════════════════════════════════════════════
+
+       El ciudadano escribe "¿cuánto DURA el permiso de ambulantes?", el buscador
+       devuelve 12 resultados... y no aparece ninguna respuesta.
+
+       ¿Qué piensa? No lo sabe. Puede pensar que el sistema está roto, que no encontró
+       nada, o que tiene que leerse los doce artículos por su cuenta.
+
+       Y el sistema SÍ SABE qué pasó: sabe que le preguntaron algo que las regulaciones
+       cargadas no responden. En ese ejemplo, la Ley de Hacienda dice cuánto CUESTA el
+       permiso, pero no cuánto DURA: eso lo diría otro reglamento, que no está subido.
+
+       Callarse es el patrón que este proyecto lleva catorce bugs persiguiendo: el sistema
+       sabe algo y la pantalla no lo dice.
+
+       Y el aviso sirve a DOS personas:
+         · Al ciudadano, que sabe qué hacer (leer los resultados, o preguntar).
+         · Al Ayuntamiento, que se entera de que le FALTA UNA REGULACIÓN.
+       ════════════════════════════════════════════════════════════════════ --}}
+  @elseif($consulta && $resultados->isNotEmpty())
+    <div class="buscar-destacada buscar-destacada-sin-respuesta">
+      <div class="buscar-destacada-encabezado">
+        <i class="ti ti-help-circle"></i>
+        <strong>No encontré una respuesta clara a tu pregunta.</strong>
+      </div>
+      <p class="buscar-destacada-texto">
+        Encontré {{ $resultados->count() }} documentos relacionados, pero ninguno responde
+        exactamente lo que preguntas. Revísalos abajo, o consulta directamente con la
+        dependencia.
+      </p>
     </div>
   @endif
 
@@ -327,13 +456,13 @@
 
   Se abre al hacer clic en un resultado de búsqueda tipo "Articulado".
   El contenido se pide en JSON a /buscar/articulo/{nodo} (ver
-  BuscadorController::obtenerArticulo) y se arma con JavaScript — el mismo
+  BuscadorController::obtenerArticulo) y se arma con JavaScript: el mismo
   patrón que ya usa el proyecto en otros lugares (por ejemplo, la
   previsualización de homoclave en el wizard de trámites).
 
   Reutiliza las clases .modal-backdrop / .modal / .modal-head / .modal-body
   / .modal-actions de 07-modals.css, las mismas que usa el modal de
-  observaciones — con la variante .modal-articulado (definida en
+  observaciones, con la variante .modal-articulado (definida en
   15-buscador.css) que lo hace más ancho, porque un resultado legal necesita
   más espacio de lectura que un formulario corto.
 --}}

@@ -64,6 +64,16 @@ class ActualizacionPorIdSeguraTest extends TestCase
             'reordenar y compactar orden: los ids vienen de un pluck() sobre where(regulacion_id), o '
             . 'sea que YA están filtrados por la regulación. El usuario no puede inyectar un id ajeno '
             . 'ahí. Además, el controlador ya autorizó la regulación antes de llamar al servicio.',
+
+        'app/Services/BusquedaLogService.php' =>
+            'registrarClic: el $logId VIENE DEL NAVEGADOR (POST /buscar/clic, vía fetch). El '
+            . 'controlador solo lo valida como entero: comprueba el TIPO, no la PROPIEDAD. '
+            . 'Se le añadió ->where(user_id, Auth::id()), así que solo se puede tocar la propia '
+            . 'búsqueda. Si toca 0 filas, se registra el intento y se sigue: es una bitácora pasiva '
+            . 'y no debe reventar la navegación del ciudadano. '
+            . 'Y NO era un riesgo teórico: estos datos son, según el propio docblock del servicio, '
+            . 'las "training labels" de un futuro modelo de ranking. Un buscador entrenado con votos '
+            . 'manipulados es un buscador envenenado, y nadie sabría por qué se volvió raro.',
     ];
 
     /**

@@ -1,0 +1,202 @@
+/* ══════════════════════════════════════════════════════════════════════
+   RESPUESTA DESTACADA DEL BUSCADOR
+   ══════════════════════════════════════════════════════════════════════
+
+   Hay TRES clases de respuesta, y la pantalla tiene que distinguirlas de un vistazo:
+
+     alta      → Definición curada A MANO por una persona del Ayuntamiento.
+     media     → Extraída automáticamente del articulado de una regulación.
+     generada  → REDACTADA POR UNA INTELIGENCIA ARTIFICIAL.
+
+   Antes las tres se pintaban igual: una etiqueta gris que decía "Confianza: Generada".
+   Eso no le dice nada a un ciudadano.
+
+   Y el riesgo es concreto y grave: una persona lee un texto sobre lo que tiene que pagar,
+   en el portal oficial de su Ayuntamiento, y NO TIENE FORMA DE SABER que lo redactó una
+   máquina. Se lo cree, porque está en la web del gobierno.
+
+   Un ciudadano tiene derecho a saber si lo que lee lo escribió el Ayuntamiento o lo
+   redactó un modelo. No es un detalle de diseño: es una cuestión de honestidad.
+
+   Añadir este archivo a public/css/ y enlazarlo en el layout, o pegar el contenido en
+   el CSS de componentes.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── La caja de la respuesta ───────────────────────────────────────── */
+
+.buscar-destacada {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin: 20px 0;
+  background: var(--surface, #fff);
+}
+
+.buscar-destacada-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.buscar-destacada-texto {
+  margin: 8px 0;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.buscar-destacada-fuente {
+  font-size: 13px;
+  margin-top: 10px;
+}
+
+.buscar-destacada-fuente a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.buscar-destacada-adicionales {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+
+/* ── RESPUESTA REDACTADA POR IA ────────────────────────────────────────
+   El borde izquierdo grueso y el fondo distinto existen para que se vea SIN LEER que
+   esta caja no es igual a las demás. Es la primera señal, la que se percibe antes que
+   cualquier palabra.
+   ───────────────────────────────────────────────────────────────────── */
+
+.buscar-destacada-ia {
+  border-left: 4px solid #9333ea;
+  background: #faf5ff;
+}
+
+/* El aviso. Va ARRIBA del texto, no debajo.
+   Debajo, la mitad de la gente ya habría leído la respuesta y se la habría creído.
+   Un aviso solo sirve si llega ANTES que el dato al que se refiere. */
+.buscar-destacada-aviso-ia {
+  background: #f3e8ff;
+  border: 1px solid #d8b4fe;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6b21a8;
+}
+
+.buscar-destacada-aviso-ia strong {
+  color: #581c87;
+}
+
+
+/* ── Las etiquetas de confianza ────────────────────────────────────────
+   Cada una con su color, y el texto dice QUÉ ES, no un tecnicismo:
+
+     "Definición oficial"      (verde)   ← la escribió una persona
+     "Extraída del articulado" (ámbar)   ← la sacó el sistema de una ley
+     "Redactada por IA"        (morado)  ← la escribió un modelo
+
+   Antes decía "Confianza: Alta / Media / Generada". Un ciudadano no sabe qué significa
+   "confianza media" — y "generada" no le dice, ni de lejos, que lo escribió una máquina.
+   ───────────────────────────────────────────────────────────────────── */
+
+.buscar-destacada-confianza {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.buscar-destacada-confianza-alta {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.buscar-destacada-confianza-media {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.buscar-destacada-confianza-generada {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+}
+
+
+/* ── "No encontré una respuesta clara" ─────────────────────────────────
+   El ciudadano pregunta "¿cuánto DURA el permiso de ambulantes?", el buscador devuelve
+   12 resultados... y no sale ninguna respuesta.
+
+   ¿Qué piensa? No lo sabe. Puede creer que el sistema está roto, que no hay nada, o que
+   tiene que leerse los doce artículos por su cuenta.
+
+   Y el sistema SÍ SABE lo que pasó: le preguntaron algo que las regulaciones cargadas no
+   responden. La Ley de Hacienda dice cuánto CUESTA el permiso, pero no cuánto DURA: eso
+   lo diría otro reglamento, que no está subido.
+
+   Callarse es el patrón que este proyecto lleva catorce bugs persiguiendo: el sistema
+   sabe algo y la pantalla no lo dice.
+
+   El aviso sirve a DOS personas:
+     · Al ciudadano, que sabe qué hacer.
+     · Al Ayuntamiento, que se entera de que le FALTA UNA REGULACIÓN.
+   ───────────────────────────────────────────────────────────────────── */
+
+.buscar-destacada-sin-respuesta {
+  border-left: 4px solid var(--muted-light, #cbd5e1);
+  background: var(--surface-high, #f8fafc);
+}
+
+.buscar-destacada-sin-respuesta .buscar-destacada-encabezado strong {
+  color: var(--muted, #64748b);
+  font-weight: 600;
+}
+
+.buscar-destacada-sin-respuesta .buscar-destacada-texto {
+  color: var(--muted, #64748b);
+  font-size: 14px;
+}
+
+
+/* ── RESPUESTA A MEDIAS ("Información relacionada") ────────────────────
+   La IA no encontró lo que se preguntaba, pero SÍ encontró cosas del tema y las cuenta.
+
+   Caso real: preguntan "¿cuánto dura el permiso de ambulantes?" y las regulaciones solo
+   dicen que se cobra 0.05 UMA por día. La IA lo cuenta, sin deducir nada.
+
+   Es útil —de hecho, casi responde la pregunta— pero NO es la respuesta. Y esa distinción
+   no es cosmética: si el ciudadano cree que le respondieron y no fue así, se va con una
+   conclusión que nadie le dio, y que podría estar equivocada.
+
+   Por eso se pinta en ámbar y no en morado: la señal es "esto es parcial", no "esto es
+   la respuesta".
+   ───────────────────────────────────────────────────────────────────── */
+
+.buscar-destacada-parcial {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.buscar-destacada-parcial .buscar-destacada-aviso-ia {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.buscar-destacada-parcial .buscar-destacada-aviso-ia strong {
+  color: #78350f;
+}
+
+.buscar-destacada-confianza-relacionada {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}

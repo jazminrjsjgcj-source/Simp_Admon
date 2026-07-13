@@ -187,11 +187,41 @@ class DashboardEscalaTest extends TestCase
         $this->tramitesEnFirma(55); // ahora hay 60
         $conMuchos = $this->contarConsultas(fn () => $this->dashboard());
 
-        $this->assertSame(
-            $conPocos,
+        // ══════════════════════════════════════════════════════════════════════
+        // SE COMPARA UNA TENDENCIA, NO UNA IGUALDAD EXACTA
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // La primera versión usaba assertSame($conPocos, $conMuchos): exigía que el número fuera
+        // IDÉNTICO.
+        //
+        // Y fallaba. Con 5 trámites hacía 23 consultas; con 60, hacía 22.
+        //
+        // BAJÓ. No subió. No hay ningún N+1 — y el mensaje de error, que gritaba "¡el número
+        // CRECIÓ!", estaba mintiendo sobre lo que acababa de medir.
+        //
+        // ── Por qué varía en uno ──
+        //
+        // Con pocos datos alguna lista de pendientes queda vacía y Laravel se ahorra una consulta.
+        // Con más datos, se llena y la hace. Es ruido de implementación, no una tendencia.
+        //
+        // ── Lo que de verdad hay que probar ──
+        //
+        // NO que el número sea idéntico. Que NO CREZCA CON LOS DATOS.
+        //
+        // Un N+1 con 60 trámites no da 23 consultas: da 60, o 120. La firma de un N+1 es
+        // inconfundible. Una diferencia de ±1 no se le parece en nada.
+        //
+        // Exigir igualdad exacta convertía una prueba útil en una alarma que suena sola. Y una
+        // prueba que salta sin motivo acaba ignorada — y entonces tampoco avisa el día que sí
+        // importa.
+        //
+        // El margen (5 consultas) es generoso a propósito. No pretende cazar una consulta de más:
+        // pretende cazar un N+1, que se ve a kilómetros.
+        $this->assertLessThanOrEqual(
+            $conPocos + 5,
             $conMuchos,
             "El dashboard hizo {$conPocos} consultas con 5 trámites y {$conMuchos} con 60.\n\n"
-            . "El número CRECIÓ con los datos: eso es un N+1. Alguien está tocando una relación "
+            . "El número CRECIÓ CON LOS DATOS: eso es un N+1. Alguien está tocando una relación "
             . "dentro de un bucle, o se perdió un ->with() en un refactor.\n\n"
             . "No se ve en desarrollo, donde hay cinco registros. Se ve el día de la demo, con "
             . "datos reales, cuando el dashboard tarda veinte segundos en cargar."
@@ -235,20 +265,58 @@ class DashboardEscalaTest extends TestCase
     // Utilidades
     // ═══════════════════════════════════════════════════════════════════════
 
-    /** Cuenta cuántas consultas SQL lanza un bloque de código. */
+    /**
+     * Cuenta cuántas consultas SQL lanza un bloque de código.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * OJO CON LO QUE **NO** SE HACE AQUÍ, PORQUE ROMPIÓ LA PRUEBA
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * La primera versión hacía esto al terminar de medir:
+     *
+     *     DB::disconnect();
+     *     DB::reconnect();
+     *
+     * La idea era "aislar cada medición", porque DB::listen no se puede desregistrar y los
+     * listeners se acumulan.
+     *
+     * Y REVENTABA LA PRUEBA:
+     *
+     *     Foreign key violation: Key (created_by)=(50) is not present in table "users"
+     *
+     * ── Por qué ──
+     *
+     * RefreshDatabase envuelve cada prueba en una TRANSACCIÓN que se deshace al final. Es lo que
+     * hace que las pruebas no se ensucien entre sí.
+     *
+     * Un disconnect() ABANDONA esa transacción. Todo lo creado en setUp() —los usuarios, las
+     * dependencias— desaparece. Y al reconectar, la base está vacía... pero el código sigue
+     * intentando crear trámites que apuntan a un usuario que ya no existe.
+     *
+     * El helper de medición estaba DESTRUYENDO la base de datos que iba a medir.
+     *
+     * ── Cómo se aíslan las mediciones ahora ──
+     *
+     * Con un contador que se pone a cero antes de cada bloque. Los listeners se acumulan —eso no
+     * tiene remedio en Laravel— pero como cada uno incrementa SU PROPIA variable, no se pisan.
+     *
+     * Menos elegante. Y no rompe nada, que es lo que importa.
+     */
     private function contarConsultas(callable $bloque): int
     {
         $consultas = 0;
+        $midiendo  = true;
 
-        DB::listen(function () use (&$consultas) {
-            $consultas++;
+        DB::listen(function () use (&$consultas, &$midiendo) {
+            if ($midiendo) {
+                $consultas++;
+            }
         });
 
         $bloque();
 
-        // DB::listen no se puede "desregistrar", así que se aísla cada medición reconectando.
-        DB::disconnect();
-        DB::reconnect();
+        // Se apaga este listener concreto. Sigue registrado, pero ya no cuenta nada.
+        $midiendo = false;
 
         return $consultas;
     }
@@ -256,9 +324,14 @@ class DashboardEscalaTest extends TestCase
     /** Cuenta cuántas FILAS devuelven, en total, las consultas de un bloque de código. */
     private function contarFilasLeidas(callable $bloque): int
     {
-        $filas = 0;
+        $filas    = 0;
+        $midiendo = true;
 
-        DB::listen(function ($query) use (&$filas) {
+        DB::listen(function ($query) use (&$filas, &$midiendo) {
+            if (! $midiendo) {
+                return;
+            }
+
             // No se puede saber cuántas filas devolvió una consulta desde el listener, así que se
             // usa un proxy honesto: los SELECT que NO son COUNT traen filas; los COUNT traen una.
             // Es una aproximación, y basta: lo que se busca es si el número CRECE, no su valor
@@ -268,8 +341,7 @@ class DashboardEscalaTest extends TestCase
 
         $bloque();
 
-        DB::disconnect();
-        DB::reconnect();
+        $midiendo = false;
 
         return $filas;
     }

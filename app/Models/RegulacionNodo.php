@@ -31,6 +31,15 @@ class RegulacionNodo extends Model
         'tipo',
         'numero',
         'texto',
+
+        // El texto de los ancestros estructurales (título, capítulo, sección).
+        //
+        // Existe porque UN ARTÍCULO NO REPITE EL TÍTULO DE SU CAPÍTULO. El artículo 26 nunca dice
+        // "patrimonio": ya está dentro del capítulo "IMPUESTOS SOBRE EL PATRIMONIO". Sin esta
+        // columna, el buscador —que solo mira el texto del nodo— es incapaz de encontrarlo.
+        //
+        // Lo rellena RegulacionEstructuradorService al construir el árbol.
+        'contexto',
         'orden',
         'estado',
         'derogado_nota',

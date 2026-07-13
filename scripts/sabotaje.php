@@ -188,6 +188,93 @@ $sabotajes = [
                    . '500 filas de HTML. No es un N+1 —es UNA sola consulta— y por eso es más fácil de '
                    . 'pasar por alto: el número de consultas no crece. Lo que crece es la memoria.',
     ],
+
+    [
+        'bug'     => 'Los encabezados vuelven a partirse en dos (SECCIÓN III / IMPUESTOS SOBRE...)',
+        'archivo' => 'app/Services/RegulacionEstructuradorService.php',
+        'buscar'  => '$lineas = $this->unirEncabezadosPartidos($lineas);',
+        'romper'  => '// SABOTAJE: encabezados sin unir',
+        'prueba'  => 'RegulacionEstructuradorTest',
+        'porque'  => 'En el PDF, un encabezado viene en DOS renglones: "SECCIÓN III" y luego '
+                   . '"IMPUESTOS SOBRE ESPECTÁCULOS PÚBLICOS". Sin unirlos, el parser crea la sección '
+                   . 'SIN NOMBRE y deja el nombre huérfano como párrafo. Y entonces el artículo 65 —que '
+                   . 'dice "espectáculo" en singular, sin "públicos"— se vuelve invisible: su único '
+                   . 'contexto era el nombre de esa sección.',
+    ],
+
+    [
+        'bug'     => 'Los nodos dejan de heredar el contexto de su capítulo',
+        'archivo' => 'app/Services/RegulacionEstructuradorService.php',
+        'buscar'  => '$this->rellenarContexto($regulacion);',
+        'romper'  => '// SABOTAJE: sin contexto heredado',
+        'prueba'  => 'ArticuloQueRespondeLlegaTest',
+        'porque'  => 'EN TODA LEY BIEN REDACTADA, UN ARTÍCULO NO REPITE EL TÍTULO DE SU CAPÍTULO. El '
+                   . 'artículo 26 nunca dice "patrimonio": ya está dentro del capítulo "IMPUESTOS SOBRE '
+                   . 'EL PATRIMONIO". Sin el contexto heredado, preguntar por los impuestos al patrimonio '
+                   . 'no encuentra el predial. Estábamos penalizando la buena redacción jurídica.',
+    ],
+
+    [
+        'bug'     => 'El buscador vuelve a ignorar el contexto de los nodos',
+        'archivo' => 'app/Services/BuscadorService.php',
+        'buscar'  => "to_tsvector('spanish', coalesce(n.texto, '') || ' ' || coalesce(n.contexto, '')) @@ to_tsquery('spanish', ?)",
+        'romper'  => "to_tsvector('spanish', coalesce(n.texto, '')) @@ to_tsquery('spanish', ?) -- SABOTAJE",
+        'prueba'  => 'ArticuloQueRespondeLlegaTest',
+        'porque'  => 'El contexto existe en la base pero el buscador no lo mira. Cada artículo vuelve a '
+                   . 'ser una isla sin contexto, y los que no repiten el tema de su capítulo desaparecen.',
+    ],
+
+    [
+        'bug'     => 'El filtro de palabras comunes tira la palabra clave en corpus pequeños',
+        'archivo' => 'app/Services/BuscadorService.php',
+        'buscar'  => '$umbral = max(
+            self::MINIMO_PARA_DESCARTAR,',
+        'romper'  => '$umbral = min(
+            self::MINIMO_PARA_DESCARTAR, // SABOTAJE',
+        'prueba'  => 'BuscadorEntiendePreguntasTest',
+        'porque'  => 'El umbral es un PORCENTAJE (5%). Sobre un corpus de 3 nodos, el 5% es CERO: '
+                   . 'cualquier palabra que aparezca dos veces se descarta por "demasiado común". El filtro '
+                   . 'acaba tirando la palabra que define la pregunta. Un porcentaje sobre un corpus '
+                   . 'diminuto no significa nada.',
+    ],
+
+    [
+        'bug'     => 'Se puede votar sobre las búsquedas de otra persona',
+        'archivo' => 'app/Services/BusquedaLogService.php',
+        'buscar'  => "->where('user_id', Auth::id())",
+        'romper'  => '// SABOTAJE: sin candado de propiedad',
+        'prueba'  => 'BusquedaLogSeguridadTest',
+        'porque'  => 'El log_id viene del NAVEGADOR y el controlador solo lo valida como entero: comprueba '
+                   . 'el TIPO, no la PROPIEDAD. Con un bucle de fetch() se pueden votar cien mil búsquedas '
+                   . 'ajenas. Y esos votos son, según el docblock del propio servicio, las "training labels" '
+                   . 'de un futuro modelo de ranking: un buscador entrenado con votos manipulados es un '
+                   . 'buscador envenenado, y nadie sabría por qué se volvió raro.',
+    ],
+
+    [
+        'bug'     => 'Un usuario puede votar mil veces el mismo resultado',
+        'archivo' => 'app/Services/BusquedaLogService.php',
+        'buscar'  => "DB::table('busqueda_feedback')->updateOrInsert(",
+        'romper'  => "DB::table('busqueda_feedback')->insert( // SABOTAJE",
+        'prueba'  => 'BusquedaLogSeguridadTest',
+        'porque'  => 'El candado de propiedad impide votar en búsquedas ajenas. Este impide INFLAR LAS '
+                   . 'PROPIAS: sin él, basta con hacer UNA búsqueda y votarla diez mil veces con un bucle. '
+                   . 'Mil votos "útil" empujarían cualquier trámite al primer puesto del ranking.',
+    ],
+
+    [
+        'bug'     => 'El asistente deja de ver dónde vive cada artículo dentro de la ley',
+        'archivo' => 'app/Services/AsistenteRespuestaService.php',
+        'buscar'  => '$bloque .= "\\n   Ubicación en la ley: {$f[\'contexto\']}";',
+        'romper'  => '// SABOTAJE: el modelo no ve el contexto',
+        'prueba'  => 'AsistenteRespuestaTest',
+        'porque'  => 'ATENCIÓN: puede que este NO lo cacen las pruebas, y es un punto ciego CONOCIDO. El '
+                   . 'buscador ENCUENTRA el artículo 26 (porque busca sobre texto + contexto), pero al modelo '
+                   . 'se le pasaba solo el TEXTO: "Son objeto del Impuesto Predial, la propiedad, usufructo..." '
+                   . 'Y ahí no aparece la palabra "patrimonio". El modelo tenía la respuesta delante y no podía '
+                   . 'verla. Es el mismo bug del buscador, repetido un nivel más arriba: le dábamos la página '
+                   . 'arrancada del libro. Se comprueba leyendo respuestas reales, no con una prueba.',
+    ],
 ];
 
 // ── Motor ────────────────────────────────────────────────────────────────────

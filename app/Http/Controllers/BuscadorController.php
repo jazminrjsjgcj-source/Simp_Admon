@@ -135,7 +135,15 @@ class BuscadorController extends Controller
     /**
      * POST /buscar/feedback
      *
-     * Registra feedback (👍/👎) sobre un resultado.
+     * Registra el voto del usuario sobre un resultado: le sirvió o no le sirvió.
+     *
+     * OJO: el log_id viene del NAVEGADOR, y el validate() de abajo solo comprueba que sea un
+     * ENTERO. No comprueba de quién es esa búsqueda.
+     *
+     * El candado de propiedad está en BusquedaLogService, que exige que la búsqueda sea del
+     * usuario autenticado. Sin él, cualquiera podía votar sobre las búsquedas de todo el
+     * Ayuntamiento con un bucle de fetch() — y esos votos son las "training labels" de un futuro
+     * modelo de ranking.
      */
     public function registrarFeedback(Request $request)
     {

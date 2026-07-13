@@ -42,13 +42,84 @@ class BuscadorService
         private SearchQueryNormalizer $normalizador,
         private LegalDictionaryService $diccionario,
         private FeaturedAnswerService $respuestaDestacada,
+        private AsistenteRespuestaService $asistente,
+        private SearchIntentDetector $detector,
     ) {}
 
     /**
      * Número máximo de resultados por fuente.
      * Se limita para que una fuente con muchos matches no desplace a las demás.
      */
-    private const LIMITE_POR_FUENTE = 10;
+    /**
+     * Cuántos resultados devuelve cada fuente.
+     *
+     * Se separa el ARTICULADO del resto, y no es un capricho.
+     *
+     * ── Por qué el articulado necesita más ──
+     *
+     * Una sola ley puede tener DECENAS de artículos sobre el mismo tema. La Ley de Hacienda de
+     * La Paz tiene DIECISIETE artículos que mencionan "espectáculos": el que define el objeto, el
+     * que dice quién es sujeto, el que fija el plazo de pago, el que exige la garantía, el que
+     * regula el boletaje...
+     *
+     * Y solo UNO dice cuánto se paga:
+     *
+     *     "Artículo 65.- Los sujetos pagarán por concepto de este impuesto, el 8% del monto
+     *      total de los ingresos obtenidos."
+     *
+     * Ese artículo es CORTO. Los otros son largos y repiten la palabra "espectáculos" cuatro o
+     * cinco veces. Y ts_rank premia la repetición: los largos puntúan más alto.
+     *
+     * Con un límite de 10, el artículo 65 QUEDABA FUERA DEL CORTE. El asistente recibía el marco
+     * legal y el objeto del impuesto, pero no el porcentaje. Y respondía, muy honestamente, que
+     * no encontraba cómo se calcula.
+     *
+     * El modelo hacía bien su trabajo. Le estábamos dando la basura y escondiéndole el oro.
+     *
+     * ── Por qué 30 y no 100 ──
+     *
+     * Porque el asistente solo lee las 20 mejores (config punta.asistente.max_fuentes), y porque
+     * cada consulta cuesta tiempo. Treinta da margen suficiente para que un artículo corto y
+     * denso entre, sin inundar la pantalla.
+     *
+     * El resto de fuentes (trámites, requisitos, regulaciones) siguen en 10: ahí no existe el
+     * problema de los "veinte artículos sobre lo mismo".
+     */
+    /**
+     * Por encima de este porcentaje del articulado, una palabra deja de distinguir nada.
+     *
+     * Frecuencias reales en la Ley de Hacienda de La Paz (964 nodos), contadas SOLO SOBRE EL
+     * TEXTO (ver el comentario largo de frecuenciaEnArticulado, que explica por qué no se cuenta
+     * el contexto):
+     *
+     *     publicos      → 113 nodos = 11,7%  ← RUIDO. Vía pública, orden público, servicios
+     *                                          públicos, notarios públicos... Exigirla no acota
+     *                                          nada.
+     *     cobros        →  31 nodos =  3,2%
+     *     espectaculos  →  28 nodos =  2,9%  ← señala un tema
+     *     patrimonio    →   2 nodos =  0,2%  ← rarísima en el texto, pero está en el TÍTULO de un
+     *                                          capítulo entero: lo más informativo que hay
+     *
+     * El 5% deja fuera "publicos" y conserva todo lo demás. Es un número redondo, elegido con
+     * criterio y no medido: si algún día se afina, que sea mirando qué palabras caen a cada lado
+     * en las regulaciones reales del municipio, no a ojo.
+     */
+    private const UMBRAL_PALABRA_COMUN = 0.05;
+
+    /**
+     * Por debajo de este número de apariciones, una palabra NUNCA se descarta por común.
+     *
+     * Es el suelo del umbral porcentual, y existe porque un porcentaje sobre un corpus pequeño no
+     * significa nada: en una regulación de 10 artículos, el 5% es cero, y el filtro tiraría
+     * cualquier palabra que apareciera dos veces.
+     *
+     * Con pocos artículos, ninguna palabra es "demasiado común". No hay suficiente corpus para
+     * que ninguna pierda su capacidad de distinguir.
+     */
+    private const MINIMO_PARA_DESCARTAR = 20;
+
+    private const LIMITE_POR_FUENTE    = 10;
+    private const LIMITE_ARTICULADO    = 30;
 
     /**
      * Longitud máxima del fragmento de texto que se muestra en cada resultado.
@@ -133,7 +204,22 @@ class BuscadorService
         // enfocada, completa o filtrada por regulación.
         $respuestaDestacada = $this->respuestaDestacada->construir($consultaNormalizada, $palabras);
 
-        $consultaFt = $this->prepararConsultaFulltext($consulta);
+        // Se le pasan las PALABRAS YA LIMPIAS, no la frase cruda.
+        //
+        // Antes esto era prepararConsultaFulltext($consulta) — la frase entera, tal como la
+        // escribió el ciudadano. Y el trabajo del normalizador (que ya había quitado las palabras
+        // vacías) SE TIRABA A LA BASURA.
+        //
+        // El propio SearchQueryNormalizer lo dejaba dicho en un comentario:
+        //
+        //     'palabras' => $palabrasRelevantes,   // SIN palabras vacías, para diccionario y FULLTEXT
+        //
+        // Estaba preparado para esto. Nadie lo conectó.
+        // AND sobre los sustantivos que DE VERDAD discriminan. Ver el comentario largo de abajo.
+        $consultaFt = $this->prepararConsultaFulltext(
+            $this->descartarPalabrasQueNoDistinguen($palabras),
+            $consulta
+        );
 
         // Helper: ¿debo incluir esta fuente según el filtro de tipos?
         // Si $tipos es null (sin filtro), se incluyen todas.
@@ -153,11 +239,7 @@ class BuscadorService
             if ($incluir('fundamento')) $resultados = $resultados->merge($this->buscarEnFundamentos($consultaFt, $consulta, $regulacionIds));
             if ($incluir('agenda'))     $resultados = $resultados->merge($this->buscarEnAgendaSeguro($consultaFt, $consulta, $regulacionIds));
 
-            return [
-                'resultados'          => $resultados->sortByDesc('score')->values(),
-                'respuesta_destacada' => $respuestaDestacada,
-                'modo'                => 'filtrado',
-            ];
+            return $this->responder($resultados, $respuestaDestacada, 'filtrado', $consulta, $consultaNormalizada);
         }
 
         // ── Búsqueda sin filtro de regulación ────────────────────────────
@@ -170,11 +252,7 @@ class BuscadorService
                 $resultadosEnfocados = collect($this->$metodoEnfocado($consultaFt, $consulta));
 
                 if ($resultadosEnfocados->isNotEmpty()) {
-                    return [
-                        'resultados'          => $resultadosEnfocados->sortByDesc('score')->values(),
-                        'respuesta_destacada' => $respuestaDestacada,
-                        'modo'                => 'enfocado',
-                    ];
+                    return $this->responder($resultadosEnfocados, $respuestaDestacada, 'enfocado', $consulta, $consultaNormalizada);
                 }
                 // La búsqueda enfocada no encontró nada: se sigue de largo
                 // hacia la búsqueda completa de abajo, sin necesidad de que
@@ -186,18 +264,116 @@ class BuscadorService
         // de siempre si no hay filtro). Se ejecuta cuando no se reconoció un
         // concepto enfocable, cuando la búsqueda enfocada no encontró nada,
         // o cuando el usuario pidió explícitamente "ver todos los resultados".
-        $resultados = collect();
-        if ($incluir('articulo'))   $resultados = $resultados->merge($this->buscarEnArticulado($consultaFt, $consulta));
-        if ($incluir('regulacion')) $resultados = $resultados->merge($this->buscarEnRegulaciones($consultaFt, $consulta));
-        if ($incluir('tramite'))    $resultados = $resultados->merge($this->buscarEnTramites($consultaFt, $consulta));
-        if ($incluir('requisito'))  $resultados = $resultados->merge($this->buscarEnRequisitos($consultaFt, $consulta));
-        if ($incluir('fundamento')) $resultados = $resultados->merge($this->buscarEnFundamentos($consultaFt, $consulta));
+        // ══════════════════════════════════════════════════════════════════════
+        // SE BUSCA CON **OR**, NO CON AND. Y es una decisión, no un descuido.
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // ── Por qué el AND no servía ──
+        //
+        // Un ciudadano escribe: "cuánto cuesta el permiso para ambulantes".
+        //
+        // Con AND, el tsquery exige las DOS palabras:  permiso:* & ambulantes:*
+        //
+        // Y el inciso que RESPONDE la pregunta —"Ambulantes 0.05 UMA por día"— contiene
+        // "ambulantes" pero NO contiene "permiso". Porque la ley no lo llama permiso: lo llama
+        // cuota, o derecho.
+        //
+        // Así que el AND lo descartaba. Y el ÚNICO superviviente era el artículo 154, sobre
+        // sanciones por desacato al Bando de Policía, que menciona las dos palabras de pasada.
+        //
+        // El ciudadano añadía una palabra correcta y razonable, y eso le QUITABA la respuesta.
+        //
+        // ── Por qué OR y no sinónimos ──
+        //
+        // Se probó la cascada (AND primero, OR si no encuentra nada) y NO FUNCIONÓ: el AND SÍ
+        // encontraba algo —el artículo equivocado—, así que el OR nunca se disparaba.
+        //
+        // Y traducir la pregunta al vocabulario legal tampoco basta: el inciso f no contiene
+        // "cuota" ni "derecho" tampoco. Solo dice "Ambulantes 0.05 UMA". Da igual qué palabras se
+        // elijan si el buscador sigue exigiéndolas TODAS.
+        //
+        // El problema nunca fue el vocabulario. Era la exigencia.
+        //
+        // ── El precio, y quién lo paga ──
+        //
+        // El OR trae MÁS RUIDO. Buscar "licencia de funcionamiento" devuelve ahora todo lo que
+        // mencione "funcionamiento", de cualquier reglamento.
+        //
+        // Eso se paga con dos cosas:
+        //
+        //   1. ts_rank ordena por relevancia (lo más pertinente arriba).
+        //   2. El ASISTENTE lee los resultados y ELIGE cuáles responden de verdad la pregunta.
+        //      Ahí es donde una IA aporta algo que ninguna consulta SQL puede: entiende el
+        //      CONTENIDO, no adivina palabras.
+        //
+        // El buscador ya no tiene que acertar. Solo tiene que NO PERDERSE LA RESPUESTA. Filtrar
+        // es trabajo de quien sabe leer.
+        // ══════════════════════════════════════════════════════════════════════
+        // AND SOBRE LOS SUSTANTIVOS. Ni OR, ni cascadas, ni rarezas.
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // Este bloque ha pasado por CUATRO diseños, y los tres primeros estaban mal. Merece la
+        // pena dejarlos escritos, porque cada uno enseña algo.
+        //
+        // ── 1. AND sobre la frase cruda (el original) ──
+        //
+        //     cuanto:* & paga:* & semifijo:* & basura:*   →  0 resultados
+        //
+        // Exigía palabras que ninguna ley escribe. El ciudadano preguntaba y no encontraba nada.
+        //
+        // ── 2. OR (el segundo intento) ──
+        //
+        //     calculan:* | cobros:* | espectaculos:* | publicos:*   →  144 nodos
+        //
+        // "publicos" es veneno en una Ley de Hacienda: vía pública, servicios públicos, orden
+        // público, alumbrado público... Con OR entraba cualquier nodo que dijera "público". Le
+        // llegaban al asistente guías de traslado de animales al rastro.
+        //
+        // ── 3. Soltar palabras por rareza (el tercer intento, y el más elegante... y erróneo) ──
+        //
+        // La idea era ordenar por frecuencia y soltar primero las más comunes. "Cuanto más rara,
+        // más informativa" — el IDF de toda la vida.
+        //
+        // Y se rompió. Frecuencias reales en la Ley de Hacienda:
+        //
+        //     calculan      →   7 nodos    ← LA MÁS RARA
+        //     espectaculos  →  28 nodos
+        //     cobros        →  31 nodos
+        //     publicos      → 113 nodos
+        //
+        // "calculan" es MÁS RARA que "espectaculos". Así que se conservaba... y se soltaba el
+        // tema. El buscador devolvía siete artículos sobre recargos y notarios.
+        //
+        // En una LEY, una palabra puede ser rara por dos motivos opuestos: porque es específica
+        // del tema, o porque es del habla del ciudadano y la ley no la usa. La frecuencia NO LOS
+        // DISTINGUE.
+        //
+        // ── 4. Lo que funciona: quitar los verbos y hacer AND sobre lo que queda ──
+        //
+        // Lo que distingue una palabra útil de una trampa no es su frecuencia. Es su categoría
+        // gramatical:
+        //
+        //     "espectáculos" es un SUSTANTIVO  → la ley y el ciudadano lo escriben IGUAL.
+        //     "calculan" es un VERBO           → la ley dice "pagarán".
+        //
+        // SearchQueryNormalizer se lleva los verbos de acción (calculan, cobros, dura, tramitar...)
+        // junto con las palabras vacías. Lo que llega aquí son los SUSTANTIVOS DEL TEMA.
+        //
+        //     "cuáles y cómo se calculan los cobros sobre espectáculos públicos"
+        //          ↓
+        //     ['espectaculos', 'publicos']
+        //          ↓
+        //     espectaculos:* & publicos:*   →  21 nodos, TODOS del tema
+        //
+        // Y el artículo 65 —"los sujetos pagarán el 8%"— entra entre 21 candidatos en vez de
+        // competir contra 144.
+        //
+        // El AND vuelve a ser lo correcto. Nunca fue el problema: el problema era exigirlo sobre
+        // palabras que la ley no escribe.
+        $resultados = $this->buscarEnTodasLasFuentes($consultaFt, $consulta, $incluir);
 
-        return [
-            'resultados'          => $resultados->sortByDesc('score')->values(),
-            'respuesta_destacada' => $respuestaDestacada,
-            'modo'                => 'completo',
-        ];
+
+        return $this->responder($resultados, $respuestaDestacada, 'completo', $consulta, $consultaNormalizada);
     }
 
     /**
@@ -225,6 +401,309 @@ class BuscadorService
      * Estructura vacía para cuando la consulta es demasiado corta (menos
      * de 2 caracteres) para intentar cualquier tipo de búsqueda.
      */
+    /**
+     * Descarta las palabras que aparecen en TANTOS artículos que no distinguen nada.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * LA IRONÍA QUE CIERRA TODO ESTO
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * Después de cinco rediseños del buscador, el último obstáculo resultó ser este:
+     *
+     *     EL ARTÍCULO QUE RESPONDE LA PREGUNTA NO DICE "ESPECTÁCULOS PÚBLICOS".
+     *     DICE "ESPECTÁCULO".
+     *
+     * El artículo 65 de la Ley de Hacienda:
+     *
+     *     "Los sujetos pagarán por concepto de este impuesto, el 8% del monto total de los
+     *      ingresos obtenidos, que genere el ESPECTÁCULO que corresponda..."
+     *
+     * Singular. Sin "públicos".
+     *
+     * ¿Por qué? Porque NO LE HACE FALTA. Ya está dentro del capítulo titulado "IMPUESTO SOBRE
+     * ESPECTÁCULOS PÚBLICOS". El contexto lo da la sección, no la frase.
+     *
+     * Un abogado lo entiende. Un AND de PostgreSQL, no.
+     *
+     * ── Y esto pasa en TODA ley bien redactada ──
+     *
+     * Los artículos NO REPITEN el título de su capítulo. Sería redundante. Así que exigir dos
+     * palabras del tema descarta sistemáticamente los artículos MÁS PRECISOS — precisamente
+     * porque son los que van al grano y no repiten contexto.
+     *
+     * Cuanto mejor escrito está un artículo, menos palabras del tema repite. Y más fácil es que
+     * un AND lo descarte.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * EL CRITERIO: ¿ESTA PALABRA DISTINGUE ALGO?
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * Frecuencias reales en la Ley de Hacienda de La Paz (unos 2.000 nodos):
+     *
+     *     espectaculos  →   28 nodos  (1,4% del corpus)   ← DISTINGUE. Señala un tema.
+     *     publicos      →  113 nodos  (5,7% del corpus)   ← NO DISTINGUE. Ruido de fondo.
+     *
+     * "Públicos" sale por todas partes: vía pública, servicios públicos, orden público, alumbrado
+     * público, contratación pública, bienes de dominio público, notarios públicos... Exigirla no
+     * acota nada. Solo estorba.
+     *
+     * ── OJO: esto NO es "cuanto más rara, mejor" ──
+     *
+     * Ese criterio ya se probó, y falló estrepitosamente. "Calculan" aparece en 7 nodos —es MÁS
+     * rara que "espectaculos"— y es completamente inútil: sale en artículos sobre recargos y
+     * notarios, porque el stemmer la iguala a "cálculo".
+     *
+     * Aquí el criterio es el opuesto y mucho más simple:
+     *
+     *     Se descartan las palabras DEMASIADO COMUNES.
+     *     Las raras se conservan TODAS.
+     *
+     * Y solo se descartan si queda AL MENOS UNA palabra. Si todas son comunes, se buscan todas:
+     * más vale un AND con ruido que una consulta vacía.
+     *
+     * ── El umbral ──
+     *
+     * 5% del corpus. Es un número redondo elegido con criterio, no medido:
+     *
+     *   · Por debajo, una palabra señala un tema (espectáculos: 1,4%).
+     *   · Por encima, es vocabulario administrativo genérico (públicos: 5,7%).
+     *
+     * Si algún día se afina, que sea con datos: mirando qué palabras caen a cada lado en las
+     * regulaciones reales del municipio.
+     */
+    private function descartarPalabrasQueNoDistinguen(array $palabras): array
+    {
+        // Con una sola palabra no hay nada que descartar: es lo único que hay.
+        if (count($palabras) <= 1) {
+            return $palabras;
+        }
+
+        $totalNodos = \Illuminate\Support\Facades\Cache::remember(
+            'buscador:total_nodos',
+            now()->addHour(),
+            fn () => (int) \Illuminate\Support\Facades\DB::table('regulacion_nodos')
+                ->whereNull('deleted_at')
+                ->count()
+        );
+
+        if ($totalNodos === 0) {
+            return $palabras;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // EL SUELO MÍNIMO: sin él, un corpus pequeño se queda sin palabras
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // El umbral es un PORCENTAJE (5%). Y un porcentaje sobre un corpus diminuto no significa
+        // nada.
+        //
+        // En producción hay 964 nodos → el 5% son 48. Razonable.
+        //
+        // Pero en una prueba con 3 nodos, el 5% es CERO. Y entonces cualquier palabra que
+        // aparezca en dos nodos se considera "demasiado común" y se descarta.
+        //
+        // Eso rompió las pruebas de los ambulantes: "ambulantes" salía en 2 de 3 nodos (67%), así
+        // que el filtro la tiraba... y dejaba "permiso", que solo está en el artículo de las
+        // sanciones. El buscador devolvía justo el resultado equivocado que veníamos a evitar.
+        //
+        // ── La regla ──
+        //
+        // Con pocos artículos, NINGUNA palabra es "demasiado común". No hay suficiente corpus para
+        // que ninguna pierda su capacidad de distinguir.
+        //
+        // El suelo mínimo (20 nodos) hace que el filtro solo actúe cuando hay bastante material
+        // como para que el porcentaje diga algo. Por debajo, se conservan todas las palabras.
+        //
+        // Es el mismo error que llevamos toda la sesión: un número mágico que funciona en un
+        // contexto y se rompe en otro, sin dar ningún aviso.
+        $umbral = max(
+            self::MINIMO_PARA_DESCARTAR,
+            (int) ceil($totalNodos * self::UMBRAL_PALABRA_COMUN)
+        );
+
+        $utiles = [];
+
+        foreach ($palabras as $palabra) {
+            $frecuencia = $this->frecuenciaEnArticulado($palabra);
+
+            // Se conserva la palabra solo si cumple LAS DOS condiciones:
+            //
+            //   frecuencia > 0        → existe en el corpus. Una palabra que no aparece en ningún
+            //                           artículo garantiza cero resultados si se exige en un AND.
+            //                           "Calculan" parecía cumplir esto (sale en 7 nodos), pero
+            //                           solo por el stemmer: PostgreSQL la iguala a "cálculo", y
+            //                           esos 7 nodos hablan de recargos y notarios. Por eso los
+            //                           verbos se filtran ANTES, en SearchQueryNormalizer.
+            //
+            //   frecuencia <= umbral  → no es tan común que deje de distinguir. "Públicos" sale
+            //                           en el 5,7% del articulado: exigirla no acota nada.
+            if ($frecuencia > 0 && $frecuencia <= $umbral) {
+                $utiles[] = $palabra;
+            }
+        }
+
+        // Si el filtro se lo llevó TODO, se devuelven las originales. Más vale un AND con ruido
+        // que una consulta vacía: al menos el asistente tendrá algo que leer.
+        return $utiles !== [] ? $utiles : $palabras;
+    }
+
+    /** En cuántos nodos del articulado aparece esta palabra. Se cachea: el corpus no cambia cada minuto. */
+    private function frecuenciaEnArticulado(string $palabra): int
+    {
+        $limpia = preg_replace('/[&|!():*\'"]/', '', $palabra);
+
+        if (mb_strlen($limpia) < 3) {
+            return 0;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // LA FRECUENCIA SE CUENTA SOLO SOBRE EL **TEXTO**. NO SOBRE EL CONTEXTO.
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // Parece incoherente —la búsqueda sí mira texto + contexto— y no lo es. Miden cosas
+        // distintas a propósito, y este comentario existe porque la versión anterior las medía
+        // igual y rompió el buscador.
+        //
+        // ── Qué pasó ──
+        //
+        // Al añadir el contexto heredado, TODOS los artículos de un capítulo pasaron a "decir" el
+        // título de ese capítulo. Y las frecuencias se dispararon:
+        //
+        //     patrimonio, contando el contexto  →  134 nodos de 964  =  13,9%
+        //     patrimonio, solo en el texto      →    2 nodos         =   0,2%
+        //
+        // Con el umbral del 5%, el filtro descartó "patrimonio" por DEMASIADO COMÚN. Y la
+        // búsqueda se quedó con "impuestos" y "aplicables", que son ruido puro.
+        //
+        // El filtro tiró la palabra clave. Le devolvía al ciudadano sanciones, multas,
+        // fideicomisos y registro de ganado.
+        //
+        // ── Por qué la frecuencia sobre el contexto NO sirve para decidir ──
+        //
+        // Compara:
+        //
+        //     publicos    → 113 nodos, DISPERSOS por toda la ley (vía pública, orden público,
+        //                   servicios públicos, notarios públicos...). Es ruido de fondo: no acota
+        //                   nada.
+        //
+        //     patrimonio  → 134 nodos, CONCENTRADOS en un capítulo. Y ese capítulo es EXACTAMENTE
+        //                   lo que responde la pregunta.
+        //
+        // Las dos superan el umbral. Una es basura y la otra es la respuesta. LA FRECUENCIA NO LAS
+        // SEPARA — igual que no separaba "calculan" de "espectaculos" cuando lo intentamos por
+        // rareza.
+        //
+        // ── Lo que sí las separa ──
+        //
+        //     Una palabra que aparece en el CONTEXTO señala un capítulo entero.
+        //     Es lo MÁS informativo que hay.
+        //
+        //     Una que aparece dispersa por el TEXTO, en cien sitios sin relación, es ruido.
+        //
+        // Por eso el filtro cuenta solo el texto: ahí "patrimonio" sale en 2 nodos —rarísima, se
+        // conserva— y "publicos" en 113 —común, se descarta—. Justo lo que queremos.
+        //
+        // Y la búsqueda sigue usando texto + contexto, así que "patrimonio" encuentra los 134.
+        //
+        //     EL FILTRO DECIDE CON EL TEXTO. LA BÚSQUEDA USA EL CONTEXTO.
+        //
+        // Cada uno mide lo que debe.
+        return \Illuminate\Support\Facades\Cache::remember(
+            'buscador:frecuencia:' . md5($limpia),
+            now()->addHour(),
+            fn () => (int) \Illuminate\Support\Facades\DB::table('regulacion_nodos')
+                ->whereNull('deleted_at')
+                ->whereRaw(
+                    "to_tsvector('spanish', coalesce(texto, '')) @@ to_tsquery('spanish', ?)",
+                    [$limpia . ':*']
+                )
+                ->count()
+        );
+    }
+
+    /**
+     * Lanza la búsqueda contra las cinco fuentes, con el tsquery que se le dé.
+     *
+     * Existe para poder ejecutar la MISMA ronda dos veces —una con AND y otra con OR— sin
+     * duplicar las cinco líneas. Y esa duplicación no es un problema estético: si estuvieran
+     * escritas dos veces, alguien añadiría una sexta fuente en una de las dos y no en la otra, y
+     * la búsqueda de respaldo devolvería menos resultados que la principal sin que nadie
+     * entendiera por qué.
+     *
+     * Es lo mismo que ya nos pasó con las cinco listas del dashboard, cuatro con límite y una
+     * sin él.
+     */
+    private function buscarEnTodasLasFuentes(string $consultaFt, string $consulta, callable $incluir): Collection
+    {
+        $resultados = collect();
+
+        if ($incluir('articulo'))   $resultados = $resultados->merge($this->buscarEnArticulado($consultaFt, $consulta));
+        if ($incluir('regulacion')) $resultados = $resultados->merge($this->buscarEnRegulaciones($consultaFt, $consulta));
+        if ($incluir('tramite'))    $resultados = $resultados->merge($this->buscarEnTramites($consultaFt, $consulta));
+        if ($incluir('requisito'))  $resultados = $resultados->merge($this->buscarEnRequisitos($consultaFt, $consulta));
+        if ($incluir('fundamento')) $resultados = $resultados->merge($this->buscarEnFundamentos($consultaFt, $consulta));
+
+        return $resultados;
+    }
+
+    /**
+     * Arma la respuesta final de buscar(), y de paso le da al asistente su única oportunidad.
+     *
+     * ── POR QUÉ EXISTE ESTE HELPER ──
+     *
+     * buscar() tiene TRES puntos de retorno: filtrado, enfocado y completo. Añadir la llamada al
+     * asistente en cada uno sería copiar la misma lógica tres veces... y olvidarla en uno.
+     *
+     * Ya sabemos cómo acaba eso. El dashboard tenía cinco listas de pendientes: cuatro con
+     * ->take(5) y una sin ningún límite. El 5 estaba escrito a mano cinco veces, y alguien lo
+     * olvidó en la quinta. Un valor repetido tres veces es un valor que alguien va a olvidar en
+     * uno de los tres.
+     *
+     * ── EL ORDEN IMPORTA, Y MUCHO ──
+     *
+     * El asistente SOLO se llama si se cumplen las dos condiciones:
+     *
+     *   1. NO HAY YA UNA RESPUESTA DESTACADA. El diccionario curado (confianza ALTA) y las
+     *      definiciones extraídas del articulado (MEDIA) tienen prioridad absoluta sobre una
+     *      redacción automática. Si una persona curó ese concepto, su definición vale más que
+     *      cualquier cosa que redacte un modelo.
+     *
+     *   2. HAY RESULTADOS QUE RESUMIR. Sin fuentes, el asistente no puede saber nada — y pedirle
+     *      que responda igualmente es pedirle explícitamente que se lo invente.
+     *
+     * O sea: la IA es el ÚLTIMO recurso, nunca el primero. Solo entra donde hoy no hay nada.
+     */
+    private function responder(
+        Collection $resultados,
+        ?array $destacada,
+        string $modo,
+        string $consulta,
+        string $consultaNormalizada,
+    ): array {
+        $resultados = $resultados->sortByDesc('score')->values();
+
+        if ($destacada === null && $resultados->isNotEmpty()) {
+            $destacada = $this->asistente->construir(
+                $consulta,
+                $resultados,
+                $this->detector->detectar($consultaNormalizada),
+            );
+        }
+
+        return [
+            'resultados'          => $resultados,
+            'respuesta_destacada' => $destacada,
+            'modo'                => $modo,
+        ];
+    }
+
+    /**
+     * Resultado vacío: la consulta era demasiado corta y no se buscó nada.
+     *
+     * OJO: aquí NO se llama al asistente, y es deliberado. No hay resultados, así que no hay
+     * fuentes que redactar. Llamarlo sería pedirle que responda sin material — es decir,
+     * pedirle literalmente que se lo invente.
+     */
     private function resultadoVacio(): array
     {
         return [
@@ -244,28 +723,125 @@ class BuscadorService
      * Se filtran palabras de menos de 3 caracteres porque MySQL FULLTEXT
      * las ignora por defecto (ft_min_word_len = 3 en InnoDB).
      */
-    private function prepararConsultaFulltext(string $consulta): string
+    /**
+     * Arma la consulta tsquery de PostgreSQL a partir de las palabras RELEVANTES.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * QUÉ ESTABA MAL, Y POR QUÉ NADIE LO VEÍA
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * Este método recibía la frase CRUDA que escribió el ciudadano y la partía por espacios. El
+     * trabajo del SearchQueryNormalizer —que ya había quitado las palabras vacías— se tiraba a
+     * la basura.
+     *
+     * Y como el tsquery se arma con ' & ' (AND), el buscador exigía que el artículo contuviera
+     * TODAS las palabras. Incluidas las que ninguna ley usa jamás.
+     *
+     *     "cuanto paga un semifijo en basura"
+     *          ↓
+     *     cuanto:* & paga:* & semifijo:* & basura:*
+     *          ↓
+     *     CERO RESULTADOS
+     *
+     * ¿Por qué cero? Porque ningún artículo de la Ley de Hacienda contiene la palabra "cuanto",
+     * ni la palabra "paga". La ley dice "cuota", "cubrirán", "el pago del derecho será".
+     *
+     * Y aquí está lo cruel: el artículo QUE RESPONDE ESA PREGUNTA EXISTE. Dice:
+     *
+     *     "Servicio de recolección de basura a semifijos que laboren en la vía pública.
+     *      0.66 del valor de la Unidad de Medida y Actualización por mes."
+     *
+     * Está ahí. Contiene "semifijo" y contiene "basura". Pero como no contiene "cuanto" ni
+     * "paga", el buscador lo descartaba.
+     *
+     * El ciudadano preguntaba exactamente lo que la ley responde, y el sistema le decía que no
+     * había nada. Solo funcionaba si adivinaba las palabras exactas de la ley — y si las
+     * adivinara, no necesitaría preguntar.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * QUÉ HACE AHORA
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     *     "cuanto paga un semifijo en basura"
+     *          ↓  el normalizador quita las palabras vacías y las de pregunta
+     *     ['semifijo', 'basura']
+     *          ↓
+     *     semifijo:* & basura:*
+     *          ↓
+     *     El inciso e de la Ley de Hacienda
+     *
+     * Se mantiene el AND, y es deliberado: con OR, buscar "licencia de funcionamiento" devolvería
+     * cientos de artículos que solo mencionan "funcionamiento". El AND sigue siendo lo correcto —
+     * lo que estaba mal era EXIGIRLO SOBRE PALABRAS QUE NO SON DEL TEMA.
+     *
+     * @param array<string> $palabras Palabras relevantes (sin vacías), del SearchQueryNormalizer.
+     * @param string $consultaOriginal Se usa solo como respaldo si no quedó ninguna palabra útil.
+     */
+    private function prepararConsultaFulltext(array $palabras, string $consultaOriginal, string $operador = ' & '): string
     {
-        $palabras = preg_split('/\s+/', $consulta);
-
         $terminos = [];
+
         foreach ($palabras as $palabra) {
-            // Se limpian los operadores de tsquery (& | ! : * paréntesis, comillas)
-            // para que una palabra escrita por el usuario no rompa la consulta.
+            // Se limpian los operadores de tsquery (& | ! : * paréntesis, comillas) para que una
+            // palabra escrita por el usuario no rompa la consulta.
             $limpia = preg_replace('/[&|!():*\'"]/', '', $palabra);
+
             if (mb_strlen($limpia) >= 3) {
-                // ':*' busca por prefijo (equivale al '*' del BOOLEAN MODE de MySQL).
+                // ':*' busca por prefijo: "semifijo:*" también encuentra "semifijos".
                 $terminos[] = $limpia . ':*';
             }
         }
 
-        // Si todas las palabras eran demasiado cortas, se busca la frase tal cual.
-        if (empty($terminos)) {
-            return preg_replace('/[&|!():*\'"]/', '', $consulta);
+        if (! empty($terminos)) {
+            return implode($operador, $terminos);
         }
 
-        // ' & ' exige que todas las palabras aparezcan (equivale al '+' de MySQL).
-        return implode(' & ', $terminos);
+        // ══════════════════════════════════════════════════════════════════════
+        // EL RESPALDO — y aquí había un bug que reventaba el buscador
+        // ══════════════════════════════════════════════════════════════════════
+        //
+        // Se llega aquí cuando no quedó NINGUNA palabra utilizable. Pasa con:
+        //
+        //   · Consultas que son todo palabras vacías: "qué es", "cómo se hace".
+        //   · Palabras de menos de tres letras: "IVA", "UMA".
+        //
+        // La versión anterior devolvía la frase ORIGINAL, tal cual:
+        //
+        //     return preg_replace('/[&|!():*\'"]/', '', $consultaOriginal);
+        //
+        // Y eso acababa dentro de to_tsquery('spanish', que es un).
+        //
+        // PostgreSQL NO acepta una frase suelta en un tsquery: espera operadores. Sin ellos,
+        // lanza un error de sintaxis:
+        //
+        //     SQLSTATE[42601]: syntax error in tsquery: "que es un"
+        //
+        // Es decir: un error 500 EN EL BUSCADOR DE UN AYUNTAMIENTO, porque alguien escribió
+        // "qué es".
+        //
+        // El bug ya existía antes de tocar nada. Pero era casi inalcanzable: hacía falta que
+        // TODAS las palabras midieran menos de tres letras. Al añadir las palabras de pregunta a
+        // la lista de vacías, se volvió trivial de provocar — y por eso salió a la luz.
+        //
+        // ── La solución ──
+        //
+        // Se unen las palabras con ' & ', igual que en el camino normal. Un tsquery bien formado
+        // que probablemente no encuentre nada es infinitamente mejor que uno malformado que tumba
+        // la página.
+        $crudas = preg_split('/\s+/', preg_replace('/[&|!():*\'"]/', '', $consultaOriginal));
+
+        $crudas = array_values(array_filter(
+            array_map('trim', $crudas),
+            fn ($p) => $p !== ''
+        ));
+
+        if (empty($crudas)) {
+            // Ni siquiera hay una palabra. Un tsquery vacío no encuentra nada y no revienta:
+            // 'zzzznoexiste' es una forma explícita de decir "no busques nada".
+            return 'zzzznoexiste';
+        }
+
+        return implode($operador, array_map(fn ($p) => $p . ':*', $crudas));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -273,17 +849,120 @@ class BuscadorService
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Busca en el texto de los nodos del articulado (artículos, fracciones,
-     * incisos, párrafos). Cada nodo es un fragmento específico de una
-     * regulación. El resultado incluye la ruta al artículo dentro de la
-     * regulación (ej. "Título I > Capítulo II > Artículo 15").
+     * Busca en el articulado de las regulaciones (los nodos: artículos, fracciones, incisos).
      *
-     * Cuando $regulacionIds está presente, solo devuelve nodos de esa ley.
+     * ══════════════════════════════════════════════════════════════════════
+     * SE BUSCA SOBRE TEXTO + CONTEXTO. Y ES EL ARREGLO MÁS IMPORTANTE DE TODOS.
+     * ══════════════════════════════════════════════════════════════════════
      *
-     * Responde preguntas como:
-     *   "¿Quién puede emitir una licencia?"
-     *   "¿Qué dice el artículo 45?"
-     *   "¿Cuántos días tiene la autoridad para resolver?"
+     * ── El bug ──
+     *
+     * Un ciudadano pregunta "¿cuáles son los impuestos aplicables al patrimonio?" y el buscador
+     * devuelve DOS resultados, ninguno correcto: uno sobre recuperaciones de capital y otro sobre
+     * fideicomisos.
+     *
+     * Mientras tanto, la Ley de Hacienda tiene EXACTAMENTE esto:
+     *
+     *     CAPÍTULO II — IMPUESTOS SOBRE EL PATRIMONIO
+     *          SECCIÓN I    — Impuesto Predial
+     *          SECCIÓN II   — Impuesto sobre Adquisición de Bienes Inmuebles
+     *          SECCIÓN III  — Impuesto sobre Urbanización
+     *
+     * La respuesta está ahí. Con el título del capítulo diciéndolo literalmente.
+     *
+     * ── Por qué no la encontraba ──
+     *
+     * El artículo 26 dice: "Son objeto del Impuesto Predial, la propiedad, usufructo, goce, uso y
+     * posesión..."
+     *
+     * Y NUNCA dice "patrimonio". No le hace falta: ya está DENTRO del capítulo que lo dice.
+     *
+     * El buscador solo miraba el texto del nodo. Ignoraba el capítulo al que pertenece. Para él,
+     * cada artículo era una isla sin contexto.
+     *
+     * Un abogado que lee el artículo 26 SABE que es un impuesto al patrimonio, porque ve el
+     * encabezado tres líneas más arriba. El buscador, no.
+     *
+     * ── Y es el MISMO bug que descartaba el artículo 65 ──
+     *
+     * Aquel decía "que genere el ESPECTÁCULO que corresponda" —singular, sin "públicos"— porque
+     * ya estaba dentro del capítulo "IMPUESTO SOBRE ESPECTÁCULOS PÚBLICOS".
+     *
+     * No eran dos bugs. Era el mismo, dos veces. Y explica media docena de rediseños fallidos de
+     * este archivo.
+     *
+     * ── La causa raíz, que conviene tener presente ──
+     *
+     *     EN TODA LEY BIEN REDACTADA, UN ARTÍCULO NO REPITE EL TÍTULO DE SU CAPÍTULO.
+     *
+     * Sería redundante. El contexto lo da la estructura, no la frase.
+     *
+     * Y de ahí se sigue algo incómodo: cuanto MEJOR escrito está un artículo, MENOS palabras del
+     * tema repite. Y más invisible se vuelve para un buscador que solo mira texto plano.
+     *
+     * Estábamos penalizando la buena redacción jurídica.
+     *
+     * ── La solución ──
+     *
+     * Cada nodo guarda el texto de sus ancestros en la columna `contexto` (ver la migración
+     * add_contexto_a_regulacion_nodos). Y aquí se busca sobre los dos campos concatenados.
+     *
+     *     "patrimonio"             → encuentra el artículo 26, el 38 y toda la sección predial.
+     *     "espectáculos públicos"  → encuentra el artículo 65, aunque diga "espectáculo" a secas.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * DOS DECISIONES MÁS QUE PARECEN DETALLES Y NO LO SON
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * ── 1. EL LÍMITE ES 30, NO 10 (LIMITE_ARTICULADO) ──
+     *
+     * Una sola ley puede tener DECENAS de artículos sobre el mismo tema. La Ley de Hacienda de
+     * La Paz tiene DIECISIETE que mencionan "espectáculos": el que define el objeto, el que dice
+     * quién es sujeto, el que fija el plazo de pago, el que exige la garantía, el del boletaje...
+     *
+     * Y solo UNO dice cuánto se paga:
+     *
+     *     "Artículo 65.- Los sujetos pagarán por concepto de este impuesto, el 8% del monto
+     *      total de los ingresos obtenidos."
+     *
+     * Con un límite de 10, ese artículo QUEDABA FUERA DEL CORTE. El asistente recibía el marco
+     * legal y la definición del impuesto, pero no el porcentaje — y respondía, honestamente, que
+     * no encontraba cómo se calcula.
+     *
+     * El modelo hacía bien su trabajo. Le estábamos dando la basura y escondiéndole el oro.
+     *
+     * ── 2. ts_rank LLEVA UN TERCER ARGUMENTO: EL 2 ──
+     *
+     * Ese 2 normaliza la puntuación DIVIDIÉNDOLA ENTRE LA LONGITUD del texto.
+     *
+     * Sin él, ts_rank premia la REPETICIÓN: cuantas más veces aparezca la palabra buscada, más
+     * alto puntúa. Y eso favorece a los artículos LARGOS.
+     *
+     * El artículo 63 —que solo DEFINE qué es un espectáculo— enumera teatro, ballet, ópera,
+     * conciertos, circo, lucha libre, box, fútbol, béisbol, carreras de burros... Repite la
+     * palabra cuatro veces, tiene 150 palabras, y NO DICE CUÁNTO SE PAGA.
+     *
+     * El artículo 65 tiene 40 palabras y la mitad son la respuesta.
+     *
+     * Sin normalizar, GANABA EL 63.
+     *
+     * La normalización captura una intuición simple y cierta:
+     *
+     *     Un texto CORTO que menciona tu palabra HABLA de tu palabra.
+     *     Un texto LARGO que la menciona de pasada, no.
+     *
+     * Es un cambio de comportamiento GLOBAL: reordena todas las búsquedas del articulado. Y en
+     * general mejora — los artículos precisos suben, los divagantes bajan.
+     *
+     * ── Y una advertencia sobre los comentarios dentro del SQL ──
+     *
+     * Esta explicación vivía DENTRO del selectRaw(), como comentarios SQL. Y rompía el archivo:
+     * el SQL va en una cadena PHP con comillas dobles, y el comentario contenía comillas dobles
+     * ("cuáles y cómo se calculan..."). PHP cerraba la cadena ahí y petaba con un error de
+     * sintaxis.
+     *
+     * Un comentario no puede romper el código. Por eso la explicación vive AQUÍ, y dentro del SQL
+     * solo queda una línea que remite a este docblock.
      */
     private function buscarEnArticulado(
         string $consultaFt,
@@ -299,9 +978,80 @@ class BuscadorService
                 n.texto,
                 n.regulacion_id,
                 r.nombre as regulacion_nombre,
-                ts_rank(to_tsvector('spanish', coalesce(n.texto, '')), to_tsquery('spanish', ?)) as score
+                -- El 2 del tercer argumento normaliza por longitud del texto.
+                -- La explicacion completa esta en el docblock del metodo, arriba.
+                -- Se busca sobre TEXTO + CONTEXTO (el titulo del capitulo y la seccion).
+                -- El porque esta en el docblock de arriba: un articulo NO REPITE el titulo de su
+                -- capitulo, asi que sin el contexto es invisible para quien busque por el tema.
+                -- El 2 del tercer argumento normaliza por longitud.
+                ts_rank(
+                    to_tsvector('spanish', coalesce(n.texto, '') || ' ' || coalesce(n.contexto, '')),
+                    to_tsquery('spanish', ?),
+                    2
+                ) as score
             ", [$consultaFt])
-            ->whereRaw("to_tsvector('spanish', coalesce(n.texto, '')) @@ to_tsquery('spanish', ?)", [$consultaFt])
+            ->whereRaw(
+                "to_tsvector('spanish', coalesce(n.texto, '') || ' ' || coalesce(n.contexto, '')) @@ to_tsquery('spanish', ?)",
+                [$consultaFt]
+            )
+
+            // ══════════════════════════════════════════════════════════════════
+            // FUERA LOS ROTULOS DE SECCION. No son contenido: son letreros.
+            // ══════════════════════════════════════════════════════════════════
+            //
+            // ── El caso real ──
+            //
+            // Alguien pregunta "cuales y como se calculan los cobros sobre espectaculos
+            // publicos". Y de las 20 fuentes que llegaban al asistente, CUATRO eran esto:
+            //
+            //     "IMPUESTOS SOBRE ESPECTACULOS PUBLICOS"
+            //     "IMPUESTO SOBRE DIVERSIONES PUBLICAS"
+            //     "SERVICIOS DE SEGURIDAD PUBLICA Y TRANSITO"
+            //     "BIENES DE USO COMUN Y OCUPACION DE LA VIA PUBLICA"
+            //
+            // Son los titulos de las secciones de la ley. Tres o cuatro palabras en mayusculas.
+            // No dicen nada: solo anuncian de que va lo que viene despues.
+            //
+            // El estructurador no los reconocio como titulos —no llevan la palabra TITULO ni
+            // CAPITULO delante, que es lo que busca— y los volco como nodos de tipo parrafo.
+            //
+            // ── Y la normalizacion por longitud los CATAPULTO ──
+            //
+            // Un rotulo de cuatro palabras que contiene "espectaculos" tiene densidad perfecta:
+            // toda la palabra buscada, ninguna de relleno. Con ts_rank normalizado, gana a
+            // CUALQUIER articulo real.
+            //
+            // El arreglo que subio los articulos CORTOS Y DENSOS tambien subio estos, que son
+            // CORTOS Y VACIOS. La normalizacion no distingue "denso" de "vacio": solo mide
+            // longitud.
+            //
+            // Le estabamos dando al asistente los rotulos de las secciones y preguntandole cuanto
+            // se paga. Su respuesta —"las fuentes mencionan que EXISTE un impuesto, pero no
+            // especifican las tarifas"— era exactamente la que mereciamos.
+            //
+            // ── Por que se arregla aqui y no en el parser ──
+            //
+            // Arreglar el estructurador seria lo ideal: que reconociera estos rotulos como titulos
+            // de seccion. Pero obligaria a REESTRUCTURAR TODAS las regulaciones cargadas, y el
+            // parser es la pieza mas delicada del sistema.
+            //
+            // Aqui el arreglo es acotado y reversible: los rotulos siguen en la base (por si el
+            // dia de manana sirven para navegar el articulado), pero NO COMPITEN en la busqueda.
+            //
+            // ── El criterio ──
+            //
+            // Un parrafo que es TODO MAYUSCULAS y tiene menos de 60 caracteres es un rotulo, no
+            // contenido. Ninguna ley escribe un articulo entero en mayusculas, y ninguno cabe en
+            // 60 caracteres.
+            //
+            // Solo se aplica a los PARRAFOS. Un articulo, una fraccion o un inciso NUNCA se
+            // descartan, por cortos que sean: el articulo 65 dice "el 8% del monto total" y tiene
+            // que llegar siempre.
+            ->where(function ($q) {
+                $q->where('n.tipo', '!=', 'parrafo')
+                  ->orWhereRaw('LENGTH(n.texto) >= 60')
+                  ->orWhereRaw('n.texto <> UPPER(n.texto)');
+            })
             ->whereNull('n.deleted_at');
 
         if (!empty($regulacionIds)) {
@@ -310,7 +1060,7 @@ class BuscadorService
 
         $resultados = $query
             ->orderByDesc('score')
-            ->limit(self::LIMITE_POR_FUENTE)
+            ->limit(self::LIMITE_ARTICULADO)
             ->get();
 
         return $resultados->map(function ($r) {

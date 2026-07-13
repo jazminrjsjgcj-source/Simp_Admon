@@ -2,7 +2,7 @@ APP_NAME=PUNTA
 APP_ENV=local
 APP_KEY=base64:TDCgsqDDkyjZ04I+OO0Mllc2QEZu6qsKTy0+QgZr7IY=
 APP_DEBUG=true
-APP_URL=http://127.0.0.1:8000
+APP_URL=http://localhost:8000
 
 APP_LOCALE=es
 APP_FALLBACK_LOCALE=es
@@ -17,12 +17,12 @@ LOG_STACK=single
 LOG_DEPRECATIONS_CHANNEL=null
 LOG_LEVEL=debug
 
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
+DB_CONNECTION=pgsql
+DB_HOST=db
+DB_PORT=5432
 DB_DATABASE=punta
-DB_USERNAME=root
-DB_PASSWORD=
+DB_USERNAME=postgres
+DB_PASSWORD=punta123
 
 SESSION_DRIVER=database
 SESSION_LIFETIME=120
@@ -60,9 +60,55 @@ AWS_USE_PATH_STYLE_ENDPOINT=false
 
 VITE_APP_NAME="${APP_NAME}"
 
-# ── LibreOffice (conversión Word → PDF con fidelidad completa) ──────
-# Si no está instalado, PUNTA usa Dompdf como fallback (calidad básica).
-# Dejar vacío para autodetección. Poner la ruta si la autodetección falla.
-# Windows: "C:\Program Files\LibreOffice\program\soffice.exe"
-# Linux:   /usr/bin/soffice
-LIBREOFFICE_PATH=
+# ══════════════════════════════════════════════════════════════════════
+#  ASISTENTE DEL BUSCADOR (DeepSeek)
+# ══════════════════════════════════════════════════════════════════════
+#
+# Redacta una respuesta en lenguaje natural a partir de los resultados que el
+# buscador YA encontró. No busca ni inventa: solo redacta lo que se le da.
+#
+# ── EL INTERRUPTOR ──
+#
+# Con ASISTENTE_ACTIVO=false, el asistente NO HACE NINGUNA LLAMADA: sale antes
+# de tocar la red, y el buscador funciona exactamente como siempre.
+#
+# Es lo primero que hay que apagar si algo va mal en producción: si la API se
+# vuelve loca, si la factura se dispara, o si alguien encuentra una respuesta
+# mala. Sin despliegue, sin migración, sin tocar código.
+#
+# NO LO ENCIENDAS hasta que la vista del buscador distinga visualmente una
+# respuesta GENERADA por la IA de una definición legal curada por una persona.
+# Un ciudadano tiene derecho a saber si lo que lee lo escribió el Ayuntamiento
+# o lo redactó una máquina.
+ASISTENTE_ACTIVO=false
+
+# La clave de platform.deepseek.com → API keys.
+#
+# Empieza por sk- y SOLO SE VE UNA VEZ al crearla.
+#
+# NUNCA la pongas en el código ni la subas a git. Este archivo está en el
+# .gitignore por ese motivo. Si una key acaba en un commit público, DeepSeek la
+# desactiva sola en cuanto la detecta — pero para entonces alguien pudo haberla
+# usado a tu costa.
+DEEPSEEK_API_KEY=
+
+DEEPSEEK_URL=https://api.deepseek.com/chat/completions
+
+# ⚠️ OJO CON ESTE NOMBRE ⚠️
+#
+# NO uses 'deepseek-chat'. Ese nombre —y 'deepseek-reasoner'— quedan RETIRADOS
+# E INACCESIBLES el 24 de julio de 2026 a las 15:59 UTC. Después de esa fecha,
+# cualquier petición que los use falla. Es un corte duro, sin prórroga.
+#
+# 'deepseek-v4-flash' es barato, rápido, y de sobra para lo que hace este
+# asistente: leer cuatro artículos y resumirlos en tres frases.
+DEEPSEEK_MODELO=deepseek-v4-flash
+
+# Ocho segundos y ni uno más. Un buscador municipal no puede quedarse colgado
+# esperando a una API externa: si tarda, se devuelve la lista de resultados de
+# siempre y a otra cosa.
+ASISTENTE_TIMEOUT=8
+
+# Cuánto se guarda cada respuesta. Cien ciudadanos preguntando lo mismo no
+# pueden costar cien llamadas a una API que se paga por uso.
+ASISTENTE_CACHE_HORAS=24

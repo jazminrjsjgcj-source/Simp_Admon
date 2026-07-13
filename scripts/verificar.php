@@ -101,6 +101,25 @@ $comprobaciones = [
         ['tests/Feature/DashboardEscalaTest.php', null, 'la prueba de que el coste no crece con los datos'],
     ],
 
+    'Buscador — entiende preguntas, no solo palabras clave' => [
+        ['app/Services/SearchQueryNormalizer.php', 'pagar', 'las palabras de pregunta ya no llegan al full-text'],
+        ['app/Services/BuscadorService.php', 'prepararConsultaFulltext(array $palabras', 'el full-text usa las palabras YA LIMPIAS'],
+        ['app/Services/BuscadorService.php', 'zzzznoexiste', 'un tsquery malformado ya no tumba el buscador con un error 500'],
+        ['tests/Feature/BuscadorEntiendePreguntasTest.php', 'no_tumba_el_buscador', 'la prueba del error 500'],
+    ],
+
+    'Asistente del buscador (IA)' => [
+        ['config/punta.php', "'asistente'", 'el bloque de configuración'],
+        ['config/punta.php', 'deepseek-v4-flash', 'el modelo VIGENTE (deepseek-chat muere el 24/07/2026)'],
+        ['app/Services/AsistenteRespuestaService.php', 'fragmento', 'lee las claves REALES del buscador (no las que me inventé)'],
+        ['app/Services/AsistenteRespuestaService.php', 'textoCompleto', 'manda el artículo ENTERO, no los 250 caracteres del extracto'],
+        ['app/Services/AsistenteRespuestaService.php', "'thinking'", 'el razonamiento apagado (si no, pagas 40x por nada)'],
+        ['app/Services/BuscadorService.php', 'AsistenteRespuestaService', 'el asistente está enganchado'],
+        ['app/Services/BuscadorService.php', 'private function responder', 'los TRES retornos unificados (si no, se olvida en uno)'],
+        ['app/Console/Commands/ProbarAsistente.php', null, 'el comando para probarlo sin tocar la interfaz'],
+        ['tests/Feature/AsistenteRespuestaTest.php', 'fuente_inventada', 'la prueba de que NO puede inventar'],
+    ],
+
     'Vistas — el sistema sabía y la pantalla callaba' => [
         ['resources/views/screens/tramites/show.blade.php', 'costoDeEsperaCalculable', 'aviso de costo incompleto'],
         ['resources/views/screens/tramites/show.blade.php', 'catalogosDesactualizados', 'aviso de catálogo cambiado tras firmar'],
@@ -131,10 +150,27 @@ $comprobaciones = [
         ['scripts/sabotaje.php', null, 'el saboteador'],
     ],
 
+    'EL BUG DE FONDO — un artículo no repite el título de su capítulo' => [
+        ['app/Services/RegulacionEstructuradorService.php', 'unirEncabezadosPartidos', 'los encabezados partidos en dos líneas se unen (SECCIÓN III / IMPUESTOS SOBRE...)'],
+        ['app/Services/RegulacionEstructuradorService.php', 'rellenarContexto', 'cada nodo hereda el texto de su título, capítulo y sección'],
+        ['app/Models/RegulacionNodo.php', "'contexto'", 'la columna está en el fillable'],
+        ['app/Services/BuscadorService.php', 'coalesce(n.contexto', 'el buscador busca sobre TEXTO + CONTEXTO'],
+        ['app/Services/BuscadorService.php', 'MINIMO_PARA_DESCARTAR', 'el filtro de palabras comunes no se rompe en corpus pequeños'],
+        ['app/Services/AsistenteRespuestaService.php', 'Ubicación en la ley', 'AL MODELO también se le enseña el contexto (si no, tiene la respuesta delante y no la ve)'],
+        ['tests/Feature/ArticuloQueRespondeLlegaTest.php', 'contexto', 'la prueba usa el árbol real, no artículos huérfanos'],
+    ],
+
+    'Seguridad del log de búsquedas' => [
+        ['app/Services/BusquedaLogService.php', "where('user_id', Auth::id())", 'no se puede votar sobre las búsquedas de OTRA persona'],
+        ['app/Services/BusquedaLogService.php', 'updateOrInsert', 'un voto por persona y resultado (si no, se puede votar mil veces)'],
+        ['tests/Feature/BusquedaLogSeguridadTest.php', null, 'las pruebas del candado'],
+    ],
+
     'Ya NO deberían existir' => [
         ['tests/Feature/ExampleTest.php', 'NO_DEBE_EXISTIR', 'la prueba de fábrica que siempre estaba roja'],
         ['tests/Unit/ExampleTest.php', 'NO_DEBE_EXISTIR', 'la que solo afirmaba que true === true'],
-        ['tests/Feature/SiglasDesdeNombreTest.php', 'NO_DEBE_EXISTIR', 'la copia duplicada que rompía PHPUnit'],
+        ['tests/Feature/SiglasDesdeNombreTest.php', 'NO_DEBE_EXISTIR', 'copia duplicada: va en tests/Unit, no en Feature'],
+        ['tests/Feature/ActualizacionPorIdSeguraTest.php', 'NO_DEBE_EXISTIR', 'copia duplicada: va en tests/Unit, no en Feature'],
     ],
 ];
 
@@ -264,4 +300,5 @@ foreach ($faltan as $f) {
     echo "    · {$f}\n";
 }
 echo "\n";
+
 exit(1);

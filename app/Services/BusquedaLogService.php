@@ -86,12 +86,56 @@ class BusquedaLogService
     public function registrarClic(int $logId, string $tipoResultado, int $resultadoId): void
     {
         try {
-            DB::table('busqueda_log')
+            // ══════════════════════════════════════════════════════════════════
+            // EL CANDADO: solo puedes tocar TUS PROPIAS búsquedas
+            // ══════════════════════════════════════════════════════════════════
+            //
+            // El $logId viene del NAVEGADOR. El controlador lo valida como entero... y nada más.
+            // Comprueba el TIPO, no la PROPIEDAD.
+            //
+            // Sin este ->where('user_id'), cualquiera podía escribir con F12:
+            //
+            //     for (let i = 1; i < 100000; i++) {
+            //         fetch('/buscar/clic', { body: JSON.stringify({ log_id: i, ... }) });
+            //     }
+            //
+            // Y sobrescribir el registro de clic de TODAS las búsquedas del Ayuntamiento.
+            //
+            // ── Por qué esto importa más de lo que parece ──
+            //
+            // El docblock de esta clase lo dice: estos datos son "los inputs directos para un
+            // futuro modelo de ranking" y "training labels".
+            //
+            // Un buscador que aprende de datos manipulables SE PUEDE ENVENENAR. Alguien marca su
+            // trámite como el clicado en cien consultas, y el ranking empieza a favorecerlo. Y
+            // como el modelo se entrena solo, NADIE SABRÁ POR QUÉ el buscador se volvió raro.
+            //
+            // No es un bug de hoy: es un bug de dentro de un año, cuando el modelo esté entrenado
+            // y nadie recuerde de dónde salieron los datos.
+            $filas = DB::table('busqueda_log')
                 ->where('id', $logId)
+                ->where('user_id', Auth::id())
                 ->update([
                     'resultado_clickeado_tipo' => $tipoResultado,
                     'resultado_clickeado_id'   => $resultadoId,
                 ]);
+
+            if ($filas === 0) {
+                // Esa búsqueda no es suya. O no existe, o es de otra persona.
+                //
+                // NO SE ABORTA NADA, y es deliberado: esto es una bitácora pasiva, y reventar la
+                // navegación de un ciudadano por un registro de clic sería mucho peor que el bug
+                // que estamos cerrando. Simplemente no se escribe.
+                //
+                // Pero SÍ se registra. Un intento fallido es tan informativo como uno que sale
+                // bien: significa que hay alguien probando ids que no son suyos. Sin este log,
+                // podría hacerlo mil veces y nadie lo sabría nunca.
+                Log::warning('BusquedaLog: intento de registrar un clic en una búsqueda ajena.', [
+                    'log_id'     => $logId,
+                    'usuario_id' => Auth::id(),
+                    'ip'         => request()?->ip(),
+                ]);
+            }
         } catch (Throwable $e) {
             Log::warning('BusquedaLog: no se pudo registrar clic', [
                 'error' => $e->getMessage(),
@@ -101,14 +145,14 @@ class BusquedaLogService
     }
 
     /**
-     * Registra feedback (👍 o 👎) sobre un resultado.
+     * Registra el voto del usuario sobre un resultado: le sirvió o no le sirvió.
      *
      * @param  int         $busquedaLogId  ID del registro en busqueda_log.
      * @param  string      $consulta       La consulta que produjo este resultado.
      * @param  string      $tipoResultado  Tipo del resultado.
      * @param  int         $resultadoId    ID del resultado en su tabla de origen.
      * @param  string|null $titulo         Título del resultado (para contexto).
-     * @param  bool        $util           true = 👍, false = 👎.
+     * @param  bool        $util           true = le sirvió, false = no le sirvió.
      * @return bool
      */
     public function registrarFeedback(
@@ -120,16 +164,56 @@ class BusquedaLogService
         bool $util
     ): bool {
         try {
-            DB::table('busqueda_feedback')->insert([
-                'user_id'           => Auth::id(),
-                'busqueda_log_id'   => $busquedaLogId,
-                'consulta'          => mb_substr($consulta, 0, 500),
-                'tipo_resultado'    => $tipoResultado,
-                'resultado_id'      => $resultadoId,
-                'titulo_resultado'  => $titulo ? mb_substr($titulo, 0, 500) : null,
-                'util'              => $util,
-                'created_at'        => now(),
-            ]);
+            $usuarioId = Auth::id();
+
+            // ── CANDADO 1: la búsqueda tiene que ser TUYA ──
+            //
+            // El $busquedaLogId viene del navegador. Sin esta comprobación, cualquiera podía votar
+            // sobre las búsquedas de otras personas — y estos datos son las "training labels" de
+            // un futuro modelo de ranking. Un buscador entrenado con votos manipulados es un
+            // buscador envenenado, y nadie sabría por qué.
+            $esSuya = DB::table('busqueda_log')
+                ->where('id', $busquedaLogId)
+                ->where('user_id', $usuarioId)
+                ->exists();
+
+            if (! $esSuya) {
+                Log::warning('BusquedaLog: intento de votar sobre una búsqueda ajena.', [
+                    'busqueda_log_id' => $busquedaLogId,
+                    'usuario_id'      => $usuarioId,
+                    'ip'              => request()?->ip(),
+                ]);
+
+                return false;
+            }
+
+            // ── CANDADO 2: un voto por persona y resultado ──
+            //
+            // Sin esto, un solo usuario puede votar MIL VECES el mismo resultado con un bucle de
+            // fetch(). Y mil votos "útil" sobre un trámite lo empujarían al primer puesto del
+            // ranking en cuanto el modelo se entrene.
+            //
+            // El candado 1 impide votar en búsquedas ajenas. Este impide inflar las propias. Los
+            // dos hacen falta: sin el segundo, basta con hacer una búsqueda y votarla diez mil
+            // veces.
+            //
+            // updateOrInsert en vez de insert: si ya votó, se CAMBIA su voto. Es lo que un
+            // usuario espera cuando pulsa "Sí" después de haber pulsado "No".
+            DB::table('busqueda_feedback')->updateOrInsert(
+                [
+                    'user_id'         => $usuarioId,
+                    'busqueda_log_id' => $busquedaLogId,
+                    'tipo_resultado'  => $tipoResultado,
+                    'resultado_id'    => $resultadoId,
+                ],
+                [
+                    'consulta'         => mb_substr($consulta, 0, 500),
+                    'titulo_resultado' => $titulo ? mb_substr($titulo, 0, 500) : null,
+                    'util'             => $util,
+                    'created_at'       => now(),
+                ]
+            );
+
             return true;
         } catch (Throwable $e) {
             Log::warning('BusquedaLog: no se pudo registrar feedback', [

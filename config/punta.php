@@ -208,4 +208,109 @@ return [
         'Otro',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Asistente del buscador (DeepSeek)
+    |--------------------------------------------------------------------------
+    |
+    | Redacta una respuesta en lenguaje natural a partir de los resultados que el
+    | buscador YA encontró. No busca, no consulta la base, no sabe nada de PUNTA.
+    | Solo lee lo que se le pasa y lo redacta.
+    |
+    | ── LA REGLA QUE GOBIERNA TODO ESTO ──
+    |
+    |     La IA no aporta información. Aporta redacción.
+    |
+    | Todo lo que diga tiene que salir de las fuentes que se le entregan. Si esas
+    | fuentes no contienen la respuesta, el asistente devuelve null y el usuario ve
+    | la lista de resultados de siempre. NUNCA se inventa un dato.
+    |
+    | No es una precaución exagerada. El propio código del buscador ya lo dice, en
+    | el comentario de FeaturedAnswerService: las definiciones extraídas tienen
+    | confianza "media" pero "siguen siendo una fuente legal real — NO ES TEXTO
+    | INVENTADO".
+    |
+    | Quien construyó PUNTA ya tomó esa decisión. Una IA que responda de su cabeza
+    | la rompería el primer día: un ciudadano preguntaría cuánto cuesta su licencia,
+    | el sistema se inventaría una cifra plausible, y esa persona se presentaría en
+    | ventanilla con el dinero equivocado. Nadie lo detectaría, porque la cifra sería
+    | perfectamente razonable.
+    |
+    */
+    'asistente' => [
+
+        // El interruptor. Con esto en false, el asistente NO HACE NINGUNA LLAMADA:
+        // sale antes de tocar la red. El buscador funciona exactamente como hoy.
+        //
+        // Es lo primero que hay que apagar si algo va mal en producción. Sin
+        // despliegue, sin migración, sin tocar código.
+        'activo' => env('ASISTENTE_ACTIVO', false),
+
+        'api_key' => env('DEEPSEEK_API_KEY'),
+        'url'     => env('DEEPSEEK_URL', 'https://api.deepseek.com/chat/completions'),
+
+        // ⚠️ OJO CON EL NOMBRE DEL MODELO ⚠️
+        //
+        // NO uses 'deepseek-chat'. Ese nombre —y 'deepseek-reasoner'— quedan
+        // RETIRADOS E INACCESIBLES el 24 de julio de 2026 a las 15:59 UTC. Después
+        // de esa fecha, cualquier petición que los use falla con un error.
+        //
+        // No es una obsolescencia suave: es un corte duro, sin prórroga anunciada.
+        //
+        // Los nombres vigentes son 'deepseek-v4-flash' (barato, rápido, suficiente
+        // para redactar) y 'deepseek-v4-pro' (más caro, razona mejor). Para lo que
+        // hace este asistente —resumir cuatro artículos en tres frases— el Flash
+        // sobra.
+        'modelo' => env('DEEPSEEK_MODELO', 'deepseek-v4-flash'),
+
+        // Ocho segundos y ni uno más.
+        //
+        // Un buscador municipal no puede quedarse colgado esperando a una API
+        // externa. Si DeepSeek tarda, el ciudadano prefiere ver su lista de
+        // resultados AHORA que una respuesta bonita dentro de treinta segundos.
+        //
+        // Si se agota el plazo, se registra en el log y se devuelve null: la
+        // búsqueda sigue su curso como si el asistente no existiera.
+        'timeout' => (int) env('ASISTENTE_TIMEOUT', 8),
+
+        // Cuántos resultados se le pasan como contexto.
+        //
+        // ── POR QUÉ SUBIÓ DE 8 A 20 ──
+        //
+        // Cuando el buscador usaba AND, los pocos resultados que llegaban eran precisos: si
+        // sobrevivían al AND, era porque contenían todas las palabras. Ocho bastaban.
+        //
+        // Ahora el buscador usa OR, y trae MUCHO más ruido a propósito. Ese era el trato: el
+        // buscador no tiene que acertar, solo NO PERDERSE la respuesta. Filtrar es trabajo del
+        // asistente, que sabe leer.
+        //
+        // Pero si solo se le pasaran los 8 primeros, el bueno podría quedarse fuera. En el caso
+        // real que motivó todo esto —"cuánto cuesta el permiso para ambulantes"— el artículo
+        // EQUIVOCADO (sanciones por desacato) puntúa MÁS ALTO que el correcto, porque contiene
+        // las dos palabras de la búsqueda. Si el corte fuera estrecho, el asistente recibiría la
+        // basura y no la respuesta.
+        //
+        // Veinte le dan margen para encontrarla. Y como el modelo tiene instrucciones explícitas
+        // de IGNORAR lo que no responda, el ruido extra no le estorba: lo descarta.
+        //
+        // El coste: unos 6.000 tokens por búsqueda en vez de 2.000. Con deepseek-v4-flash a
+        // $0.14 el millón, son ocho diezmilésimas de dólar. Mil búsquedas cuestan menos de un
+        // dólar. No es el cuello de botella.
+        'max_fuentes' => (int) env('ASISTENTE_MAX_FUENTES', 20),
+
+        // Cuánto texto de cada fuente. Un artículo largo se recorta.
+        'max_caracteres_por_fuente' => (int) env('ASISTENTE_MAX_CHARS', 800),
+
+        // Cuánto se guarda la respuesta en caché.
+        //
+        // Dos motivos, y los dos importan: cada llamada cuesta dinero, y la misma
+        // pregunta hecha por cien ciudadanos no puede costar cien llamadas.
+        //
+        // La caché se invalida SOLA cuando cambian los resultados, porque la clave
+        // incluye los identificadores de las fuentes: si se reestructura una
+        // regulación y el buscador devuelve otros artículos, la clave cambia y se
+        // vuelve a preguntar. Nadie tiene que acordarse de limpiarla.
+        'cache_horas' => (int) env('ASISTENTE_CACHE_HORAS', 24),
+    ],
+
 ];

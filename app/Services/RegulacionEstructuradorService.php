@@ -70,6 +70,68 @@ class RegulacionEstructuradorService
 
             $markdown = $this->normalizarFraccionesInline($markdown);
             $lineas = preg_split('/\r\n|\r|\n/', $markdown);
+
+            // ══════════════════════════════════════════════════════════════════
+            // UNIR LOS ENCABEZADOS PARTIDOS EN DOS LÍNEAS
+            // ══════════════════════════════════════════════════════════════════
+            //
+            // Esta línea arregla el bug más profundo del buscador, y conviene entender por qué.
+            //
+            // ── Cómo llega el texto ──
+            //
+            // En el PDF, un encabezado se imprime en DOS RENGLONES:
+            //
+            //     SECCIÓN III
+            //     IMPUESTOS SOBRE ESPECTÁCULOS PÚBLICOS
+            //
+            // Y pdftotext los extrae como DOS LÍNEAS. Comprobado sobre la Ley de Hacienda:
+            //
+            //     1036:                    SECCIÓN III
+            //     1037:          IMPUESTOS SOBRE ESPECTÁCULOS PÚBLICOS
+            //
+            // ── Qué hacía el parser ──
+            //
+            // Procesa línea a línea. Así que:
+            //
+            //     "SECCIÓN III"                            → reconoce el patrón.
+            //                                                Crea una sección con número III
+            //                                                y TEXTO VACÍO.
+            //
+            //     "IMPUESTOS SOBRE ESPECTÁCULOS PÚBLICOS"  → no empieza por "SECCIÓN".
+            //                                                Lo vuelca como PÁRRAFO HUÉRFANO.
+            //
+            // La sección existe. Pero SIN NOMBRE. Y su nombre queda tirado como un párrafo.
+            //
+            // ── Las consecuencias, que fueron muchas ──
+            //
+            // Una sola causa, cinco síntomas, y se tardó una tarde entera en verlo:
+            //
+            //   1. El buscador devolvía "rótulos" en mayúsculas que no decían nada. ERAN LOS
+            //      NOMBRES DE LOS CAPÍTULOS, huérfanos.
+            //
+            //   2. Buscar "espectáculos públicos" no encontraba el artículo 65 (el que dice
+            //      "el 8%"), porque ese artículo solo dice "espectáculo" en singular: el
+            //      contexto lo daba su SECCIÓN... que no tenía nombre.
+            //
+            //   3. Buscar "impuestos al patrimonio" no encontraba el impuesto predial. El
+            //      artículo 26 nunca dice "patrimonio": está DENTRO del capítulo "IMPUESTOS
+            //      SOBRE EL PATRIMONIO", que tampoco tenía nombre.
+            //
+            //   4. Se acabó filtrando esos rótulos de la búsqueda por "vacíos"... tirando la
+            //      única fuente de contexto que había.
+            //
+            //   5. La columna `contexto` (que hereda el texto de los ancestros) habría heredado
+            //      capítulos SIN NOMBRE. El arreglo entero habría fallado en silencio.
+            //
+            // ── El arreglo ──
+            //
+            // Si una línea es un encabezado SIN TEXTO (solo "SECCIÓN III") y la siguiente es
+            // corta y en mayúsculas, se unen. Queda:
+            //
+            //     "SECCIÓN III IMPUESTOS SOBRE ESPECTÁCULOS PÚBLICOS"
+            //
+            // Que es exactamente lo que el preg_match de detectarEncabezado() espera.
+            $lineas = $this->unirEncabezadosPartidos($lineas);
             $creados = 0;
 
             // Contexto de inserción: el nodo "contenedor" actual de cada nivel.
@@ -270,6 +332,17 @@ class RegulacionEstructuradorService
                         }
                     });
             }
+
+            // El contexto se calcula AL FINAL, con el árbol ya completo.
+            //
+            // Se hace aquí y no dentro de los cuatro sitios que crean nodos, por un motivo muy
+            // concreto: si estuviera repartido en cuatro, alguien añadiría un quinto tipo de nodo
+            // y se olvidaría de rellenarlo. Ya nos pasó con las cinco listas del dashboard —
+            // cuatro tenían límite y una no.
+            //
+            // Un valor que hay que recordar poner en cuatro sitios es un valor que alguien va a
+            // olvidar en uno de los cuatro.
+            $this->rellenarContexto($regulacion);
 
             $regulacion->update(['estructurada' => true]);
 
@@ -715,6 +788,184 @@ class RegulacionEstructuradorService
     }
 
     /** Líneas de la cabecera autogenerada del conversor que no son articulado. */
+    /**
+     * Guarda en cada nodo el texto de sus ancestros estructurales.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * POR QUÉ ESTO EXISTE
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * Un ciudadano pregunta "¿cuáles son los impuestos al patrimonio?" y el buscador no encuentra
+     * el impuesto predial.
+     *
+     * ¿Por qué? Porque el artículo 26 dice:
+     *
+     *     "Son objeto del Impuesto Predial, la propiedad, usufructo, goce, uso y posesión..."
+     *
+     * Y NUNCA dice "patrimonio". No le hace falta: ya está DENTRO del capítulo "IMPUESTOS SOBRE
+     * EL PATRIMONIO".
+     *
+     * Lo mismo con el artículo 65, el que dice "el 8%": habla de "el espectáculo que corresponda"
+     * —singular, sin "públicos"— porque ya está dentro de la sección "IMPUESTOS SOBRE
+     * ESPECTÁCULOS PÚBLICOS".
+     *
+     * ── La regla, que es lo importante ──
+     *
+     *     EN TODA LEY BIEN REDACTADA, UN ARTÍCULO NO REPITE EL TÍTULO DE SU CAPÍTULO.
+     *
+     * Sería redundante. El contexto lo da la estructura, no la frase.
+     *
+     * Y de ahí se sigue algo incómodo: cuanto MEJOR escrito está un artículo, MENOS palabras del
+     * tema repite. Y más invisible se vuelve para un buscador que solo mira texto plano.
+     *
+     * Estábamos penalizando la buena redacción jurídica.
+     *
+     * ── Qué se guarda ──
+     *
+     *     Artículo 26 → contexto: "TÍTULO SEGUNDO IMPUESTOS. CAPÍTULO II IMPUESTOS SOBRE EL
+     *                              PATRIMONIO. SECCIÓN I IMPUESTO PREDIAL."
+     *
+     * Y el buscador busca sobre TEXTO + CONTEXTO.
+     *
+     * ── Solo los ancestros ESTRUCTURALES ──
+     *
+     * Título, capítulo y sección. Un artículo padre NO aporta contexto: si una fracción cuelga
+     * del artículo 26, el texto entero del 26 es demasiado largo y específico para servir de
+     * contexto. Metería ruido, no señal.
+     */
+    private function rellenarContexto(Regulacion $regulacion): void
+    {
+        $estructurales = [
+            RegulacionNodo::TIPO_TITULO,
+            RegulacionNodo::TIPO_CAPITULO,
+            RegulacionNodo::TIPO_SECCION,
+        ];
+
+        // Todo el árbol en memoria, de una sola consulta. Un articulado tiene miles de nodos pero
+        // son filas pequeñas; subir por parent_id con una consulta por nodo sería un N+1 de manual.
+        $nodos = $regulacion->nodos()
+            ->get(['id', 'parent_id', 'tipo', 'numero', 'texto'])
+            ->keyBy('id');
+
+        foreach ($nodos as $nodo) {
+            $ancestros = [];
+            $actual    = $nodo;
+            $vueltas   = 0;
+
+            // Se sube por el árbol hasta la raíz.
+            //
+            // El límite de vueltas es una red contra un ciclo en parent_id. No debería existir
+            // —esto construye un árbol, no un grafo— pero un bucle infinito aquí colgaría el
+            // worker sin dar ningún error, y eso es peor que un contexto incompleto.
+            while ($actual->parent_id !== null && $vueltas++ < 20) {
+                $padre = $nodos->get($actual->parent_id);
+
+                if (! $padre) {
+                    break;
+                }
+
+                if (in_array($padre->tipo, $estructurales, true)) {
+                    $etiqueta = trim(($padre->numero ? $padre->numero . ' ' : '') . ($padre->texto ?? ''));
+
+                    if ($etiqueta !== '') {
+                        array_unshift($ancestros, $etiqueta);
+                    }
+                }
+
+                $actual = $padre;
+            }
+
+            $contexto = $ancestros !== [] ? implode('. ', $ancestros) : null;
+
+            // updateQuietly: esto es un dato DERIVADO del árbol, no un cambio de contenido. No
+            // tiene sentido que dispare observers ni ensucie la bitácora con miles de líneas.
+            if ($nodo->contexto !== $contexto) {
+                RegulacionNodo::whereKey($nodo->id)->update(['contexto' => $contexto]);
+            }
+        }
+    }
+
+    /**
+     * Une los encabezados que el PDF partió en dos líneas.
+     *
+     *     "SECCIÓN III"                            ┐
+     *     "IMPUESTOS SOBRE ESPECTÁCULOS PÚBLICOS"  ┘ →  "SECCIÓN III IMPUESTOS SOBRE ESPECT..."
+     *
+     * ── Cuándo se unen ──
+     *
+     * Solo si se cumplen TODAS estas condiciones. Cada una está para evitar un falso positivo
+     * concreto:
+     *
+     *   1. La primera línea es un encabezado (TÍTULO / CAPÍTULO / SECCIÓN) **sin texto**: solo
+     *      la palabra y su número. Si ya trae su nombre en la misma línea, no hay nada que unir.
+     *
+     *   2. La siguiente línea existe, no está vacía, y NO es a su vez otro encabezado. Un
+     *      "CAPÍTULO I" seguido de "SECCIÓN I" son dos cosas distintas, no una partida en dos.
+     *
+     *   3. La siguiente línea NO empieza por "Artículo". Este es el caso importante:
+     *
+     *          CAPÍTULO VI
+     *          Artículo 71.- Los ingresos...
+     *
+     *      Ahí el capítulo NO tiene nombre —los hay así— y el artículo es su contenido, no su
+     *      título. Unirlos destrozaría el artículo 71.
+     *
+     *   4. La siguiente línea es CORTA (menos de 120 caracteres) y está EN MAYÚSCULAS. Es la
+     *      firma de un título: los nombres de capítulo se imprimen así, y ningún párrafo de
+     *      texto legal lo está.
+     *
+     * ── Por qué no se toca nada más ──
+     *
+     * Es tentador ser más listo aquí: unir tres líneas, adivinar por la sangría, mirar el
+     * espaciado. No.
+     *
+     * Un parser que adivina de más produce un articulado plausible y equivocado — y eso es lo
+     * peor que puede pasar, porque nadie lo detecta. Es mejor dejar un capítulo sin nombre que
+     * fusionar un artículo con su encabezado.
+     *
+     * @param  array<string>  $lineas
+     * @return array<string>
+     */
+    private function unirEncabezadosPartidos(array $lineas): array
+    {
+        $resultado = [];
+        $total     = count($lineas);
+
+        for ($i = 0; $i < $total; $i++) {
+            $actual = trim($lineas[$i]);
+
+            // ¿Es un encabezado a secas, sin nombre? ("SECCIÓN III", "CAPÍTULO II")
+            $esEncabezadoSinNombre = (bool) preg_match(
+                '/^(t[íi]tulo|cap[íi]tulo|secci[óo]n)\s+[IVXLCDM0-9]+(\s*[\-\.]?\s*BIS)?\s*$/iu',
+                $actual
+            );
+
+            if (! $esEncabezadoSinNombre || $i + 1 >= $total) {
+                $resultado[] = $lineas[$i];
+                continue;
+            }
+
+            $siguiente = trim($lineas[$i + 1]);
+
+            // La siguiente línea tiene que parecer el NOMBRE del encabezado.
+            $pareceNombre = $siguiente !== ''
+                && mb_strlen($siguiente) < 120
+                && ! preg_match('/^art[íi]culo\b/iu', $siguiente)   // es contenido, no un nombre
+                && ! preg_match('/^(t[íi]tulo|cap[íi]tulo|secci[óo]n)\b/iu', $siguiente) // es otro encabezado
+                && $siguiente === mb_strtoupper($siguiente);          // los nombres van en mayúsculas
+
+            if ($pareceNombre) {
+                $resultado[] = $actual . ' ' . $siguiente;
+                $i++; // se consume también la línea del nombre
+                continue;
+            }
+
+            $resultado[] = $lineas[$i];
+        }
+
+        return $resultado;
+    }
+
     private function esRuidoDeCabecera(string $texto): bool
     {
         $patrones = ['Regulación generada automáticamente', '**Tipo:**', '**Fecha', '**Dependencia'];
