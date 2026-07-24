@@ -21,7 +21,7 @@
     </div>
     <h2 style="margin:0 0 4px;color:var(--primary)">{{ $tramite->nombre_oficial }}</h2>
     <p style="margin:0;color:var(--muted);font-size:13px">
-      {{ $tramite->dependencia->nombre ?? '—' }}
+      {{ $tramite->dependencia->nombre ?? '' }}
       @if($tramite->unidad) · {{ $tramite->unidad->nombre }} @endif
     </p>
   </div>
@@ -81,11 +81,11 @@
         <div class="review-data-grid">
           <div><span>Nombre oficial</span><strong>{{ $tramite->nombre_oficial }}</strong></div>
           <div><span>Tipo</span><strong>{{ $tramite->tipoLegible() }}</strong></div>
-          <div><span>Dependencia</span><strong>{{ $tramite->dependencia->nombre ?? '—' }}</strong></div>
-          <div><span>Unidad administrativa</span><strong>{{ $tramite->unidad->nombre ?? '—' }}</strong></div>
-          <div><span>Objetivo</span><strong>{{ $tramite->objetivo ?? '—' }}</strong></div>
-          <div><span>Población objetivo</span><strong>{{ $tramite->poblacion_objetivo ?? '—' }}</strong></div>
-          <div><span>Plazo de resolución</span><strong>{{ $tramite->plazo_resolucion_cantidad ? $tramite->plazo_resolucion_cantidad . ' ' . $tramite->plazo_resolucion_unidad : '—' }}</strong></div>
+          <div><span>Dependencia</span><strong>{{ $tramite->dependencia->nombre ?? '' }}</strong></div>
+          <div><span>Unidad administrativa</span><strong>{{ $tramite->unidad->nombre ?? '' }}</strong></div>
+          <div><span>Objetivo</span><strong>{{ $tramite->objetivo ?? '' }}</strong></div>
+          <div><span>Población objetivo</span><strong>{{ $tramite->poblacion_objetivo ?? '' }}</strong></div>
+          <div><span>Plazo de resolución</span><strong>{{ $tramite->plazo_resolucion_cantidad ? $tramite->plazo_resolucion_cantidad . ' ' . $tramite->plazo_resolucion_unidad : '' }}</strong></div>
           <div><span>Nivel de digitalización</span><strong>{{ $tramite->nivel_digitalizacion ?? 'No registrado' }}</strong></div>
         </div>
       </div>
@@ -382,8 +382,8 @@
             <div><span>Versión</span><strong>v{{ $reing->version }}</strong></div>
             <div><span>Origen</span><strong>{{ $reing->origen === 'agenda' ? 'Agenda de Digitalización' : 'Reingeniería directa' }}</strong></div>
             @if($reing->esDirecta())
-              <div><span>Motivo</span><strong>{{ ucfirst(str_replace('_', ' ', $reing->motivo_directa ?? '—')) }}</strong></div>
-              <div class="u-span-2"><span>Justificación</span><strong>{{ $reing->justificacion ?? '—' }}</strong></div>
+              <div><span>Motivo</span><strong>{{ ucfirst(str_replace('_', ' ', $reing->motivo_directa ?? '')) }}</strong></div>
+              <div class="u-span-2"><span>Justificación</span><strong>{{ $reing->justificacion ?? '' }}</strong></div>
             @endif
             @if($reing->hash_reingenieria)
               <div class="u-span-2"><span>Hash de reingeniería</span><strong style="font-family:monospace;font-size:11px;word-break:break-all">{{ $reing->hash_reingenieria }}</strong></div>
@@ -569,9 +569,9 @@
                 @foreach($descargas as $d)
                   <tr>
                     <td style="font-size:12px">{{ \Carbon\Carbon::parse($d->created_at)->format('d/m/Y H:i') }}</td>
-                    <td style="font-size:12px">{{ $d->usuario->name ?? '—' }}</td>
+                    <td style="font-size:12px">{{ $d->usuario->name ?? '' }}</td>
                     <td><span class="chip chip-gray" style="text-transform:uppercase">{{ $d->formato }}</span></td>
-                    <td style="font-family:monospace;font-size:10px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">{{ $d->hash_archivo_generado ?? '—' }}</td>
+                    <td style="font-family:monospace;font-size:10px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">{{ $d->hash_archivo_generado ?? '' }}</td>
                   </tr>
                 @endforeach
               </tbody>

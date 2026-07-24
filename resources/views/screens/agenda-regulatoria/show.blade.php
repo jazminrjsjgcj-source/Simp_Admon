@@ -58,8 +58,8 @@
 
     <h1 class="title-primary">{{ $propuesta->nombre ?: 'Sin nombre' }}</h1>
     <p class="text-muted-sm">
-      {{ $propuesta->tipo_regulacion ?? '—' }} ·
-      {{ $propuesta->dependencia->nombre ?? '—' }} ·
+      {{ $propuesta->tipo_regulacion ?? '' }} ·
+      {{ $propuesta->dependencia->nombre ?? '' }} ·
       @if($propuesta->fecha_tentativa)
         Presentación tentativa: {{ \Carbon\Carbon::parse($propuesta->fecha_tentativa)->format('d/m/Y') }}
       @endif
@@ -76,17 +76,17 @@
     </div>
     <div class="card-body-padded">
       <div class="modal-grid">
-        <div class="modal-data-item"><span>1. Responsable</span><strong>{{ $d['responsable_nombre'] ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>1.1 Cargo</span><strong>{{ $d['responsable_cargo'] ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>2. Tipo de regulación</span><strong>{{ $propuesta->tipo_regulacion ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>3. Materia</span><strong>{{ $d['materia'] ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>1. Responsable</span><strong>{{ $d['responsable_nombre'] ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>1.1 Cargo</span><strong>{{ $d['responsable_cargo'] ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>2. Tipo de regulación</span><strong>{{ $propuesta->tipo_regulacion ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>3. Materia</span><strong>{{ $d['materia'] ?? '' }}</strong></div>
         {{--
           Bug 3 corregido: el HTML no acepta dos atributos class en el mismo elemento.
           La clase u-span-2 se une al class existente en vez de escribir class="... ..."
         --}}
-        <div class="modal-data-item u-span-2"><span>4. Nombre preliminar</span><strong>{{ $propuesta->nombre ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Dependencia responsable</span><strong>{{ $propuesta->dependencia->nombre ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Sujeto Obligado</span><strong>{{ $d['sujeto_obligado_nombre'] ?? \App\Models\SujetoObligado::vigenteDe($propuesta->dependencia_id)?->nombre ?? '—' }}</strong></div>
+        <div class="modal-data-item u-span-2"><span>4. Nombre preliminar</span><strong>{{ $propuesta->nombre ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Dependencia responsable</span><strong>{{ $propuesta->dependencia->nombre ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Sujeto Obligado</span><strong>{{ $d['sujeto_obligado_nombre'] ?? \App\Models\SujetoObligado::vigenteDe($propuesta->dependencia_id)?->nombre ?? '' }}</strong></div>
       </div>
     </div>
   </div>
@@ -214,7 +214,7 @@
         @if($air)
           <div class="modal-data-item">
             <span>Folio AIR</span>
-            <strong>{{ $air->folio ?? '—' }}</strong>
+            <strong>{{ $air->folio ?? '' }}</strong>
           </div>
           <div class="modal-data-item">
             <span>Estatus AIR</span>
@@ -331,7 +331,7 @@
         </div>
         <div class="modal-data-item">
           <span>Registrado por</span>
-          <strong>{{ $propuesta->creador->name ?? '—' }}</strong>
+          <strong>{{ $propuesta->creador->name ?? '' }}</strong>
         </div>
         <div class="modal-data-item">
           <span>Fecha de registro</span>

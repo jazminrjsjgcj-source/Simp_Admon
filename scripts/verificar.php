@@ -160,9 +160,17 @@ $comprobaciones = [
         ['tests/Feature/ArticuloQueRespondeLlegaTest.php', 'contexto', 'la prueba usa el árbol real, no artículos huérfanos'],
     ],
 
+    'Reformulador — la IA propone palabras, el buscador busca' => [
+        ['app/Services/ReformuladorConsultaService.php', 'conservaElTema', 'la IA NO puede cambiar de tema (basura -> predial sería catastrófico)'],
+        ['app/Services/ReformuladorConsultaService.php', 'Reformulador: consultas propuestas', 'deja rastro en el log de lo que propone y lo que se descarta'],
+        ['app/Services/BuscadorService.php', 'buscarConOtrasPalabras', 'el buscador reformula SOLO si no encontró nada'],
+        ['app/Console/Commands/ProbarAsistente.php', 'mostrarReformulaciones', 'el comando enseña qué propuso la IA'],
+        ['tests/Feature/ReformuladorConsultaTest.php', 'no_puede_cambiar_de_tema', 'la prueba del candado'],
+    ],
+
     'Seguridad del log de búsquedas' => [
         ['app/Services/BusquedaLogService.php', "where('user_id', Auth::id())", 'no se puede votar sobre las búsquedas de OTRA persona'],
-        ['app/Services/BusquedaLogService.php', 'updateOrInsert', 'un voto por persona y resultado (si no, se puede votar mil veces)'],
+        ['app/Services/BusquedaLogService.php', '$yaVoto', 'un voto por persona y resultado (si no, se puede votar mil veces)'],
         ['tests/Feature/BusquedaLogSeguridadTest.php', null, 'las pruebas del candado'],
     ],
 

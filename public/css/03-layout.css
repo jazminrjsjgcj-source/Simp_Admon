@@ -260,7 +260,57 @@
 .screen.active { display: grid; gap: 24px; }
 .screen-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; min-width: 0; max-width: 100%; }
 .screen-head > div { min-width: 0; max-width: 100%; }
-.screen-head h2 { margin: 0 0 4px; max-width: 100%; color: var(--text); font-size: 26px; line-height: 34px; font-weight: 800; overflow-wrap: anywhere; }
+/* El título de pantalla va en guinda, igual que los encabezados de sección: es lo
+   que marca de un vistazo dónde estás. Se usa la variable de la paleta, no el color
+   escrito, para que siga a la marca si algún día cambia. */
+.screen-head h2 { margin: 0 0 4px; max-width: 100%; color: var(--primary); font-size: 26px; line-height: 34px; font-weight: 800; overflow-wrap: anywhere; }
 .screen-head p { margin: 0; max-width: 100%; color: var(--chip-gray); font-size: 14px; line-height: 22px; font-weight: 500; overflow-wrap: anywhere; }
 .head-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: flex-end; min-width: 0; max-width: 100%; }
 .head-actions > .btn { flex: 0 1 auto; }
+
+/* ── Menú lateral colapsable (botón hamburguesa de la topbar) ── */
+/* Botón de colapsar: discreto.
+   Es una preferencia que se toca una vez y se olvida, así que no debe competir con
+   el contenido. Se queda apagado y se revela al acercar el ratón a la barra
+   superior, sin desaparecer del todo: quien no sepa que existe tiene que poder
+   encontrarlo, y quien lo use ya sabe dónde está. */
+.nav-toggle {
+  width: 34px; height: 34px;
+  border: 0; border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+  opacity: .45;
+  cursor: pointer; display: grid; place-items: center;
+  font-size: 20px; flex: 0 0 auto; margin-right: 4px;
+  transition: opacity .15s ease, color .15s ease, background-color .15s ease;
+}
+.topbar:hover .nav-toggle { opacity: .8; }
+.nav-toggle:hover {
+  opacity: 1;
+  color: var(--primary);
+  background: var(--surface-high);
+}
+.nav-toggle:focus-visible { opacity: 1; outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.nav-toggle svg { width: 22px; height: 22px; }
+
+/* Icono de cada ítem del menú */
+.nav-ico { width: 20px; height: 20px; flex: 0 0 auto; }
+
+.sidebar { transition: width .2s ease, flex-basis .2s ease, padding .2s ease; }
+.main    { transition: margin-left .2s ease, width .2s ease; }
+
+/* Colapsado = RIEL: se encoge y deja solo los iconos (el nombre queda en el
+   tooltip). No se oculta del todo, para que siempre se vea dónde estás y el
+   botón de la topbar pueda devolverlo a su ancho normal. */
+.app.sidebar-collapsed .sidebar { width: 74px; flex-basis: 74px; padding-left: 8px; padding-right: 8px; }
+.app.sidebar-collapsed .main    { margin-left: 74px; width: calc(100% - 74px); max-width: calc(100% - 74px); }
+.app.sidebar-collapsed .nav a,
+.app.sidebar-collapsed .nav button { justify-content: center; padding: 0; }
+.app.sidebar-collapsed .nav a span,
+.app.sidebar-collapsed .brand h1,
+.app.sidebar-collapsed .brand p,
+.app.sidebar-collapsed .profile-copy { display: none; }
+.app.sidebar-collapsed .brand      { padding: 0 0 14px; }
+.app.sidebar-collapsed .brand-logo { width: 46px; height: 46px; font-size: 22px; }
+.app.sidebar-collapsed .profile    { justify-content: center; padding: 14px 0 0; }

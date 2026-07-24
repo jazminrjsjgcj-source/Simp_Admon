@@ -108,7 +108,7 @@ class PdfDiagramaService
         }
 
         // ── Renderizar PDF ───────────────────────────────────────────────
-        $html = view('pdf.diagrama-oficial', [
+        $html = view('screens.pdf.diagrama-oficial', [
             'tramite'        => $tramite,
             'reingenieria'   => $reing,
             'diagrama'       => $diagrama,

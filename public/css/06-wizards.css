@@ -770,3 +770,168 @@
   color: #9ca3af;
   cursor: pointer;
 }
+/* ===========================================
+   Formulario del flujo de un proceso
+
+   Todo va plegado por defecto. Un proceso real tiene decenas de actividades, y
+   mostrarlas abiertas a la vez convierte la pantalla en un muro: quien captura
+   pierde de vista dónde está. Plegadas se ve el esqueleto —fases y el título de
+   cada actividad— y se abre solo aquella en la que se trabaja.
+   =========================================== */
+/* Encabezado de sección: en guinda, para que se distinga del texto y marque dónde
+   empieza cada bloque del formulario. */
+.flujo-titulo {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.flujo-ayuda  { margin: 0 0 14px; font-size: 12px; color: var(--muted); }
+
+/* Dos rejillas seguidas quedaban pegadas: el `gap` separa las columnas entre sí,
+   pero no una rejilla de la siguiente, y ahí es donde hacía falta el aire. */
+.flujo-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; margin-bottom: 16px; }
+.flujo-grid-2:last-child { margin-bottom: 0; }
+@media (max-width: 720px) { .flujo-grid-2 { grid-template-columns: 1fr; } }
+
+/* Fila simple: participantes y resultados */
+.flujo-fila { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 8px; }
+.flujo-fila .field { margin: 0; }
+
+/* ── Casillas de verificación ──
+   Sin esto heredan de `.field input`, que las estira al 100% del ancho y les pone
+   40px de alto: la casilla queda enorme y el texto se va al otro extremo. Y de
+   `.field label`, que las pondría en versalitas. */
+.flujo-checks { display: grid; gap: 4px; margin-top: 4px; }
+.flujo-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+  margin: 0;
+}
+/* El tamaño y el dibujo de la casilla los pone 05-forms.css para todo el sistema;
+   aquí solo se quita el margen que traería del contenedor. */
+.flujo-check input[type="checkbox"] { margin: 0; }
+
+/* ── Fase: plegable, con su resumen visible ── */
+.flujo-fase {
+  border: 1px solid var(--surface-high);
+  border-left: 4px solid var(--primary-container);
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  background: var(--surface);
+}
+.flujo-fase > summary,
+.flujo-actividad > summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  font-weight: 600;
+  font-size: 13.5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  list-style: none;
+}
+.flujo-fase > summary::-webkit-details-marker,
+.flujo-actividad > summary::-webkit-details-marker { display: none; }
+.flujo-fase > summary::before,
+.flujo-actividad > summary::before {
+  content: "▸";
+  color: var(--muted);
+  transition: transform .15s ease;
+}
+.flujo-fase[open] > summary::before,
+.flujo-actividad[open] > summary::before { transform: rotate(90deg); }
+
+.flujo-fase-cuerpo { padding: 0 14px 14px; }
+
+/* Etiqueta con el número de actividades de la fase */
+.flujo-cuenta {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--surface-low, #f3f4f6);
+  border-radius: var(--radius-pill);
+  padding: 2px 9px;
+}
+
+/* ── Actividad: también plegable ── */
+.flujo-actividad {
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius-sm);
+  margin: 8px 0;
+  background: var(--surface-low, #f9fafb);
+}
+.flujo-actividad > summary { font-weight: 500; font-size: 13px; padding: 10px 12px; }
+.flujo-actividad-cuerpo { padding: 0 12px 12px; }
+
+/* Distintivo de la actividad que revisa algo */
+.flujo-marca-decision {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #a16207;
+  background: #fef9c3;
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+}
+
+.flujo-bloque { margin-top: 8px; }
+.flujo-ruta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: end; }
+@media (max-width: 720px) { .flujo-ruta { grid-template-columns: 1fr; } }
+
+/* El detalle (pago, nota, estado) va plegado: la mayoría de actividades no lo usa. */
+.flujo-extra { margin-top: 10px; }
+.flujo-extra > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--primary);
+  padding: 4px 0;
+}
+
+.flujo-fase-titulo { font-weight: 700; }
+.flujo-act-num { color: var(--muted); font-weight: 700; min-width: 22px; }
+.flujo-act-titulo { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Botones del formulario de flujo ──
+   Quitar una fase o una actividad pesaba visualmente más que Guardar, que es la
+   acción que de verdad importa. Aquí se ordena esa jerarquía: guardar destaca,
+   agregar acompaña, y quitar es un enlace discreto que solo se tiñe de rojo al
+   apuntarlo, porque es una acción que no conviene invitar a pulsar. */
+.flujo-quitar {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 4px;
+  min-height: 0;
+  cursor: pointer;
+}
+.flujo-quitar:hover { color: var(--chip-red, #dc2626); }
+
+.flujo-agregar {
+  border: 1px dashed var(--surface-high);
+  background: transparent;
+  box-shadow: none;
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  min-height: 0;
+  cursor: pointer;
+}
+.flujo-agregar:hover { border-color: var(--primary); background: var(--surface-tint); }

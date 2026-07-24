@@ -113,6 +113,18 @@ class ProbarAsistente extends Command
             $this->line('');
             $this->line('  El asistente ni siquiera se llamó, y es correcto: sin fuentes no puede');
             $this->line('  saber nada. Pedirle que responda igualmente sería pedirle que se lo invente.');
+            $this->line('');
+
+            // ── QUÉ PROPUSO EL REFORMULADOR ──
+            //
+            // Sin esto, un "cero resultados" tiene TRES causas posibles y todas se ven igual:
+            //
+            //   · El modelo propuso frases en vez de términos → se descartaron.
+            //   · El modelo cambió de tema                    → se descartaron.
+            //   · Se buscó con las propuestas y no había nada.
+            //
+            // Y no se puede arreglar lo que no se puede ver.
+            $this->mostrarReformulaciones($consulta);
 
             return self::SUCCESS;
         }
@@ -230,5 +242,48 @@ class ProbarAsistente extends Command
         $this->line('');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Enseña qué palabras propuso la IA cuando el buscador no encontró nada.
+     *
+     * Es la única forma de distinguir "la IA no propuso nada útil" de "propuso bien y aun así no
+     * hay nada en la ley". Son dos problemas distintos con dos arreglos distintos.
+     */
+    private function mostrarReformulaciones(string $consulta): void
+    {
+        $reformulador = app(\App\Services\ReformuladorConsultaService::class);
+
+        $this->line('<fg=cyan>QUÉ PROPUSO LA IA PARA BUSCAR:</>');
+        $this->line('');
+
+        $alternativas = $reformulador->reformular($consulta);
+
+        if ($alternativas === []) {
+            $this->line('  <fg=red>NADA.</> La IA no propuso ninguna búsqueda alternativa válida.');
+            $this->line('');
+            $this->line('  Los motivos posibles, y todos quedan escritos en el log:');
+            $this->line('');
+            $this->line('   · Propuso FRASES en vez de términos de búsqueda (se descartan: buscar');
+            $this->line('     una frase con AND da cero, igual que la pregunta original).');
+            $this->line('   · CAMBIÓ DE TEMA (se descartan: una respuesta sobre otro impuesto,');
+            $this->line('     perfectamente citada, es lo más peligroso que puede pasar aquí).');
+            $this->line('   · La API falló, tardó más de 5s, o está apagada.');
+            $this->line('');
+            $this->line('  Mira storage/logs/laravel.log y busca "Reformulador".');
+
+            return;
+        }
+
+        foreach ($alternativas as $i => $alt) {
+            $this->line('  <fg=yellow>[' . ($i + 1) . ']</> ' . $alt);
+        }
+
+        $this->line('');
+        $this->line('  Se buscó con estas y TAMPOCO se encontró nada.');
+        $this->line('');
+        $this->line('  Eso significa que las palabras que propuso la IA no están en ninguna');
+        $this->line('  regulación cargada. O la ley no dice lo que se pregunta, o el vocabulario');
+        $this->line('  que eligió sigue sin ser el de la ley.');
     }
 }

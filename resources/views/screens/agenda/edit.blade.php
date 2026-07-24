@@ -76,7 +76,7 @@
 
             <div class="field">
               <label>Dependencia</label>
-              <input type="text" value="{{ $agenda->dependencia->nombre ?? '—' }}" disabled class="u-input-disabled">
+              <input type="text" value="{{ $agenda->dependencia->nombre ?? '' }}" disabled class="u-input-disabled">
             </div>
 
             <div class="field span-2">

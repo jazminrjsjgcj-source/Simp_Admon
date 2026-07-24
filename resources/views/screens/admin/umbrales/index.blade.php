@@ -75,7 +75,7 @@
               <td>{{ $u->anio }}</td>
               <td>{{ number_format($u->monto_base, 2) }} <small class="help-small">{{ $u->unidad_base }}</small></td>
               <td><strong>${{ number_format($u->monto_pesos, 2) }}</strong></td>
-              <td>{{ $u->monto_uma ? number_format($u->monto_uma, 2) : '—' }}</td>
+              <td>{{ $u->monto_uma ? number_format($u->monto_uma, 2) : '' }}</td>
               <td>
                 @if($u->estaActivo())
                   <span class="chip chip-success">Activo</span>

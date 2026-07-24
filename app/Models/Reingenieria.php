@@ -28,6 +28,11 @@ class Reingenieria extends Model
         'origen',
         'version',
         'estado',
+        'proceso_nombre',
+        'resolutivo_tipo',
+        'resolutivo_nombre',
+        'inicia_con',
+        'termina_con',
         'motivo_directa',
         'justificacion',
         'documento_soporte',
@@ -135,5 +140,45 @@ class Reingenieria extends Model
             self::ESTADO_FIRMADA             => 'Firmada',
             default => ucfirst(str_replace('_', ' ', $this->estado)),
         };
+    }
+
+    // ── Flujo detallado ───────────────────────────────────────────────────
+    //
+    // Conviven dos representaciones del mismo proceso, y es a propósito:
+    //
+    //   flujo_to_be  → la lista plana original, en JSON. Sigue ahí para no romper
+    //                  las reingenierías ya capturadas ni el diagrama que las dibuja.
+    //   fases/actividades/rutas → el modelo detallado, que sí admite fases,
+    //                  participantes y bifurcaciones.
+    //
+    // Una reingeniería usa uno u otro; tieneFlujoDetallado() dice cuál.
+
+    public function participantes()
+    {
+        return $this->hasMany(\App\Models\Flujo\FlujoParticipante::class)->orderBy('orden');
+    }
+
+    public function fases()
+    {
+        return $this->hasMany(\App\Models\Flujo\FlujoFase::class)->orderBy('orden');
+    }
+
+    public function resultados()
+    {
+        return $this->hasMany(\App\Models\Flujo\FlujoResultado::class)->orderBy('orden');
+    }
+
+    /** Todas las actividades del proceso, en orden de fase y luego de actividad. */
+    public function actividades()
+    {
+        return \App\Models\Flujo\FlujoActividad::query()
+            ->whereIn('fase_id', $this->fases()->select('id'))
+            ->orderBy('orden');
+    }
+
+    /** ¿Ya se capturó el flujo con fases y actividades? */
+    public function tieneFlujoDetallado(): bool
+    {
+        return $this->fases()->exists();
     }
 }

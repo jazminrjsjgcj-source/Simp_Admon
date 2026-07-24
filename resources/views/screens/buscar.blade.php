@@ -2,17 +2,45 @@
 @section('title', 'Buscador')
 
 @section('content')
-<div class="page-default" style="max-width:900px">
+<div class="page-default buscar-layout">
 
-  {{-- ENCABEZADO --}}
-  <div class="screen-head" style="margin-bottom:8px">
+  {{-- COLUMNA LATERAL: búsquedas recientes del usuario.
+       Vienen de la bitácora que el buscador ya escribía (tabla busqueda_log), así
+       que no hay dato nuevo que guardar. Cada una es un enlace que repite esa
+       búsqueda. Si el usuario no tiene historial, la columna no se dibuja. --}}
+  <aside class="buscar-lateral">
+    @if(!empty($busquedasRecientes))
+      <div class="buscar-lateral-bloque">
+        <h3 class="buscar-lateral-titulo">Búsquedas recientes</h3>
+        <ul class="buscar-lateral-lista">
+          @foreach($busquedasRecientes as $reciente)
+            <li>
+              <a href="{{ route('buscar', ['q' => $reciente]) }}"
+                 class="{{ $reciente === $consulta ? 'activa' : '' }}"
+                 title="{{ $reciente }}">{{ $reciente }}</a>
+            </li>
+          @endforeach
+        </ul>
+      </div>
+    @endif
+  </aside>
+
+  {{-- COLUMNA PRINCIPAL: buscador, filtros y resultados --}}
+  <div class="buscar-principal">
+
+  {{-- ENCABEZADO simple. El saludo grande ("¿En qué te puedo ayudar?") vive ahora
+       en el dashboard, que es el punto de entrada; esta pantalla es la de
+       resultados, así que basta con el título y el acceso a la ayuda. --}}
+  <div class="screen-head">
     <div>
       <h2 class="nowrap">Buscador</h2>
       <p class="nowrap">Busca en regulaciones, trámites, servicios, requisitos y fundamentos jurídicos.</p>
     </div>
-    <button type="button" class="btn btn-outline" style="flex-shrink:0;font-size:12px;padding:5px 12px"
+    {{-- Enlace discreto: es una ayuda ocasional, no una acción principal, así que
+         no debe pesar más que el propio buscador. --}}
+    <button type="button" class="buscar-ayuda-link"
       onclick="document.getElementById('buscarAyuda').classList.toggle('open')">
-      <i class="ti ti-help"></i> ¿Cómo buscar?
+      <i class="ti ti-help-circle"></i> ¿Cómo buscar?
     </button>
   </div>
 
@@ -66,7 +94,9 @@
       <div class="buscar-input-wrap">
         <i class="ti ti-search buscar-icono"></i>
         <input
-          type="search"
+          {{-- type=text y no search: con "search" el navegador añade SU PROPIA ✕
+               encima de la nuestra y se veían dos botones de limpiar pegados. --}}
+          type="text"
           name="q"
           value="{{ $consulta }}"
           placeholder="Ej. ¿quién emite licencias?, requisitos construcción, plazo uso de suelo..."
@@ -125,6 +155,18 @@
         @endif
       </div>
     </div>
+
+    {{-- Ver leyes de otras jurisdicciones. Apagado por defecto: el buscador del
+         ciudadano filtra por jurisdicción salvo que se pida explícitamente. Lo que
+         entre vendrá marcado, y el asistente lo advierte. --}}
+    <label class="buscar-jurisdiccion-toggle">
+      <input type="checkbox" name="otras_jurisdicciones" value="1"
+             onchange="this.form.submit()" @checked(!empty($incluirOtrasJurisdicciones))>
+      <span class="buscar-jurisdiccion-texto">
+        Incluir leyes de otras jurisdicciones
+        <small>Muestra disposiciones de otros estados o municipios, marcadas como tales. Pueden no aplicarte.</small>
+      </span>
+    </label>
   </form>
 
   {{-- ════════════════════════════════════════════════════════════════════
@@ -147,6 +189,59 @@
        Un ciudadano tiene derecho a saber si lo que lee lo escribió el Ayuntamiento o lo
        redactó un modelo. No es un detalle de diseño: es una cuestión de honestidad.
        ════════════════════════════════════════════════════════════════════ --}}
+
+  {{-- RESPUESTA DE DATOS: preguntas tipo "¿cuántos trámites en borrador?".
+       La verdad es el número calculado en la BD; se muestra ADEMÁS la
+       interpretación, para que el usuario confirme qué se preguntó. --}}
+  @if($consulta && !empty($respuestaDatos))
+    @php $rd = $respuestaDatos['resultado']; $rc = $respuestaDatos['receta']; @endphp
+    <div class="buscar-datos">
+      @php
+        $verbo = match ($rd['tipo']) {
+            'conteo' => 'contar',
+            'lista'  => 'listar',
+            default  => 'agrupar',
+        };
+        // Filtros en texto legible: "estatus = borrador, naturaleza = tramite".
+        $filtrosTexto = [];
+        foreach (($rc['filtros'] ?? []) as $clave => $valor) {
+            $filtrosTexto[] = $clave . ' = ' . $valor;
+        }
+        $interpretacion = $filtrosTexto ? ' con ' . implode(', ', $filtrosTexto) : '';
+        $interpretacion .= !empty($rc['agrupar']) ? ', por ' . $rc['agrupar'] : '';
+      @endphp
+      <p class="buscar-datos-interpreta">
+        Entendí: <strong>{{ $verbo }} {{ $rd['entidad'] }}</strong>{{ $interpretacion }}.
+      </p>
+
+      @if($rd['tipo'] === 'conteo')
+        <div class="buscar-datos-num">{{ number_format($rd['total']) }}</div>
+
+      @elseif($rd['tipo'] === 'lista')
+        <div class="buscar-datos-num">{{ number_format($rd['total']) }} <span>en total</span></div>
+        <ul class="buscar-datos-lista">
+          @foreach($rd['filas'] as $f)
+            <li>{{ $f['nombre'] }}</li>
+          @endforeach
+        </ul>
+        @if($rd['total'] > count($rd['filas']))
+          <p class="buscar-datos-nota">Mostrando {{ count($rd['filas']) }} de {{ number_format($rd['total']) }}.</p>
+        @endif
+
+      @elseif($rd['tipo'] === 'agrupar')
+        <table class="buscar-datos-tabla">
+          <tbody>
+          @foreach($rd['grupos'] as $g)
+            <tr><td>{{ $g['grupo'] }}</td><td>{{ number_format($g['total']) }}</td></tr>
+          @endforeach
+          </tbody>
+        </table>
+      @endif
+
+      <p class="buscar-datos-pie">Calculado en vivo desde la base de datos.</p>
+    </div>
+  @endif
+
   @if($consulta && $respuestaDestacada)
     @php
       $confianza = $respuestaDestacada['confianza'] ?? '';
@@ -224,11 +319,16 @@
         </span>
       </div>
 
+      @if(!empty($respuestaDestacada['fuera_de_jurisdiccion']))
+        <span class="buscar-tag buscar-tag-jurisdiccion">⚠ Incluye una disposición de otra jurisdicción</span>
+      @endif
       <p class="buscar-destacada-texto">{{ $respuestaDestacada['definicion'] }}</p>
 
       <div class="buscar-destacada-fuente">
         @if($respuestaDestacada['regulacion_id'])
-          <a href="{{ route('regulaciones.show', $respuestaDestacada['regulacion_id']) }}">
+          <a href="{{ route('regulaciones.show', $respuestaDestacada['regulacion_id']) }}"
+             target="_blank" rel="noopener"
+             title="Abrir la regulación en otra pestaña">
             {{ $respuestaDestacada['fuente'] }}{{ $cita ? ', ' . $cita : '' }}{{ $respuestaDestacada['fraccion'] ? ', fracción ' . $respuestaDestacada['fraccion'] : '' }}
           </a>
         @else
@@ -247,8 +347,20 @@
             @foreach($respuestaDestacada['definiciones_adicionales'] as $adicional)
               <li>
                 @if($adicional['regulacion_id'])
-                  <a href="{{ route('regulaciones.show', $adicional['regulacion_id']) }}">
+                  {{-- Comprobar una cita no debería costar una búsqueda: el enlace lleva
+                       al PDF oficial, en la página donde está ese artículo, y se abre en
+                       otra pestaña para no perder los resultados que se están leyendo.
+                       Si esa fuente no tiene PDF localizado, se cae al articulado. --}}
+                  @php
+                    $destino = $adicional['pdf_url']
+                      ?? route('regulaciones.show', $adicional['regulacion_id']);
+                  @endphp
+                  <a href="{{ $destino }}" target="_blank" rel="noopener"
+                     title="Abrir el documento oficial en otra pestaña">
                     {{ $adicional['fuente'] }}{{ $adicional['articulo'] ? ', ' . $adicional['articulo'] : '' }}
+                    @if(!empty($adicional['pagina']))
+                      <span class="buscar-fuente-pagina">pág. {{ $adicional['pagina'] }}</span>
+                    @endif
                   </a>
                 @else
                   <span>{{ $adicional['fuente'] }}</span>
@@ -338,6 +450,44 @@
         @endif
       </div>
     @else
+      @php
+        // Etiqueta legible de cada tipo de resultado.
+        $tipoLabels = [
+          'articulo'   => 'Artículo',
+          'regulacion' => 'Regulación',
+          'tramite'    => 'Trámite / Servicio',
+          'requisito'  => 'Requisito',
+          'fundamento' => 'Fundamento jurídico',
+          'agenda'     => 'Acción de agenda',
+        ];
+
+        /**
+         * Resalta en el texto las palabras que se buscaron.
+         *
+         * Es lo que deja ver de un vistazo por qué salió ese resultado, en vez de
+         * obligar a leer el párrafo entero buscando la coincidencia.
+         *
+         * El texto se ESCAPA primero y solo después se insertan las marcas: así el
+         * contenido de la base nunca puede inyectar HTML. Se ignoran las palabras
+         * de menos de tres letras (artículos, preposiciones), que resaltarían medio
+         * párrafo sin aportar nada.
+         */
+        $resaltar = function (?string $texto) use ($consulta) {
+          $texto = e((string) $texto);
+
+          $palabras = collect(preg_split('/\s+/u', trim((string) $consulta)))
+            ->filter(fn ($p) => mb_strlen($p) >= 3)
+            ->map(fn ($p) => preg_quote($p, '/'))
+            ->all();
+
+          if ($palabras === []) {
+            return $texto;
+          }
+
+          return preg_replace('/(' . implode('|', $palabras) . ')/iu', '<mark>$1</mark>', $texto);
+        };
+      @endphp
+
       <div class="buscar-resultados">
         @foreach($resultados as $r)
           @php
@@ -359,58 +509,90 @@
               <div class="buscar-resultado-icono">
                 <i class="ti {{ $r['icono'] }}"></i>
               </div>
+
               <div class="buscar-resultado-contenido">
-                <div class="buscar-resultado-titulo">{{ $r['titulo'] }}</div>
-                <div class="buscar-resultado-subtitulo">{{ $r['subtitulo'] }}</div>
+                {{-- Cabecera: de qué tipo es el resultado y en qué estado está. --}}
+                <div class="buscar-resultado-cabecera">
+                  <span class="buscar-categoria">{{ $tipoLabels[$r['tipo']] ?? $r['tipo'] }}</span>
+                  @if(!empty($r['meta']['estatus']))
+                    <span class="buscar-estado buscar-estado-{{ $r['meta']['estatus'] }}">
+                      {{ ucfirst(str_replace('_', ' ', $r['meta']['estatus'])) }}
+                    </span>
+                  @endif
+                </div>
+
+                {{-- Título y fragmento con los términos buscados resaltados: es lo que
+                     deja ver de un vistazo POR QUÉ salió este resultado. --}}
+                <h3 class="buscar-resultado-titulo">{!! $resaltar($r['titulo']) !!}</h3>
+
+                @if($r['subtitulo'])
+                  <p class="buscar-resultado-subtitulo">{{ $r['subtitulo'] }}</p>
+                @endif
+
+                @if(!empty($r['fuera_de_jurisdiccion']))
+                  <span class="buscar-tag buscar-tag-jurisdiccion">⚠ Otra jurisdicción — podría no aplicarte</span>
+                @endif
+
                 @if($r['fragmento'])
-                  <div class="buscar-resultado-fragmento">{{ $r['fragmento'] }}</div>
+                  <p class="buscar-resultado-fragmento">{!! $resaltar($r['fragmento']) !!}</p>
                 @endif
-                @if($r['tipo'] === 'tramite' && !empty($r['meta']['plazo']))
-                  <span class="buscar-tag">Plazo: {{ $r['meta']['plazo'] }}</span>
-                @endif
-                @if($r['tipo'] === 'tramite' && !empty($r['meta']['cbu']))
-                  <span class="buscar-tag">CBU: ${{ number_format($r['meta']['cbu'], 2) }}</span>
-                @endif
-                @if($r['tipo'] === 'tramite' && !empty($r['meta']['estatus']))
-                  <span class="buscar-tag">{{ ucfirst(str_replace('_', ' ', $r['meta']['estatus'])) }}</span>
-                @endif
-                @if($r['tipo'] === 'agenda' && !empty($r['meta']['tramite_nombre']))
-                  <span class="buscar-tag">Trámite: {{ Str::limit($r['meta']['tramite_nombre'], 60) }}</span>
-                @endif
-                @if($r['tipo'] === 'agenda' && !empty($r['meta']['fecha_compromiso']))
-                  <span class="buscar-tag">Compromiso: {{ \Carbon\Carbon::parse($r['meta']['fecha_compromiso'])->format('d/m/Y') }}</span>
-                @endif
-              </div>
-              <div class="buscar-resultado-tipo">
+
+                {{-- Pie de datos: plazo, costo, fechas... lo secundario, en pequeño. --}}
                 @php
-                  $tipoLabels = [
-                    'articulo'   => 'Articulado',
-                    'regulacion' => 'Regulación',
-                    'tramite'    => 'Trámite / Servicio',
-                    'requisito'  => 'Requisito',
-                    'fundamento' => 'Fundamento',
-                    'agenda'     => 'Agenda',
-                  ];
+                  $datos = [];
+                  if ($r['tipo'] === 'tramite' && !empty($r['meta']['plazo'])) {
+                      $datos[] = ['ti-clock', $r['meta']['plazo']];
+                  }
+                  if ($r['tipo'] === 'tramite' && !empty($r['meta']['cbu'])) {
+                      $datos[] = ['ti-scale', 'CBU $' . number_format($r['meta']['cbu'], 2)];
+                  }
+                  if ($r['tipo'] === 'agenda' && !empty($r['meta']['tramite_nombre'])) {
+                      $datos[] = ['ti-file-text', Str::limit($r['meta']['tramite_nombre'], 50)];
+                  }
+                  if ($r['tipo'] === 'agenda' && !empty($r['meta']['fecha_compromiso'])) {
+                      $datos[] = ['ti-clock', \Carbon\Carbon::parse($r['meta']['fecha_compromiso'])->format('d/m/Y')];
+                  }
+                  if ($r['tipo'] === 'articulo' && !empty($r['meta']['pagina'])) {
+                      $datos[] = ['ti-book-2', 'Pág. ' . $r['meta']['pagina']];
+                  }
                 @endphp
-                <span class="buscar-badge buscar-badge-{{ $r['tipo'] }}">
-                  {{ $tipoLabels[$r['tipo']] ?? $r['tipo'] }}
-                </span>
+                @if($datos)
+                  <div class="buscar-resultado-datos">
+                    @foreach($datos as [$icono, $texto])
+                      <span><i class="ti {{ $icono }}"></i>{{ $texto }}</span>
+                    @endforeach
+                  </div>
+                @endif
               </div>
             </a>
-            {{-- Capa 2: Feedback --}}
-            @if($busquedaLogId)
-              <div class="buscar-feedback" id="fb-{{ $loop->index }}">
-                <span class="buscar-feedback-label">¿Te sirvió?</span>
-                <button type="button" class="buscar-fb-btn buscar-fb-si"
-                  onclick="enviarFeedback({{ $loop->index }}, '{{ $r['tipo'] }}', {{ $resultadoId }}, {{ json_encode($r['titulo']) }}, true)">
-                  Sí
-                </button>
-                <button type="button" class="buscar-fb-btn buscar-fb-no"
-                  onclick="enviarFeedback({{ $loop->index }}, '{{ $r['tipo'] }}', {{ $resultadoId }}, {{ json_encode($r['titulo']) }}, false)">
-                  No
-                </button>
-              </div>
-            @endif
+
+            {{-- Pie de acciones. Va FUERA del <a> principal (que abre el modal de
+                 detalle), porque un enlace no puede contener otro enlace. --}}
+            <div class="buscar-resultado-pie">
+              @if($r['tipo'] === 'articulo' && !empty($r['meta']['pdf_url']))
+                <a href="{{ $r['meta']['pdf_url'] }}"
+                  class="buscar-abrir-pdf"
+                  data-pdf-url="{{ $r['meta']['pdf_url'] }}"
+                  data-pdf-titulo="{{ $r['subtitulo'] ?? 'Documento oficial' }}">
+                  <i class="ti ti-file-type-pdf"></i>
+                  Abrir PDF{{ !empty($r['meta']['pagina']) ? ' · pág. ' . $r['meta']['pagina'] : '' }}
+                </a>
+              @endif
+
+              @if($busquedaLogId)
+                <div class="buscar-feedback" id="fb-{{ $loop->index }}">
+                  <span class="buscar-feedback-label">¿Te sirvió?</span>
+                  <button type="button" class="buscar-fb-btn buscar-fb-si"
+                    onclick="enviarFeedback({{ $loop->index }}, '{{ $r['tipo'] }}', {{ $resultadoId }}, {{ json_encode($r['titulo']) }}, true)">
+                    Sí
+                  </button>
+                  <button type="button" class="buscar-fb-btn buscar-fb-no"
+                    onclick="enviarFeedback({{ $loop->index }}, '{{ $r['tipo'] }}', {{ $resultadoId }}, {{ json_encode($r['titulo']) }}, false)">
+                    No
+                  </button>
+                </div>
+              @endif
+            </div>
           </div>
         @endforeach
       </div>
@@ -449,6 +631,7 @@
     </div>
   @endif
 
+  </div>{{-- /buscar-principal --}}
 </div>
 
 {{--
@@ -489,7 +672,111 @@
   </div>
 </div>
 
+{{--
+  Modal para ver el PDF ORIGINAL saltando a la página del artículo.
+  El iframe carga la ruta preview con #page=N; el visor nativo del navegador
+  renderiza el PDF y salta a esa página. Reutiliza las clases de modal de la app.
+--}}
+<div class="modal-backdrop" id="modalPdf">
+  <div class="modal modal-pdf">
+    {{-- Esta cabecera es el asa: se arrastra desde aquí para mover la ventana. --}}
+    <div class="modal-head modal-pdf-asa" id="pdfAsa">
+      <div>
+        <h3 id="pdfTitulo">Documento oficial</h3>
+        <p class="modal-ref">PDF original — arrastra esta barra para mover la ventana</p>
+      </div>
+      <button type="button" class="modal-close" aria-label="Cerrar" onclick="cerrarModalPdf()"></button>
+    </div>
+
+    <div class="modal-body modal-pdf-body">
+      <iframe id="pdfVisor" title="PDF de la regulación"></iframe>
+    </div>
+
+    <div class="modal-actions">
+      <a href="#" id="pdfAbrirPestana" target="_blank" rel="noopener" class="btn btn-outline">Abrir en pestaña</a>
+      <button type="button" class="btn" onclick="cerrarModalPdf()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script>
+  // ── Modal del PDF original (salta a la página del artículo) ───────────
+  function abrirModalPdf(url, titulo) {
+    var modal  = document.getElementById('modalPdf');
+    var visor  = document.getElementById('pdfVisor');
+    var tit    = document.getElementById('pdfTitulo');
+    var enlace = document.getElementById('pdfAbrirPestana');
+
+    tit.textContent = titulo || 'Documento oficial';
+    enlace.href = url;
+    visor.src = url; // el #page=N de la url hace que el visor salte a esa página
+    if (window.reiniciarPosicionPdf) window.reiniciarPosicionPdf();
+    modal.classList.add('open');
+  }
+
+  function cerrarModalPdf() {
+    document.getElementById('modalPdf').classList.remove('open');
+    // Liberar el PDF para que no siga cargado en segundo plano.
+    document.getElementById('pdfVisor').src = 'about:blank';
+  }
+
+  // ── Mover la ventana del PDF ──────────────────────────────────────────
+  // Se arrastra desde la barra del título. Útil para comparar el documento con
+  // los resultados que quedan detrás sin tener que cerrarlo.
+  (function () {
+    var ventana = document.querySelector('#modalPdf .modal-pdf');
+    var asa     = document.getElementById('pdfAsa');
+    if (!ventana || !asa) return;
+
+    var arrastrando = false, inicioX = 0, inicioY = 0, x = 0, y = 0;
+
+    asa.addEventListener('mousedown', function (e) {
+      // El botón de cerrar no debe iniciar un arrastre.
+      if (e.target.closest('.modal-close')) return;
+
+      arrastrando = true;
+      inicioX = e.clientX - x;
+      inicioY = e.clientY - y;
+
+      // Mientras se arrastra, el visor deja de capturar el mouse: si no, al pasar
+      // sobre el PDF el puntero se "pierde" dentro del iframe y el arrastre se corta.
+      document.getElementById('pdfVisor').style.pointerEvents = 'none';
+      asa.classList.add('arrastrando');
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!arrastrando) return;
+      x = e.clientX - inicioX;
+      y = e.clientY - inicioY;
+      ventana.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+    });
+
+    document.addEventListener('mouseup', function () {
+      if (!arrastrando) return;
+      arrastrando = false;
+      document.getElementById('pdfVisor').style.pointerEvents = '';
+      asa.classList.remove('arrastrando');
+    });
+
+    // Al abrirlo de nuevo vuelve al centro: si se quedó movido, alguien podría
+    // abrirlo y no encontrarlo en pantalla.
+    window.reiniciarPosicionPdf = function () {
+      x = 0; y = 0;
+      ventana.style.transform = '';
+    };
+  })();
+
+  // Clic en "Abrir PDF": abre el modal. Se respeta Ctrl/Cmd/clic-medio para
+  // abrir en pestaña nueva (el href sigue ahí como respaldo).
+  document.addEventListener('click', function (e) {
+    var lnk = e.target.closest('.buscar-abrir-pdf');
+    if (!lnk) return;
+    if (e.metaKey || e.ctrlKey || e.button === 1) return;
+    e.preventDefault();
+    abrirModalPdf(lnk.getAttribute('data-pdf-url'), lnk.getAttribute('data-pdf-titulo'));
+  });
+
   // ── Datos para el selector de regulaciones ────────────────────────────
   var REGS = @json($regulaciones);
   var IDS_PREVIOS = @json($regulacionIds ?? []);

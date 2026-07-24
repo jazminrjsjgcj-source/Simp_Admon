@@ -1,0 +1,108 @@
+/**
+ * TOUR GUIADO — estilos.
+ *
+ * Va en public/css y no en resources/css porque el proyecto compila Tailwind con
+ * Vite, y el tour se carga como archivo suelto igual que su JavaScript. Mantener
+ * las dos mitades juntas evita que alguien mueva una y olvide la otra.
+ *
+ * Los colores usan las variables del tema si existen, con un valor de respaldo
+ * literal detrás, para que el tour no salga transparente si se carga en una
+ * pantalla que no define el tema.
+ */
+
+/* Fondo oscuro. No tapa el elemento resaltado porque ese se sube con z-index. */
+.tour-capa {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 20, .55);
+  z-index: 9998;
+  animation: tour-aparece .18s ease-out;
+}
+
+/* El elemento del que habla la burbuja: se sube por encima del fondo oscuro y
+   se le pone un halo. position:relative solo si el elemento no traía posición
+   propia; si la traía, se respeta. */
+.tour-foco {
+  position: relative;
+  z-index: 9999;
+  border-radius: 8px;
+  box-shadow: 0 0 0 4px var(--color-primario, #7a1c3d),
+              0 0 0 9999px rgba(15, 15, 20, .55);
+  transition: box-shadow .2s ease-out;
+}
+
+.tour-globo {
+  position: absolute;
+  z-index: 10000;
+  width: min(360px, calc(100vw - 24px));
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .28);
+  font-size: 14px;
+  line-height: 1.55;
+  animation: tour-aparece .18s ease-out;
+}
+
+.tour-globo-num {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #8a8a8a;
+  margin-bottom: 6px;
+}
+
+.tour-globo h4 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-primario, #7a1c3d);
+}
+
+.tour-globo-texto {
+  margin-bottom: 16px;
+}
+
+.tour-globo-texto strong { font-weight: 600; }
+.tour-globo-texto em     { font-style: italic; color: #555; }
+
+.tour-globo-pie {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.tour-globo-pie button {
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tour-salir {
+  background: transparent;
+  color: #777;
+}
+.tour-salir:hover { color: #333; text-decoration: underline; }
+
+.tour-sig {
+  background: var(--color-primario, #7a1c3d);
+  color: #fff;
+}
+.tour-sig:hover { filter: brightness(1.12); }
+
+@keyframes tour-aparece {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Quien tenga activado "reducir movimiento" en su sistema no quiere animaciones
+   ni scroll suave. Es un ajuste de accesibilidad, no una preferencia estética. */
+@media (prefers-reduced-motion: reduce) {
+  .tour-capa, .tour-globo { animation: none; }
+  .tour-foco { transition: none; }
+}

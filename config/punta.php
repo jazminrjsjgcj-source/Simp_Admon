@@ -16,6 +16,95 @@ return [
      */
     'prefijo_homoclave' => env('PUNTA_PREFIJO_HOMOCLAVE', 'LPZ'),
 
+    /*
+    | Servicios externos del editor de diagramas.
+    |
+    | Están aquí y no incrustados en la vista porque son dependencias de red: si el
+    | servidor del Ayuntamiento no tiene salida a internet, la pantalla de diagramas
+    | deja de funcionar y hay que apuntar a una copia interna. Cambiarlo debe ser
+    | editar una variable de entorno, no buscar una URL dentro de una plantilla.
+    */
+    /*
+    | Catálogos del flujo de procesos (fases, participantes, actividades).
+    |
+    | Están en config y no escritos en el formulario porque son listas que el
+    | Ayuntamiento va a querer ajustar —añadir un tipo de resolutivo, renombrar un
+    | área— sin que eso sea un cambio de código. Las claves son lo que se guarda en
+    | la base; el texto de la derecha es solo lo que ve el usuario, así que renombrarlo
+    | no invalida los flujos ya capturados.
+    */
+    'flujo' => [
+
+        // Qué produce el proceso cuando produce un documento.
+        'tipos_resolutivo' => [
+            'permiso'      => 'Permiso',
+            'licencia'     => 'Licencia',
+            'autorizacion' => 'Autorización',
+            'constancia'   => 'Constancia',
+            'dictamen'     => 'Dictamen',
+            'resolucion'   => 'Resolución',
+            'certificado'  => 'Certificado',
+            'registro'     => 'Registro',
+            'oficio'       => 'Oficio',
+            'acta'         => 'Acta',
+            'comprobante'  => 'Comprobante',
+            'otro'         => 'Otro',
+        ],
+
+        // Quién puede intervenir. El color acompaña al tipo para que el diagrama
+        // distinga los carriles sin que nadie elija colores a mano.
+        'tipos_participante' => [
+            'solicitante' => ['label' => 'Persona solicitante', 'color' => '#0ea5e9'],
+            'sistema'     => ['label' => 'Sistema',             'color' => '#64748b'],
+            'dependencia' => ['label' => 'Dependencia responsable', 'color' => '#750038'],
+            'revisora'    => ['label' => 'Área revisora',        'color' => '#a16207'],
+            'tecnica'     => ['label' => 'Área técnica',         'color' => '#0f766e'],
+            'tesoreria'   => ['label' => 'Tesorería',            'color' => '#16a34a'],
+            'juridico'    => ['label' => 'Jurídico',             'color' => '#7c3aed'],
+            'otra'        => ['label' => 'Otra área',            'color' => '#475569'],
+        ],
+
+        // A dónde puede seguir el proceso tras una actividad.
+        'destinos_ruta' => [
+            'siguiente'      => 'Continúa a la siguiente actividad',
+            'actividad'      => 'Va a otra actividad',
+            'inicio_fase'    => 'Regresa al inicio de la fase',
+            'inicio_proceso' => 'Regresa al inicio del proceso',
+            'fin'            => 'Termina el proceso',
+        ],
+
+        // Qué puede pasar con el pago dentro de una actividad.
+        'acciones_pago' => [
+            'calcula_monto'    => 'Se calcula el monto',
+            'genera_referencia'=> 'Se genera la referencia de pago',
+            'realiza_pago'     => 'La persona realiza el pago',
+            'valida_pago'      => 'El sistema valida el pago',
+            'corrige_pago'     => 'Se corrige o completa el pago',
+            'registra_pago'    => 'Se registra el pago',
+        ],
+    ],
+
+    'diagramas' => [
+        'editor_url'  => env('PUNTA_DIAGRAMA_EDITOR_URL', 'https://embed.diagrams.net/'),
+        'mermaid_url' => env('PUNTA_MERMAID_URL', 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'),
+    ],
+
+    /**
+     * Jurisdicción de ESTA instalación.
+     *
+     * El buscador la usa para no mezclar derecho de otra jurisdicción: muestra
+     * el federal (que aplica a todo el país) más lo estatal de este estado y lo
+     * municipal de este municipio, y excluye el resto.
+     *
+     * Es fija de la instalación, no del usuario. Si el sistema se reusa en otro
+     * municipio, se cambian estas dos líneas (o sus variables de entorno) y nada
+     * más.
+     */
+    'jurisdiccion' => [
+        'estado'    => env('PUNTA_ESTADO', 'BCS'),
+        'municipio' => env('PUNTA_MUNICIPIO', 'La Paz'),
+    ],
+
     /**
      * Etiquetas legibles de los estados de cada módulo.
      *

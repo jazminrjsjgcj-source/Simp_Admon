@@ -115,7 +115,7 @@
             {{-- Dependencia: la del trámite (no se puede cambiar desde aquí) --}}
             <input type="hidden" name="dependencia_id" value="{{ $tramite->dependencia_id }}">
             <x-field-help label="Dependencia">
-              <input type="text" value="{{ $tramite->dependencia->nombre ?? '—' }}" disabled class="u-input-disabled">
+              <input type="text" value="{{ $tramite->dependencia->nombre ?? '' }}" disabled class="u-input-disabled">
               <small class="help-small">Asignada al momento de crear el trámite.</small>
             </x-field-help>
 
@@ -831,7 +831,7 @@
             <div class="modal-grid">
               <div class="modal-data-item"><span>Trámite</span><strong>{{ $tramite->nombre_oficial }}</strong></div>
               <div class="modal-data-item"><span>Estatus actual</span><strong>@estatus($tramite->estatus)</strong></div>
-              <div class="modal-data-item"><span>Dependencia</span><strong>{{ $tramite->dependencia->nombre ?? '—' }}</strong></div>
+              <div class="modal-data-item"><span>Dependencia</span><strong>{{ $tramite->dependencia->nombre ?? '' }}</strong></div>
               <div class="modal-data-item"><span>Última actualización</span><strong>{{ $tramite->updated_at->format('d/m/Y H:i') }}</strong></div>
             </div>
             <p class="u-muted" style="margin-top:12px">Al guardar se actualiza el registro y se registra en bitácora.</p>

@@ -545,3 +545,331 @@
   .buscar-sugerencias-grid { grid-template-columns: 1fr; }
   .buscar-chip { font-size: 11px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   JURISDICCIÓN
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Marca de un resultado (o de la respuesta destacada) que es de otra
+   jurisdicción: otro estado o municipio, que podría no aplicarle a la persona.
+   Ámbar de advertencia, no rojo de error: es una precaución, no un fallo. */
+.buscar-tag-jurisdiccion {
+  background: var(--chip-amber-bg, #fff4df);
+  color: var(--chip-amber, #9a5a00);
+  font-weight: 700;
+}
+
+/* Interruptor "ver leyes de otras jurisdicciones" del formulario de búsqueda.
+   Apagado por defecto; al marcarlo, la búsqueda se reenvía sola. */
+.buscar-jurisdiccion-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text, #1f2937);
+}
+.buscar-jurisdiccion-toggle input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.buscar-jurisdiccion-texto small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+
+/* ── Respuesta de datos (preguntas tipo "¿cuántos trámites en borrador?") ── */
+.buscar-datos {
+  border: 1px solid var(--surface-high);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 16px 18px;
+  margin: 0 0 18px;
+}
+.buscar-datos-interpreta { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.buscar-datos-interpreta strong { color: var(--text); }
+.buscar-datos-num { font-size: 34px; font-weight: 800; color: var(--primary); line-height: 1.1; }
+.buscar-datos-num span { font-size: 14px; font-weight: 600; color: var(--muted); }
+.buscar-datos-lista { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.buscar-datos-lista li { font-size: 13px; }
+.buscar-datos-nota { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.buscar-datos-tabla { width: 100%; margin: 6px 0 0; border-collapse: collapse; }
+.buscar-datos-tabla td { padding: 6px 8px; border-bottom: 1px solid var(--surface-high); font-size: 13px; }
+.buscar-datos-tabla td:last-child { text-align: right; font-weight: 700; color: var(--primary); width: 90px; }
+.buscar-datos-pie { margin: 12px 0 0; font-size: 11px; color: var(--muted); font-style: italic; }
+
+/* ── Abrir PDF original en la página del artículo (resultados del buscador) ──
+   Enlace pequeño que abre el PDF posicionado en el artículo (#page=N). Va DENTRO
+   de la tarjeta pero FUERA del enlace principal (que abre el modal de detalle),
+   porque un <a> no puede anidar otro <a>. */
+.buscar-abrir-pdf {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 10px 16px;
+  padding: 3px 10px;
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all .15s ease;
+}
+.buscar-abrir-pdf:hover { border-color: var(--primary); background: var(--surface-tint); }
+
+/* ── Modal del PDF original ──
+   Más ancho que un modal normal y con el iframe a pantalla completa dentro. */
+/* Ventana del PDF: grande, porque un documento legal se lee mal en un recuadro,
+   y movible desde su barra de título (ver el JS de la vista). */
+.modal-pdf { width: min(1180px, 94vw); max-width: 94vw; }
+.modal-pdf-body { padding: 0; height: 82vh; }
+.modal-pdf-asa { cursor: grab; user-select: none; }
+.modal-pdf-asa.arrastrando { cursor: grabbing; }
+.modal-pdf-body iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+/* ===========================================
+   Buscador en dos columnas
+
+   La columna lateral lleva las búsquedas recientes del usuario; la principal, el
+   campo de búsqueda con sus filtros y los resultados. En pantallas angostas las
+   columnas se apilan y las recientes pasan debajo, para no robarle ancho a los
+   resultados.
+   =========================================== */
+.buscar-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  max-width: 1180px;
+}
+.buscar-principal { min-width: 0; }   /* sin esto, el grid no deja encoger el texto largo */
+
+.buscar-lateral { position: sticky; top: 96px; }
+.buscar-lateral-bloque {
+  border: 1px solid var(--surface-high);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+}
+.buscar-lateral-titulo {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+}
+.buscar-lateral-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.buscar-lateral-lista a {
+  display: block;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  color: var(--text);
+  text-decoration: none;
+  /* Una búsqueda larga se recorta en una línea en vez de romper la columna. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.buscar-lateral-lista a:hover { background: var(--surface-low, #f3f4f6); color: var(--primary); }
+.buscar-lateral-lista a.activa { background: var(--surface-low, #f3f4f6); color: var(--primary); font-weight: 600; }
+
+@media (max-width: 900px) {
+  .buscar-layout { grid-template-columns: 1fr; }
+  /* Las recientes van DEBAJO de los resultados en pantallas angostas. */
+  .buscar-lateral { position: static; order: 2; }
+  .buscar-principal { order: 1; }
+}
+
+
+/* ===========================================
+   Tarjeta de resultado
+
+   Estructura de arriba abajo: qué tipo de cosa es y en qué estado está, el
+   título, de dónde sale, el fragmento donde apareció lo buscado, y al final los
+   datos secundarios. Los términos buscados van resaltados: así se ve de un
+   vistazo POR QUÉ salió ese resultado, sin releer el párrafo entero.
+   =========================================== */
+
+.buscar-resultado-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.buscar-categoria {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Estado del registro (vigente, borrador...). Punto de color + palabra. */
+.buscar-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.buscar-estado::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.buscar-estado-vigente,
+.buscar-estado-completado { color: #16a34a; }
+.buscar-estado-borrador   { color: #a16207; }
+.buscar-estado-derogada   { color: #dc2626; }
+
+.buscar-resultado-titulo {
+  margin: 0 0 2px;
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--primary);
+}
+.buscar-resultado-subtitulo {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.buscar-resultado-fragmento {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+/* Lo buscado, resaltado. Fondo suave: marca sin gritar. */
+.buscar-resultado-card mark {
+  background: #fde9f1;
+  color: var(--primary);
+  font-weight: 600;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
+/* Datos secundarios (plazo, costo, página...): pequeños y al final. */
+.buscar-resultado-datos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.buscar-resultado-datos span { display: inline-flex; align-items: center; gap: 5px; }
+.buscar-resultado-datos .ti { font-size: 13px; }
+
+/* Pie con las acciones: abrir el PDF y el "¿te sirvió?". */
+.buscar-resultado-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+.buscar-resultado-pie:empty { display: none; }
+.buscar-resultado-pie .buscar-abrir-pdf { margin: 0; }
+.buscar-resultado-pie .buscar-feedback { margin: 0; }
+
+/* ===========================================
+   Pase de armonía del buscador
+
+   El problema no era ningún elemento suelto: era que TODOS pesaban lo mismo.
+   Cinco cajas apiladas, cada una con su borde y su color, compitiendo por la
+   atención — y ninguna dejando claro qué es lo principal.
+
+   Aquí se ordena esa jerarquía. Lo principal (el campo de búsqueda y los
+   resultados) conserva su peso; lo secundario (filtros, avisos, ayuda) baja de
+   tono. También se unifica el ritmo vertical: bloques relacionados se acercan y
+   los que no lo están se separan, que es lo que hace que una pantalla se lea
+   ordenada aunque no cambie nada de sitio.
+   =========================================== */
+
+/* ── Encabezado ── */
+.buscar-principal > .screen-head { margin-bottom: 18px; }
+.buscar-principal > .screen-head h2 { font-size: 26px; }
+
+/* Ayuda: un enlace, no un botón. Es consulta ocasional. */
+.buscar-ayuda-link {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 2px;
+  border-bottom: 1px solid transparent;
+}
+.buscar-ayuda-link:hover { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* ── Ritmo del formulario ──
+   El campo, el filtro por regulación y los tipos son UN grupo: van juntos y
+   pegados entre sí. La separación grande va después, antes de los resultados. */
+.buscar-form-wrap { margin-bottom: 26px; }
+.buscar-fila-principal { margin-bottom: 10px; }
+.buscar-tipos { margin-top: 12px; }
+
+/* ── Filtros: secundarios, no compiten con el campo principal ── */
+.buscar-tipos .buscar-tipo,
+.buscar-tipos label {
+  font-size: 12px;
+}
+
+/* ── Columna de búsquedas recientes ──
+   Se alinea con el arranque del contenido y pierde la caja: una lista de enlaces
+   no necesita marco, y sin él la pantalla respira. */
+.buscar-lateral { top: 24px; }
+.buscar-lateral-bloque {
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+}
+.buscar-lateral-titulo { padding-left: 8px; }
+
+/* ── Aviso de la respuesta automática ──
+   Estaba como caja dentro de otra caja, que es lo que más ruido metía. Se queda
+   como banda superior del mismo bloque, sin marco propio. */
+.buscar-destacada-aviso-ia {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--surface-high);
+}
+
+/* ── Línea de conteo de resultados ── */
+.buscar-meta { margin: 22px 0 14px; }
+
+/* Página del PDF junto a cada fuente citada: dato de apoyo, en pequeño. */
+.buscar-fuente-pagina {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}

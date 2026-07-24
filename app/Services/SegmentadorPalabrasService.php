@@ -8,49 +8,26 @@ use PDOStatement;
 use Throwable;
 
 /**
- * Separa palabras de español que quedaron pegadas sin espacio durante la
- * extracción de texto de un PDF (ej. "Lospreceptos" -> "Los preceptos").
+ * Separa palabras de español que quedaron pegadas al extraer el texto de un PDF
+ * ("Lospreceptos" → "Los preceptos").
  *
- * ── Por qué existe esta clase ──────────────────────────────────────────
+ * Ocurre porque algunos PDF codifican el espacio entre dos palabras como un simple
+ * desplazamiento del cursor de dibujo, sin guardar ningún carácter: el extractor no
+ * tiene nada que copiar en ese hueco y concatena.
  *
- * Algunos PDF codifican el espacio visual entre dos palabras únicamente
- * como un desplazamiento del cursor de dibujo, sin guardar un carácter de
- * espacio real en el contenido del archivo. La librería que extrae el texto
- * (smalot/pdfparser, en RegulacionConversorService::extraerTextoPdf) no tiene
- * ningún carácter que copiar en ese hueco, así que concatena las dos
- * palabras: "Los" + "preceptos" se convierte en "Lospreceptos".
+ * No se resuelve con reglas de prefijo. Separar por "con" arreglaría "conotras" pero
+ * destrozaría "construcción" y "consejo": cualquier prefijo corto que sirva de pista
+ * es también el inicio legítimo de cientos de palabras.
  *
- * ── Por qué NO se resuelve con una regla simple de prefijos ───────────
+ * En su lugar se prueban todos los cortes posibles y solo se acepta uno si TODAS las
+ * partes existen en un diccionario de español de 636.598 entradas
+ * (resources/dictionaries/es_palabras.sqlite). Si ninguna combinación da palabras
+ * reales, se deja el original intacto. Así "construcción", que ya es una palabra, no
+ * se toca nunca.
  *
- * Una regla como "si una palabra empieza con 'con' seguido de 4+ letras,
- * insertar un espacio después de 'con'" arreglaría "conotras" -> "con otras",
- * pero destrozaría por accidente "construcción" -> "con strucción",
- * "consejo" -> "con sejo", "conforme" -> "con forme". Cualquier prefijo
- * corto que se use como pista (con, los, la, de, en, por, su, el) es también
- * el inicio legítimo de cientos de palabras españolas distintas.
- *
- * ── Cómo se resuelve aquí: verificación exhaustiva contra diccionario ──
- *
- * Esta clase prueba todas las formas posibles de cortar una palabra
- * sospechosa, y SOLO acepta un corte si TODAS las partes resultantes existen
- * como palabras reales en un diccionario de español de 636,598 entradas
- * (resources/dictionaries/es_palabras.sqlite, del paquete público
- * "an-array-of-spanish-words"). Si ninguna combinación de cortes produce
- * puras palabras reales, la palabra se deja exactamente como estaba.
- *
- * Ejemplo de por qué esto es seguro:
- *   "Lospreceptos" -> prueba "los" (existe) + "preceptos" (existe) -> CORTA
- *   "construcción" -> ya es una palabra real completa -> NO SE TOCA
- *   "consejo"      -> ya es una palabra real completa -> NO SE TOCA
- *
- * ── Normalización de acentos ────────────────────────────────────────────
- *
- * El diccionario fuente guarda la mayoría de las palabras SIN el acento de
- * intensidad (construcción -> construccion, artículo -> articulo), pero SÍ
- * distingue la ñ como letra propia (año y ano son entradas distintas). Por
- * eso la búsqueda quita tildes de vocales antes de comparar, pero nunca
- * toca la ñ. Esto se verificó contra el diccionario real antes de escribir
- * esta clase, no es una suposición.
+ * El diccionario guarda la mayoría de las entradas sin tilde pero sí distingue la ñ
+ * (año y ano son entradas distintas), así que al comparar se quitan los acentos de
+ * las vocales y nunca la eñe.
  */
 class SegmentadorPalabrasService
 {

@@ -68,7 +68,7 @@
     <h1 class="text-primary-lg">{{ $tramite->nombre_oficial }}</h1>
     <p class="text-muted-sm">
       Trámite — {{ ucfirst($tramite->dirigido_a ?? 'ambas') }} ·
-      {{ $tramite->dependencia->nombre ?? '—' }}
+      {{ $tramite->dependencia->nombre ?? '' }}
       @if($tramite->volumen_anual) · {{ number_format($tramite->volumen_anual) }} solicitudes/año @endif
     </p>
   </div>
@@ -115,18 +115,18 @@
     </div>
     <div class="card-body-padded">
       <div class="modal-grid">
-        <div class="modal-data-item"><span>Homoclave</span><strong>{{ $tramite->homoclave ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Homoclave</span><strong>{{ $tramite->homoclave ?? '' }}</strong></div>
         <div class="modal-data-item"><span>Tipo</span><strong>{{ $tramite->tipoLegible() }}</strong></div>
-        <div class="modal-data-item"><span>Dependencia</span><strong>{{ $tramite->dependencia->nombre ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Unidad administrativa</span><strong>{{ $tramite->unidad->nombre ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Servidor público</span><strong>{{ $tramite->servidor_publico ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Dirigido a</span><strong>{{ ucfirst($tramite->dirigido_a ?? '—') }}</strong></div>
-        <div class="modal-data-item"><span>Frecuencia</span><strong>{{ $tramite->frecuencia ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Tipo de relación</span><strong>{{ $tramite->tipo_relacion ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Dependencia</span><strong>{{ $tramite->dependencia->nombre ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Unidad administrativa</span><strong>{{ $tramite->unidad->nombre ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Servidor público</span><strong>{{ $tramite->servidor_publico ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Dirigido a</span><strong>{{ ucfirst($tramite->dirigido_a ?? '') }}</strong></div>
+        <div class="modal-data-item"><span>Frecuencia</span><strong>{{ $tramite->frecuencia ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Tipo de relación</span><strong>{{ $tramite->tipo_relacion ?? '' }}</strong></div>
         <div class="modal-data-item"><span>Volumen anual</span><strong>{{ number_format($tramite->volumen_anual ?? 0) }} solicitudes</strong></div>
         <div class="modal-data-item"><span>Plazo de resolución</span><strong>@plazo($tramite->plazo_resolucion_cantidad, $tramite->plazo_resolucion_unidad)</strong></div>
-        <div class="modal-data-item"><span>Población objetivo</span><strong>{{ $tramite->poblacion_objetivo ?? '—' }}</strong></div>
-        <div class="modal-data-item u-span-2"><span>Grupos prioritarios / de atención</span><strong>{{ !empty($tramite->grupos_atencion) ? implode(', ', (array) $tramite->grupos_atencion) : '—' }}</strong></div>
+        <div class="modal-data-item"><span>Población objetivo</span><strong>{{ $tramite->poblacion_objetivo ?? '' }}</strong></div>
+        <div class="modal-data-item u-span-2"><span>Grupos prioritarios / de atención</span><strong>{{ !empty($tramite->grupos_atencion) ? implode(', ', (array) $tramite->grupos_atencion) : '' }}</strong></div>
         @if(!empty($tramite->grupo_prioritario_detalle))
           <div class="modal-data-item u-span-2"><span>Detalle de grupo prioritario</span><strong>{{ $tramite->grupo_prioritario_detalle }}</strong></div>
         @endif
@@ -140,7 +140,7 @@
               <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--surface-tint);border-radius:var(--radius-sm);border:0.5px solid var(--primary-fixed)">
                 <div style="min-width:0;flex:1">
                   <strong style="font-size:13px;display:block">{{ $rel->nombre_oficial }}</strong>
-                  <span style="font-size:11px;color:var(--muted)">{{ $rel->homoclave }} · {{ $rel->dependencia->nombre ?? '—' }}</span>
+                  <span style="font-size:11px;color:var(--muted)">{{ $rel->homoclave }} · {{ $rel->dependencia->nombre ?? '' }}</span>
                 </div>
                 <a href="{{ route('tramites.show', $rel) }}" class="btn btn-outline btn-sm" style="flex-shrink:0">Ver</a>
               </div>
@@ -176,14 +176,14 @@
         <div class="modal-data-item"><span>Traslado</span><strong>{{ (int) ($tramite->tiempo_traslado_horas ?? 0) }} h {{ (int) ($tramite->tiempo_traslado_min ?? 0) }} min</strong></div>
         <div class="modal-data-item"><span>Espera</span><strong>{{ (int) ($tramite->tiempo_espera_horas ?? 0) }} h {{ (int) ($tramite->tiempo_espera_min ?? 0) }} min</strong></div>
         <div class="modal-data-item"><span>Atención</span><strong>{{ (int) ($tramite->tiempo_atencion_horas ?? 0) }} h {{ (int) ($tramite->tiempo_atencion_min ?? 0) }} min</strong></div>
-        <div class="modal-data-item"><span>Visitas requeridas</span><strong>{{ $tramite->visitas_requeridas ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Visitas requeridas</span><strong>{{ $tramite->visitas_requeridas ?? '' }}</strong></div>
       </div>
 
       <span class="label-meta mt-3">Áreas y digitalización</span>
       <div class="modal-grid mt-2">
-        <div class="modal-data-item"><span>Número de áreas</span><strong>{{ $tramite->num_areas ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Nivel de digitalización</span><strong>{{ $tramite->nivel_digitalizacion ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Etapa de operación</span><strong>{{ $tramite->etapa_operacion ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Número de áreas</span><strong>{{ $tramite->num_areas ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Nivel de digitalización</span><strong>{{ $tramite->nivel_digitalizacion ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Etapa de operación</span><strong>{{ $tramite->etapa_operacion ?? '' }}</strong></div>
         @if(!empty($tramite->areas_participantes))
         <div class="modal-data-item u-span-2"><span>Áreas participantes</span><strong>{{ $tramite->areas_participantes }}</strong></div>
         @endif
@@ -194,7 +194,7 @@
         <div class="modal-data-item"><span>Copias</span><strong>{{ $tramite->copias_cantidad ?? 0 }} × ${{ number_format($tramite->copias_precio ?? 0, 2) }}</strong></div>
         <div class="modal-data-item"><span>Costo de derechos variable</span><strong>{{ $tramite->monto_derechos_variable ? 'Sí' : 'No' }}</strong></div>
         @if($tramite->monto_derechos_variable)
-        <div class="modal-data-item u-span-2"><span>Monto de referencia</span><strong>{{ $tramite->monto_derechos_referencia ?? '—' }}</strong></div>
+        <div class="modal-data-item u-span-2"><span>Monto de referencia</span><strong>{{ $tramite->monto_derechos_referencia ?? '' }}</strong></div>
         @endif
       </div>
     </div>
@@ -389,7 +389,7 @@
           <p style="margin:0 0 8px;font-weight:800;font-size:14px">{{ $req->orden }}. {{ $req->nombre }}</p>
           <div class="modal-grid">
             {{-- Bug #44: mostrar CSV de tipos como lista legible --}}
-            <div class="modal-data-item"><span>Tipo de presentación</span><strong>{{ $req->tipo_presentacion ? collect(explode(',', $req->tipo_presentacion))->map(fn($t) => ucfirst(trim($t)))->implode(', ') : '—' }}</strong></div>
+            <div class="modal-data-item"><span>Tipo de presentación</span><strong>{{ $req->tipo_presentacion ? collect(explode(',', $req->tipo_presentacion))->map(fn($t) => ucfirst(trim($t)))->implode(', ') : '' }}</strong></div>
             <div class="modal-data-item"><span>Tiempo estimado</span><strong>
               @php
                 $partes = [];
@@ -448,9 +448,9 @@
           $esCita = !is_null($f->regulacion_id);
         @endphp
         <div class="modal-grid">
-          <div class="modal-data-item"><span>Normativa</span><strong>{{ $esCita ? ($f->regulacion?->nombre ?? 'Regulación del catálogo') : ($f->normativa_nombre ?? '—') }}</strong></div>
-          <div class="modal-data-item"><span>Tipo</span><strong>{{ $esCita ? 'Citada del catálogo' : ($f->tipo_normativa ?? '—') }}</strong></div>
-          <div class="modal-data-item"><span>Artículo</span><strong>{{ $f->articulo_fraccion ?? '—' }}</strong></div>
+          <div class="modal-data-item"><span>Normativa</span><strong>{{ $esCita ? ($f->regulacion?->nombre ?? 'Regulación del catálogo') : ($f->normativa_nombre ?? '') }}</strong></div>
+          <div class="modal-data-item"><span>Tipo</span><strong>{{ $esCita ? 'Citada del catálogo' : ($f->tipo_normativa ?? '') }}</strong></div>
+          <div class="modal-data-item"><span>Artículo</span><strong>{{ $f->articulo_fraccion ?? '' }}</strong></div>
           @if($f->resumen)
             <div class="modal-data-item u-span-2"><span>Resumen</span><strong>{{ $f->resumen }}</strong></div>
           @endif
@@ -505,10 +505,10 @@
     <div class="panel-head"><div><h3>Ficha del Portal Ciudadano</h3><p>Información publicada para la ciudadanía.</p></div></div>
     <div class="card-body-padded">
       <div class="modal-grid">
-        <div class="modal-data-item u-span-2"><span>Nombre ciudadano</span><strong>{{ $fp->nombre_ciudadano ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Homoclave pública</span><strong>{{ $fp->homoclave_publica ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Modalidad</span><strong>{{ $fp->modalidad ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Canal principal</span><strong>{{ $fp->canal_principal ?? '—' }}</strong></div>
+        <div class="modal-data-item u-span-2"><span>Nombre ciudadano</span><strong>{{ $fp->nombre_ciudadano ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Homoclave pública</span><strong>{{ $fp->homoclave_publica ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Modalidad</span><strong>{{ $fp->modalidad ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Canal principal</span><strong>{{ $fp->canal_principal ?? '' }}</strong></div>
         <div class="modal-data-item"><span>Requiere cita</span><strong>{{ $fp->requiere_cita ? 'Sí' : 'No' }}</strong></div>
         @if($fp->descripcion)
         <div class="modal-data-item u-span-2"><span>Descripción</span><strong>{{ $fp->descripcion }}</strong></div>
@@ -516,19 +516,19 @@
         @if($fp->casos_realizarse)
         <div class="modal-data-item u-span-2"><span>Casos en que se realiza</span><strong>{{ $fp->casos_realizarse }}</strong></div>
         @endif
-        <div class="modal-data-item"><span>Documento que obtiene</span><strong>{{ $fp->documento_obtiene ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Resultado</span><strong>{{ $fp->resultado ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Medio de entrega</span><strong>{{ $fp->medio_entrega ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Vigencia</span><strong>{{ $fp->vigencia ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Costo al público</span><strong>{{ $fp->costo_publico ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Forma de pago</span><strong>{{ $fp->forma_pago ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Documento que obtiene</span><strong>{{ $fp->documento_obtiene ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Resultado</span><strong>{{ $fp->resultado ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Medio de entrega</span><strong>{{ $fp->medio_entrega ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Vigencia</span><strong>{{ $fp->vigencia ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Costo al público</span><strong>{{ $fp->costo_publico ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Forma de pago</span><strong>{{ $fp->forma_pago ?? '' }}</strong></div>
       </div>
 
       <span class="label-meta mt-3">Contacto y atención</span>
       <div class="modal-grid mt-2">
-        <div class="modal-data-item"><span>Oficina</span><strong>{{ $fp->oficina ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Teléfono</span><strong>{{ $fp->telefono ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Correo</span><strong>{{ $fp->correo ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Oficina</span><strong>{{ $fp->oficina ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Teléfono</span><strong>{{ $fp->telefono ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Correo</span><strong>{{ $fp->correo ?? '' }}</strong></div>
         @if($fp->direccion)
         <div class="modal-data-item u-span-2"><span>Dirección</span><strong>{{ $fp->direccion }}</strong></div>
         @endif
@@ -550,7 +550,7 @@
           @if(is_array($config) && ($config['activo'] ?? false))
           <div class="modal-data-item">
             <span>{{ ucfirst($dia) }}</span>
-            <strong>{{ $config['inicio'] ?? '—' }} – {{ $config['fin'] ?? '—' }}</strong>
+            <strong>{{ $config['inicio'] ?? '' }} – {{ $config['fin'] ?? '' }}</strong>
           </div>
           @elseif(!is_array($config))
           {{-- Fallback para formato legacy (valor plano) --}}
@@ -574,7 +574,7 @@
       @foreach($tramite->procesosAtencion as $p)
         <div class="modal-data-item u-span-2">
           <span>{{ trim('Paso ' . ($p->paso ?? '') . ($p->subpaso ? '.' . $p->subpaso : '')) }}{{ $p->area ? ' · ' . $p->area : '' }}</span>
-          <strong>{{ $p->accion ?: ($p->detalle ?: '—') }}{{ $p->accion && $p->detalle ? ' — ' . $p->detalle : '' }}</strong>
+          <strong>{{ $p->accion ?: ($p->detalle ?: '') }}{{ $p->accion && $p->detalle ? ' — ' . $p->detalle : '' }}</strong>
         </div>
       @endforeach
     </div>
@@ -590,8 +590,8 @@
       @foreach($tramite->firmas as $firma)
         <div class="modal-grid">
           <div class="modal-data-item"><span>Tipo</span><strong>{{ ucfirst(str_replace('_',' ',$firma->tipo)) }}</strong></div>
-          <div class="modal-data-item"><span>Firmante</span><strong>{{ $firma->firmante->name ?? '—' }}</strong></div>
-          <div class="modal-data-item"><span>Fecha</span><strong>{{ $firma->fecha ? \Carbon\Carbon::parse($firma->fecha)->format('d/m/Y H:i') : '—' }}</strong></div>
+          <div class="modal-data-item"><span>Firmante</span><strong>{{ $firma->firmante->name ?? '' }}</strong></div>
+          <div class="modal-data-item"><span>Fecha</span><strong>{{ $firma->fecha ? \Carbon\Carbon::parse($firma->fecha)->format('d/m/Y H:i') : '' }}</strong></div>
         </div>
       @endforeach
     </div>

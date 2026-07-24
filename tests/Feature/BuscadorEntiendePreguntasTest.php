@@ -6,6 +6,7 @@ use App\Models\Regulacion;
 use App\Models\RegulacionNodo;
 use App\Services\BuscadorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 /**
@@ -62,6 +63,24 @@ class BuscadorEntiendePreguntasTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // El tesauro NO viene con las migraciones. La única entrada que sobrevive a
+        // un RefreshDatabase es 'obstruir', porque la inserta una migración
+        // (2026_07_18_000011_add_obstruir_al_tesauro); el resto —incluido 'permiso',
+        // del que depende test_limite_conocido...— vive en este seeder.
+        //
+        // Se siembra aquí, y no se confía en DatabaseSeeder, para que la prueba
+        // declare su propia dependencia: si mañana alguien reordena los seeders
+        // globales, esta prueba no se entera.
+        $this->seed(\Database\Seeders\TesauroJuridicoSeeder::class);
+
+        // El tesauro se cachea una hora (TesauroService) y CACHE_STORE=array sobrevive
+        // entre pruebas dentro del mismo proceso de PHP. Sin este flush, una prueba
+        // anterior puede dejar cacheado un tesauro vacío y esta fallaría de forma
+        // intermitente, según el orden de ejecución. TesauroObstruirTest ya se
+        // protege igual.
+        Cache::flush();
+
         $this->buscador = app(BuscadorService::class);
     }
 
@@ -343,26 +362,26 @@ class BuscadorEntiendePreguntasTest extends TestCase
      * El AND, correctamente, lo descarta. Y el único que sobrevive es el artículo 154 —el de las
      * sanciones por desacato— que sí menciona "permiso" y "ambulantes", de pasada.
      *
-     * ── Por qué la prueba anterior estaba MAL ──
+     * ── ESTE LÍMITE YA NO EXISTE. Y LA PRUEBA LO CELEBRA EN VEZ DE LLORARLO. ──
      *
-     * Afirmaba que el buscador DEBE encontrarlo. Y no puede: sería exigirle que adivine un
-     * sinónimo que nadie le ha dado.
+     * Durante meses, esta prueba documentó un hueco: buscar "permiso" NO encontraba el inciso de
+     * los ambulantes, porque la ley lo llama DERECHO y nadie había montado los sinónimos. La
+     * aserción era negativa —"compruebo que NO lo encuentra"— y traía escrita su propia caducidad:
      *
-     * Una prueba que exige lo imposible no es una red de seguridad: es una alarma que suena sola.
-     * Y una alarma que suena sola acaba ignorada — y entonces tampoco avisa el día que sí importa.
+     *     "El día que alguien monte los sinónimos, esta prueba se pondrá verde. Cámbiala por una
+     *      que afirme que SÍ lo encuentra."
      *
-     * ── Qué haría falta para resolverlo ──
+     * Ese día llegó. Se montaron dos cosas:
      *
-     * Un catálogo de sinónimos jurídicos, o una IA que traduzca la pregunta del ciudadano al
-     * vocabulario de la ley ANTES de buscar:
+     *   1. EL TESAURO:  permiso → derecho, licencia, autorizacion, cuota.
+     *   2. LA RED:      si el asistente se rinde, la IA reformula y se vuelve a buscar.
      *
-     *     permiso  →  derecho, cuota, tarifa, licencia
-     *     basura   →  residuos sólidos, recolección, aseo público
+     * Así que la aserción se INVIERTE: de "NO lo encuentra" a "SÍ lo encuentra". El caso que antes
+     * era un límite conocido es ahora una capacidad que hay que proteger — porque si mañana
+     * alguien rompe el tesauro o la red, esta prueba tiene que gritar.
      *
-     * Esta prueba documenta el hueco. El día que alguien monte los sinónimos, sabrá EXACTAMENTE
-     * qué caso viene a resolver — y esta prueba se le pondrá verde.
-     *
-     * Un límite documentado es una decisión. Uno sin documentar es una sorpresa.
+     * Un límite que se cierra no se borra de las pruebas: se le da la vuelta. La que documentaba
+     * el hueco pasa a custodiar que el hueco siga tapado.
      */
     public function test_limite_conocido_el_vocabulario_del_ciudadano_no_es_el_de_la_ley(): void
     {
@@ -372,18 +391,22 @@ class BuscadorEntiendePreguntasTest extends TestCase
 
         $textos = $resultados->pluck('fragmento')->implode(' ');
 
-        // HOY el buscador NO encuentra el inciso correcto con la palabra "permiso". Se deja
-        // escrito, sin fingir lo contrario.
+        // El ciudadano dice "permiso"; la ley dice "derecho". El tesauro traduce esa palabra, y
+        // el inciso VII BIS —"Ambulantes 0.05 UMA por día"— tiene que aparecer.
         //
-        // Si algún día esta aserción falla, NO ES UN BUG: significa que alguien montó los
-        // sinónimos, y hay que sustituirla por la afirmación de que SÍ lo encuentra.
-        $this->assertStringNotContainsString(
+        // Esta es la CIFRA que la ley pone para los ambulantes. Si el buscador la encuentra
+        // buscando "permiso", el puente entre el vocabulario del ciudadano y el de la ley está en
+        // pie. Si deja de encontrarla, alguien rompió el tesauro o la red del reformulador.
+        $this->assertStringContainsString(
             '0.05 UMA',
             $textos,
-            'El buscador AHORA SÍ encuentra el inciso de los ambulantes buscando "permiso". '
-            . 'Eso significa que alguien resolvió el problema del vocabulario (sinónimos, o una IA '
-            . 'traductora). Enhorabuena: cambia esta prueba por una que afirme que lo encuentra, y '
-            . 'borra este comentario.'
+            'El ciudadano busca "permiso para ambulantes" y la ley lo llama "derecho". El inciso '
+            . 'VII BIS ("Ambulantes 0.05 UMA por día") tiene que llegar igual, gracias al tesauro '
+            . '(permiso → derecho, licencia, autorizacion, cuota) y, si hiciera falta, a la IA que '
+            . "reformula.\n\n"
+            . 'Si esta prueba falla, el puente entre lo que dice el ciudadano y lo que dice la ley '
+            . 'se cayó: comprueba que la entrada "permiso" sigue en el tesauro y que la red de '
+            . 'seguridad se dispara cuando el asistente se rinde.'
         );
     }
 

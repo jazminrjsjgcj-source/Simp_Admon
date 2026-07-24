@@ -58,8 +58,16 @@ class SujetoObligado extends Model
      * @param  int  $dependenciaId
      * @return self|null
      */
-    public static function vigenteDe(int $dependenciaId): ?self
+    public static function vigenteDe(?int $dependenciaId): ?self
     {
+        // Sin dependencia (p. ej. un admin, que no tiene una fija) no hay titular que
+        // buscar: se devuelve null en vez de reventar. Antes el tipo exigía int, y la
+        // vista del alta de trámites (create.blade.php) caía con 500 al pasarle el
+        // dependencia_id nulo de un usuario sin dependencia.
+        if ($dependenciaId === null) {
+            return null;
+        }
+
         return static::where('dependencia_id', $dependenciaId)
             ->where('activo', true)
             ->first();

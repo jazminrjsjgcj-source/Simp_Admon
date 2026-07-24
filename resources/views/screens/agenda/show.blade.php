@@ -124,10 +124,10 @@
         <div class="modal-data-item"><span>Trámite vinculado</span><strong>@if($agenda->tramite)<a href="{{ route('tramites.show', $agenda->tramite) }}" style="color:var(--primary)">{{ $agenda->tramite->nombre_oficial }}</a> <small>(@estatus($agenda->tramite->estatus))</small>@else — @endif</strong></div>
         <div class="modal-data-item"><span>Alcance</span><strong>{{ ['simplificacion' => 'Solo simplificación', 'digitalizacion' => 'Solo digitalización', 'ambas' => 'Simplificación y digitalización'][$agenda->tipo] ?? ucfirst($agenda->tipo) }}</strong></div>
         <div class="modal-data-item"><span>Acción registrada</span><strong>{{ $agenda->descripcion }}</strong></div>
-        <div class="modal-data-item"><span>Responsable</span><strong>{{ $agenda->responsable ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Responsable</span><strong>{{ $agenda->responsable ?? '' }}</strong></div>
         <div class="modal-data-item"><span>Estatus</span><strong>@estatus($agenda->estatus)</strong></div>
-        <div class="modal-data-item"><span>Dependencia</span><strong>{{ $agenda->dependencia->nombre ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Registrado por</span><strong>{{ $agenda->creador->name ?? '—' }}</strong></div>
+        <div class="modal-data-item"><span>Dependencia</span><strong>{{ $agenda->dependencia->nombre ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Registrado por</span><strong>{{ $agenda->creador->name ?? '' }}</strong></div>
       </div>
     </div>
   </div>
@@ -245,11 +245,11 @@
     </div>
     <div class="card-body-padded">
       <div class="modal-grid">
-        <div class="modal-data-item"><span>Meta esperada</span><strong>{{ $agenda->meta ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Indicador de cumplimiento (rubro 17)</span><strong>{{ $agenda->indicador ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Indicador de avance (rubro 18)</span><strong>{{ $agenda->indicador_avance ?? '—' }}</strong></div>
-        <div class="modal-data-item"><span>Fecha de inicio</span><strong>{{ $agenda->fecha_inicio ? \Carbon\Carbon::parse($agenda->fecha_inicio)->format('d/m/Y') : '—' }}</strong></div>
-        <div class="modal-data-item"><span>Fecha compromiso</span><strong>{{ $agenda->fecha_compromiso ? \Carbon\Carbon::parse($agenda->fecha_compromiso)->format('d/m/Y') : '—' }}</strong></div>
+        <div class="modal-data-item"><span>Meta esperada</span><strong>{{ $agenda->meta ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Indicador de cumplimiento (rubro 17)</span><strong>{{ $agenda->indicador ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Indicador de avance (rubro 18)</span><strong>{{ $agenda->indicador_avance ?? '' }}</strong></div>
+        <div class="modal-data-item"><span>Fecha de inicio</span><strong>{{ $agenda->fecha_inicio ? \Carbon\Carbon::parse($agenda->fecha_inicio)->format('d/m/Y') : '' }}</strong></div>
+        <div class="modal-data-item"><span>Fecha compromiso</span><strong>{{ $agenda->fecha_compromiso ? \Carbon\Carbon::parse($agenda->fecha_compromiso)->format('d/m/Y') : '' }}</strong></div>
       </div>
     </div>
   </div>
@@ -289,8 +289,8 @@
     </div>
     <div class="card-body-padded">
       <div class="modal-grid">
-        <div class="modal-data-item"><span>Nivel actual</span><strong>{{ $agenda->nivel_actual !== null ? 'Nivel '.$agenda->nivel_actual : '—' }}</strong></div>
-        <div class="modal-data-item"><span>Nivel meta</span><strong>{{ $agenda->nivel_meta !== null ? 'Nivel '.$agenda->nivel_meta : '—' }}</strong></div>
+        <div class="modal-data-item"><span>Nivel actual</span><strong>{{ $agenda->nivel_actual !== null ? 'Nivel '.$agenda->nivel_actual : '' }}</strong></div>
+        <div class="modal-data-item"><span>Nivel meta</span><strong>{{ $agenda->nivel_meta !== null ? 'Nivel '.$agenda->nivel_meta : '' }}</strong></div>
       </div>
       @if(count($accDig))
         <ul class="acciones-show" style="margin-top:12px">

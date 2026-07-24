@@ -57,19 +57,19 @@
               <div class="modal-grid">
                 <div class="modal-data-item">
                   <span>Firmante</span>
-                  <strong>{{ $firma->firmante_nombre ?? $firma->firmante->name ?? '—' }}</strong>
+                  <strong>{{ $firma->firmante_nombre ?? $firma->firmante->name ?? '' }}</strong>
                 </div>
                 <div class="modal-data-item">
                   <span>Cargo</span>
-                  <strong>{{ $firma->firmante_cargo ?? '—' }}</strong>
+                  <strong>{{ $firma->firmante_cargo ?? '' }}</strong>
                 </div>
                 <div class="modal-data-item">
                   <span>Fecha</span>
-                  <strong>{{ $firma->fecha?->format('d/m/Y H:i') ?? '—' }}</strong>
+                  <strong>{{ $firma->fecha?->format('d/m/Y H:i') ?? '' }}</strong>
                 </div>
                 <div class="modal-data-item">
                   <span>IP</span>
-                  <strong><code class="help-small">{{ $firma->ip_origen ?? '—' }}</code></strong>
+                  <strong><code class="help-small">{{ $firma->ip_origen ?? '' }}</code></strong>
                 </div>
                 <div class="modal-data-item span-2">
                   <span>Hash de acuse</span>

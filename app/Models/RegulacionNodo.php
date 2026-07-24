@@ -40,13 +40,27 @@ class RegulacionNodo extends Model
         //
         // Lo rellena RegulacionEstructuradorService al construir el árbol.
         'contexto',
+
+        // Si no es null, este artículo es una TABLA DE REFERENCIA (escala_sancion,
+        // catalogo_clasificacion, tarifa, definiciones) que otros artículos necesitan para
+        // entenderse. Lo etiqueta la IA al cargar (DetectorCatalogosService), y el asistente lo
+        // inyecta en toda respuesta sobre su regulación. Hace posible el cruce de cadenas de
+        // artículos (ej. "multa por obstruir banqueta" = art. 65 + catálogo 105 + escala 104).
+        'tipo_referencia',
+
+        // En qué página del PDF ORIGINAL aparece este nodo. NULL si no aplica
+        // (regulación de Word, o página no emparejada). La rellena
+        // RegulacionPaginadorService; el buscador la usa para el salto #page=N.
+        'pagina',
+
         'orden',
         'estado',
         'derogado_nota',
     ];
 
     protected $casts = [
-        'orden' => 'integer',
+        'orden'  => 'integer',
+        'pagina' => 'integer',
     ];
 
     /**

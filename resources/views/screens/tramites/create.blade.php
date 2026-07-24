@@ -9,6 +9,26 @@
     <div class="head-actions"><x-btn-ejemplo tipo="tramite" /></div>
   </div>
 
+  {{-- Cargar una ficha (Reporte Catálogo) para PRECARGAR este formulario.
+       No crea el trámite: solo llena campos; el usuario revisa y guarda. --}}
+  @if(session('info'))
+    <div class="assist-box" style="margin:12px 16px;background:#ecfdf5;border-left:4px solid #10b981;padding:10px 14px">{{ session('info') }}</div>
+  @endif
+  @if(session('error'))
+    <div class="assist-box" style="margin:12px 16px;background:#fef2f2;border-left:4px solid #dc2626;padding:10px 14px">{{ session('error') }}</div>
+  @endif
+
+  <form method="POST" action="{{ route('tramites.cargar-ficha') }}" enctype="multipart/form-data"
+        style="margin:12px 16px;padding:12px 14px;border:1px dashed var(--surface-high);border-radius:var(--radius);display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    @csrf
+    <div style="flex:1;min-width:220px">
+      <strong style="font-size:13px">¿Tienes la ficha en PDF?</strong>
+      <p style="margin:2px 0 0;font-size:12px;color:var(--muted)">Súbela y precargamos el formulario. Tú revisas y completas lo que falte.</p>
+    </div>
+    <input type="file" name="ficha" accept="application/pdf" required style="font-size:12px">
+    <button type="submit" class="btn btn-outline btn-sm">Cargar ficha</button>
+  </form>
+
   <form method="POST" action="{{ route('tramites.store') }}" id="tramiteForm" novalidate>
     @csrf
     <style>select.input-invalid { border-color: #DC2626; background: #FEF2F2; }</style>
@@ -48,7 +68,10 @@
             </div>
           </div>
 
-          <div class="wizard-fields">
+          {{-- id para el tour guiado (config/tours.php → tramites.create).
+               Sin él habría que anclar por clase, y eso se rompe en silencio en
+               cuanto alguien reordena el HTML. --}}
+          <div class="wizard-fields" id="pasoIdentificacion">
 
             {{-- ── Selector de naturaleza: ¿Trámite o Servicio? ──────────── --}}
             {{-- Patrón visual wz-opt del wizard de agenda SyD: dos cards
@@ -824,6 +847,51 @@
   };
 </script>
 <script src="{{ asset('js/tramites-create.js') }}?v={{ filemtime(public_path('js/tramites-create.js')) }}"></script>
+
+{{-- Precarga desde ficha: llena los requisitos (los costos y pasos se siembran
+     solos por sus hidden JSON) y resalta lo precargado. Solo actúa si hubo ficha. --}}
+@if(!empty($precarga))
+<style>
+  .field.precargado { position: relative; }
+  .field.precargado input, .field.precargado textarea, .field.precargado select { background: #fffdf3; }
+  .field.precargado::after {
+    content: "de la ficha"; position: absolute; top: 2px; right: 2px;
+    font-size: 10px; color: #a16207; background: #fef9c3; padding: 1px 6px; border-radius: 6px;
+  }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  function marcar(el) {
+    if (!el) return;
+    var campo = el.closest('.field');
+    if (campo) campo.classList.add('precargado');
+  }
+
+  // 1) Resaltar los campos escalares que vinieron de la ficha.
+  @json(array_keys($precarga['escalares'] ?? [])).forEach(function (name) {
+    marcar(document.querySelector('[name="' + name + '"]'));
+  });
+
+  // 2) Requisitos: la fila 0 ya existe en el HTML; las demás se agregan.
+  @json($precarga['requisitos'] ?? []).forEach(function (r, i) {
+    if (i > 0 && typeof window.agregarRequisito === 'function') {
+      window.agregarRequisito();
+    }
+
+    var nombre = document.querySelector('[name="requisitos[' + i + '][nombre]"]');
+    if (nombre) { nombre.value = r.nombre || ''; marcar(nombre); }
+
+    if ((r.original | 0) > 0) marcarTipo(i, 'original');
+    if ((r.copias   | 0) > 0) marcarTipo(i, 'copia');
+  });
+
+  function marcarTipo(i, valor) {
+    var el = document.querySelector('[name="requisitos[' + i + '][tipo][]"][value="' + valor + '"]');
+    if (el) { el.checked = true; marcar(el); }
+  }
+});
+</script>
+@endif
 
 {{-- Selector de naturaleza Trámite / Servicio.
      Este script se renderiza SIEMPRE (no depende de errores de validación)

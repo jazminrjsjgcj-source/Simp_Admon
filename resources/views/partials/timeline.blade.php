@@ -9,9 +9,31 @@
   No se necesita pasar nada más que $tipo e $id desde el @include.
 --}}
 
-<div class="card card-pad">
-  <h3 class="timeline-titulo">Historial</h3>
-  <p class="timeline-subtitulo">Todo lo que ha pasado con este registro.</p>
+{{-- El historial vive en una PESTAÑA lateral, como la de "Actividad reciente"
+     del dashboard: la lengüeta asoma en el borde derecho y el panel se despliega
+     al pulsarla.
+
+     Antes ocupaba una columna fija del 30% en cada ficha, estuviera o no
+     haciendo falta, y para recuperar ese espacio había un botón flotante que
+     lo escondía. Con la pestaña sobra ese botón: el espacio es de la ficha por
+     defecto, y el historial se consulta cuando se necesita.
+
+     Reutiliza las clases y el JS de paneles laterales (08-screens.css y el
+     layout), así que se comporta igual en las 8 pantallas que incluyen esto. --}}
+<aside class="panel-lateral panel-lateral--historial" id="panelHistorial" aria-label="Historial del registro">
+  <button type="button" class="panel-pestana" onclick="togglePanelLateral('panelHistorial')"
+    aria-controls="panelHistorial" title="Mostrar u ocultar el historial">
+    Historial
+  </button>
+
+  <div class="panel-lateral-cuerpo">
+    <div class="panel-lateral-head">
+      <h3>Historial</h3>
+      <button type="button" class="panel-cerrar" onclick="togglePanelLateral('panelHistorial')" aria-label="Cerrar">&times;</button>
+    </div>
+
+    <div class="panel-lateral-scroll">
+      <p class="timeline-subtitulo">Todo lo que ha pasado con este registro.</p>
 
   @if($eventos->isEmpty())
     <p class="timeline-vacio">Aún no hay movimientos registrados.</p>
@@ -49,7 +71,9 @@
       Ver historial completo
     </button>
   @endif
-</div>
+    </div>
+  </div>
+</aside>
 
 {{-- Modal del historial completo. Vive una sola vez por página; el JS lo
      reutiliza para cualquier registro. Carga las filas por AJAX desde

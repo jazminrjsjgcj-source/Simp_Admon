@@ -9,6 +9,9 @@ use App\Models\Tramite;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Throwable;
+use App\Http\Requests\FlujoProcesoRequest;
+use App\Services\GeneradorDiagramaFlujoService;
+use App\Services\GuardarFlujoProcesoService;
 
 /**
  * Controlador de la Biblioteca de Digitalización.
@@ -510,5 +513,130 @@ class DigitalizacionController extends Controller
             default  => response($contenido)->header('Content-Type', 'text/plain')
                           ->header('Content-Disposition', "attachment; filename=\"{$nombre}.mmd\""),
         };
+    }
+
+    /**
+     * Formulario del flujo detallado de una reingeniería.
+     *
+     * Es el paso que completa lo que el trámite ya tenía capturado: quién interviene,
+     * en qué fases, qué se revisa y a dónde va el proceso cuando una revisión falla.
+     */
+    public function editarFlujo(Reingenieria $reingenieria)
+    {
+        if (! auth()->user()->tienePermiso('digitalizacion.reingenieria')) {
+            abort(403, 'No tiene permiso para gestionar reingenierías.');
+        }
+
+        $reingenieria->load([
+            'tramite.derechos',
+            'participantes',
+            'resultados',
+            'fases.actividades.rutas',
+            'fases.actividades.participante',
+        ]);
+
+        return view('screens.digitalizacion.flujo-form', [
+            'reingenieria' => $reingenieria,
+            'tramite'      => $reingenieria->tramite,
+            'derechos'     => $this->derechosParaFlujo($reingenieria->tramite),
+            'guardado'     => $this->flujoGuardado($reingenieria),
+        ]);
+    }
+
+    /**
+     * Guarda el flujo completo y devuelve al detalle con el diagrama actualizado.
+     */
+    public function guardarFlujo(
+        FlujoProcesoRequest $request,
+        Reingenieria $reingenieria,
+        GuardarFlujoProcesoService $guardar
+    ) {
+        $guardar->guardar($reingenieria, $request->validated());
+
+        return redirect()
+            ->route('digitalizacion.show', $reingenieria->tramite_id)
+            ->with('success', 'Flujo del proceso guardado.');
+    }
+
+    /**
+     * Diagrama del flujo detallado, en Mermaid.
+     *
+     * Se sirve como texto para que la vista lo pinte con la misma librería que ya usa
+     * el resto del módulo, sin generar una imagen en el servidor.
+     */
+    public function diagramaFlujo(Reingenieria $reingenieria, GeneradorDiagramaFlujoService $generador)
+    {
+        if (! auth()->user()->tienePermiso('digitalizacion.ver')) {
+            abort(403, 'No tiene permiso para acceder a la Biblioteca de Digitalización.');
+        }
+
+        return response()->json(['mermaid' => $generador->generar($reingenieria)]);
+    }
+
+    /**
+     * Conceptos de cobro del trámite, para el desplegable del bloque de pago.
+     *
+     * @return array<int, array{id: int, texto: string}>
+     */
+    private function derechosParaFlujo($tramite): array
+    {
+        return $tramite->derechos
+            ->map(fn ($d) => [
+                'id'    => $d->id,
+                'texto' => $d->concepto . ' — $' . number_format((float) $d->monto, 2),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * El flujo ya capturado, en la forma que el formulario espera.
+     *
+     * Se arma aquí y no en la vista porque es transformación de datos, no
+     * presentación. Cada elemento lleva la clave con la que lo referencian los demás
+     * ('p3', 'a12'), derivada de su id para que las referencias sigan cuadrando al
+     * reabrir el formulario.
+     *
+     * @return array<string, mixed>
+     */
+    private function flujoGuardado(Reingenieria $reingenieria): array
+    {
+        return [
+            'participantes' => $reingenieria->participantes
+                ->map(fn ($p) => [
+                    'clave'  => 'p' . $p->id,
+                    'nombre' => $p->nombre,
+                    'tipo'   => $p->tipo,
+                ])->values()->all(),
+
+            'resultados' => $reingenieria->resultados
+                ->map(fn ($r) => [
+                    'clave'  => 'r' . $r->id,
+                    'nombre' => $r->nombre,
+                ])->values()->all(),
+
+            'fases' => $reingenieria->fases
+                ->map(fn ($f) => [
+                    'clave'       => 'f' . $f->id,
+                    'nombre'      => $f->nombre,
+                    'nota'        => $f->nota,
+                    'actividades' => $f->actividades->map(fn ($a) => [
+                        'clave'          => 'a' . $a->id,
+                        'descripcion'    => $a->descripcion,
+                        'participante'   => $a->participante_id ? 'p' . $a->participante_id : '',
+                        'tiene_decision' => (bool) $a->tiene_decision,
+                        'que_revisa'     => $a->que_revisa,
+                        'estado'         => $a->detalle['estado'] ?? '',
+                        'nota'           => $a->detalle['nota'] ?? null,
+                        'pago'           => $a->detalle['pago'] ?? null,
+                        'rutas'          => $a->rutas->map(fn ($r) => [
+                            'condicion'         => $r->condicion,
+                            'destino_tipo'      => $r->destino_tipo,
+                            'destino_actividad' => $r->destino_actividad_id ? 'a' . $r->destino_actividad_id : '',
+                            'resultado'         => $r->resultado_id ? 'r' . $r->resultado_id : '',
+                        ])->values()->all(),
+                    ])->values()->all(),
+                ])->values()->all(),
+        ];
     }
 }

@@ -93,8 +93,8 @@
         <span class="label-meta">Equivalencias actuales</span>
         <div class="modal-grid mt-2">
           <div class="modal-data-item"><span>Pesos</span><strong>${{ number_format($umbral->monto_pesos, 2) }}</strong></div>
-          <div class="modal-data-item"><span>UMA</span><strong>{{ $umbral->monto_uma ? number_format($umbral->monto_uma, 2) : '—' }}</strong></div>
-          <div class="modal-data-item"><span>Salario mínimo</span><strong>{{ $umbral->monto_salario_minimo ? number_format($umbral->monto_salario_minimo, 2) : '—' }}</strong></div>
+          <div class="modal-data-item"><span>UMA</span><strong>{{ $umbral->monto_uma ? number_format($umbral->monto_uma, 2) : '' }}</strong></div>
+          <div class="modal-data-item"><span>Salario mínimo</span><strong>{{ $umbral->monto_salario_minimo ? number_format($umbral->monto_salario_minimo, 2) : '' }}</strong></div>
         </div>
         <small class="help-small mt-2 d-flex">Se recalcularán automáticamente al guardar.</small>
       </div>

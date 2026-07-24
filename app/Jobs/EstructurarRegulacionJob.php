@@ -6,9 +6,12 @@ use App\Models\Regulacion;
 use App\Models\RegulacionNodo;
 use App\Models\User;
 use App\Services\DefinitionExtractorService;
+use App\Services\DetectorCatalogosService;
 use App\Services\NotificadorService;
 use App\Services\PdfConversorService;
+use App\Services\RegulacionConversorService;
 use App\Services\RegulacionEstructuradorService;
+use App\Services\RegulacionPaginadorService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -100,6 +103,9 @@ class EstructurarRegulacionJob implements ShouldQueue
         DefinitionExtractorService $extractorDefiniciones,
         NotificadorService $notificador,
         PdfConversorService $pdfConversor,
+        DetectorCatalogosService $detectorCatalogos,
+        RegulacionConversorService $conversor,
+        RegulacionPaginadorService $paginador,
     ): void {
         $regulacion = Regulacion::find($this->regulacion->id);
 
@@ -191,6 +197,45 @@ class EstructurarRegulacionJob implements ShouldQueue
         // (5) El aviso a los trámites afectados.
         $this->avisarATramitesCitantes($notificador, $regulacion, $citaciones);
 
+        // (6) Detección de artículos-catálogo con IA.
+        //
+        // Marca los artículos que son TABLAS DE REFERENCIA (escalas de sanción, catálogos,
+        // tarifas, definiciones) que otros artículos necesitan para entenderse. Ver
+        // DetectorCatalogosService.
+        //
+        // Corre AQUÍ —fuera de la transacción de importarDesdeMarkdown— a propósito: son cientos
+        // de llamadas a la IA y no pueden tener una transacción de base de datos abierta mientras
+        // esperan. Y corre DESPUÉS de que el árbol está guardado, porque necesita leer los
+        // artículos ya creados.
+        //
+        // Es una MEJORA, no un requisito: si la IA falla, la ley queda cargada y buscable, solo
+        // que sin el cruce de cadenas (el buscador encuentra la conducta, pero no salta al
+        // catálogo). Nunca bloquea la estructuración.
+        $this->detectarCatalogos($detectorCatalogos, $regulacion);
+
+        // Recupera del PDF las tablas que pdftotext destruyó (el Catálogo de
+        // Infracciones) y las vuelca, legibles, en el nodo-catálogo que el detector
+        // acaba de marcar. Cierra el cruce: conducta → clase → escala. Va después del
+        // detector porque necesita el nodo ya marcado; misma disciplina defensiva.
+        $this->repararTablasCatalogo($conversor, $detectorCatalogos, $regulacion);
+
+        // (7) Página de cada artículo dentro del PDF original.
+        //
+        // Permite que un resultado del buscador abra el PDF en el lugar correcto
+        // (#page=N). Igual que la detección de catálogos: es una MEJORA, solo aplica
+        // a PDFs, y está protegida —si falla, la ley queda estructurada y buscable,
+        // solo que sus resultados abren el PDF en la página 1 en vez de la exacta—.
+        $this->detectarPaginas($paginador, $regulacion);
+
+        // Sello de éxito: se estructuró con la versión vigente del pipeline. Solo se llega
+        // aquí si todos los pasos corrieron; si algo falló antes, NO se sella, y la ley
+        // queda marcada como desactualizada (ver Regulacion::estaDesactualizada). Es la
+        // red contra "cambié el código y olvidé re-estructurar".
+        $regulacion->update([
+            'pipeline_version' => Regulacion::PIPELINE_VERSION,
+            'estructurado_en'  => now(),
+        ]);
+
         Log::info('Regulación estructurada en segundo plano.', [
             'regulacion_id'     => $regulacion->id,
             'nodos_creados'     => $creados,
@@ -269,6 +314,97 @@ class EstructurarRegulacionJob implements ShouldQueue
             ]);
         } catch (Throwable $e) {
             Log::warning('No se pudieron extraer las definiciones legales.', [
+                'regulacion_id' => $regulacion->id,
+                'error'         => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Marca los artículos-catálogo con IA, para que el asistente pueda cruzar cadenas de
+     * artículos (ej. "multa por obstruir banqueta" = conducta art. 65 + catálogo 105 + escala 104).
+     *
+     * Mismo patrón defensivo que extraerDefiniciones: si la IA falla, se registra y se sigue. La
+     * ley queda cargada y buscable; solo se pierde el cruce de cadenas, que es una mejora.
+     */
+    private function detectarCatalogos(DetectorCatalogosService $detector, Regulacion $regulacion): void
+    {
+        try {
+            $marcados = $detector->detectarYMarcar($regulacion);
+
+            Log::info("Artículos-catálogo detectados: {$marcados}.", [
+                'regulacion_id' => $regulacion->id,
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('No se pudieron detectar los artículos-catálogo.', [
+                'regulacion_id' => $regulacion->id,
+                'error'         => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Detecta en qué página del PDF original aparece cada artículo y la guarda.
+     *
+     * Mismo patrón defensivo que detectarCatalogos: una MEJORA, nunca un requisito.
+     * El propio servicio ya se salta las regulaciones que no son PDF; este envoltorio
+     * solo garantiza que, si algo revienta al leer el PDF, la estructuración no caiga
+     * con él. Sin páginas, el buscador simplemente abre el PDF en la página 1.
+     */
+    private function detectarPaginas(RegulacionPaginadorService $paginador, Regulacion $regulacion): void
+    {
+        try {
+            $exactas = $paginador->detectarPaginas($regulacion);
+
+            Log::info("Páginas de artículos detectadas: {$exactas} exactas.", [
+                'regulacion_id' => $regulacion->id,
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('No se pudieron detectar las páginas de los artículos.', [
+                'regulacion_id' => $regulacion->id,
+                'error'         => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Recupera las tablas-catálogo del PDF y las vuelca en el nodo que el detector
+     * marcó. Es lo que da al asistente el cruce legible "artículo 65 → Clase D".
+     *
+     * Mismo patrón defensivo que detectarCatalogos: una MEJORA, nunca un requisito.
+     * Si Python no está, el PDF no trae tablas, o algo falla, la ley queda cargada
+     * igual —solo sin el cruce recuperado—. Solo aplica a PDFs: pdfplumber saca
+     * tablas de un PDF; una ley en Word no tiene aquí un PDF del que sacarlas.
+     */
+    private function repararTablasCatalogo(
+        RegulacionConversorService $conversor,
+        DetectorCatalogosService $detector,
+        Regulacion $regulacion
+    ): void {
+        // Solo PDFs: pdfplumber saca tablas de un PDF. Se mira la extensión del
+        // propio archivo original —más fiable que la columna extension_original, que
+        // podría no estar puesta y haría que este paso se saltara en silencio—.
+        $rutaOriginal = (string) $regulacion->archivo_original;
+        if (! str_ends_with(strtolower($rutaOriginal), '.pdf')) {
+            return;
+        }
+
+        try {
+            $rutaPdf = Storage::disk('local')->path($regulacion->archivo_original);
+            $pares   = $conversor->extraerTablasCatalogo($rutaPdf);
+
+            if ($pares === []) {
+                return; // el PDF no traía tablas legibles, o Python no está disponible.
+            }
+
+            $reparados = $detector->repararCatalogoConTabla($regulacion, $pares);
+
+            Log::info("Tablas-catálogo recuperadas en {$reparados} artículo(s).", [
+                'regulacion_id' => $regulacion->id,
+                'pares'         => count($pares),
+            ]);
+        } catch (Throwable $e) {
+            Log::warning('No se pudieron recuperar las tablas-catálogo.', [
                 'regulacion_id' => $regulacion->id,
                 'error'         => $e->getMessage(),
             ]);

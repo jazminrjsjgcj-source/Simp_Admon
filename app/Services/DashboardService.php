@@ -77,7 +77,7 @@ class DashboardService
                 ['value' => Tramite::where('dependencia_id', $user->dependencia_id)->where('naturaleza', 'servicio')->count(),  'label' => 'Servicios'],
                 ['value' => PropuestaRegulatoria::where('dependencia_id', $user->dependencia_id)->count(),                      'label' => 'Propuestas regulatorias'],
                 ['value' => AccionAgenda::activas()->where('dependencia_id', $user->dependencia_id)->count(),                              'label' => 'Acciones de agenda'],
-                // Bug #37 (sesión anterior): contar en_observacion además de en_correccion.
+                // Contar en_observacion además de en_correccion.
                 ['value' => Tramite::where('dependencia_id', $user->dependencia_id)
                     ->whereIn('estatus', ['en_observacion', 'en_correccion'])->count(),    'label' => 'Observaciones pendientes'],
             ],

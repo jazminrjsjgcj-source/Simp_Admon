@@ -18,6 +18,20 @@
         </include>
     </source>
     <php>
+        <!--
+            La Agenda se exporta rellenando las plantillas oficiales de la ATDT, que
+            son libros de 8 hojas y ~32 000 celdas. Abrir uno cuesta decenas de MB en
+            PhpSpreadsheet, y estas pruebas abren el archivo generado para leer sus
+            celdas: durante un instante hay dos libros vivos. Con los 128 MB por
+            defecto de la imagen no cabe, y el fallo se manifiesta como un fatal sin
+            traza ("Premature end of PHP process"), que despista mucho.
+
+            Va aquí y no en la línea de comandos porque `artisan test` lanza PHPUnit
+            en un proceso hijo que NO hereda los -d del proceso padre: pasar
+            `php -d memory_limit=512M artisan test` no surte ningún efecto.
+        -->
+        <ini name="memory_limit" value="512M"/>
+
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>

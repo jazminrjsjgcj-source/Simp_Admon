@@ -22,15 +22,31 @@ class TramiteFactory extends Factory
 
     public function definition(): array
     {
-        // La unidad se crea junto con su dependencia, y el trámite usa las dos:
-        // así la homoclave (LPZ-T-{siglas dep}-{siglas unidad}-{N}) puede formarse.
-        $unidad = UnidadAdministrativa::factory()->create();
-
+        // La unidad (y con ella su dependencia) se crea SOLO si el llamador no la pasa.
+        //
+        // Antes se creaba SIEMPRE, de golpe, aunque la prueba ya diera unidad_id y
+        // dependencia_id. Esa dependencia-fantasma nacía con un código aleatorio (100-999)
+        // y chocaba ~1 de cada 900 veces con un código fijo de la prueba —el 110 de
+        // IdentificadoresUnicosTest—, volviendo la suite flaky sin motivo real.
+        //
+        // Con atributos perezosos, si el llamador sobrescribe unidad_id/dependencia_id,
+        // ni la unidad ni la dependencia fantasma se crean. Si no los pasa, se crea una
+        // unidad nueva (con su dependencia) y ambos ids salen de ella, consistentes.
         return [
             'nombre_oficial' => 'Trámite de ' . fake()->unique()->words(3, true),
             'naturaleza'     => 'tramite',
-            'dependencia_id' => $unidad->dependencia_id,
-            'unidad_id'      => $unidad->id,
+            'unidad_id'      => UnidadAdministrativa::factory(),
+            'dependencia_id' => function (array $attributes) {
+                // Con unidad: la dependencia SALE de ella (deben ser consistentes).
+                if (isset($attributes['unidad_id'])) {
+                    return UnidadAdministrativa::findOrFail($attributes['unidad_id'])->dependencia_id;
+                }
+
+                // Sin unidad (caso de prueba "sin unidad no hay homoclave"): el trámite
+                // aún necesita una dependencia válida, porque la columna es NOT NULL. Se
+                // crea una dependencia suelta —sin la unidad fantasma que causaba el flaky—.
+                return Dependencia::factory()->create()->id;
+            },
             'estatus'        => Tramite::ESTATUS_BORRADOR,
             'objetivo'       => fake()->sentence(),
             'dirigido_a'     => 'ambas',

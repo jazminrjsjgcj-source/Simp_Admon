@@ -103,7 +103,7 @@ class RegulacionConversorService
             return false;
         }
 
-        // Bug #21: la conversión de archivos grandes (PDF con muchas páginas o
+        // La conversión de archivos grandes (PDF con muchas páginas o
         // DOCX pesados) puede superar el max_execution_time del php.ini (30s por
         // defecto). Se amplía a 120s solo para esta operación — el límite se
         // restaura solo al terminar el request. Si set_time_limit no está
@@ -156,7 +156,7 @@ class RegulacionConversorService
 
             return true;
         } catch (Throwable $e) {
-            // Bug #21: mensaje amigable si fue un timeout.
+            // Mensaje amigable si fue un timeout.
             $msg = $e->getMessage();
             if (stripos($msg, 'Maximum execution time') !== false
                 || stripos($msg, 'time limit') !== false) {
@@ -362,6 +362,120 @@ class RegulacionConversorService
         @unlink($salida);
 
         return $texto;
+    }
+
+    /**
+     * Devuelve el texto de un PDF SEPARADO POR PÁGINA: un elemento por página,
+     * en orden (posición 0 = página 1, posición 1 = página 2...).
+     *
+     * Reutiliza la misma extracción que la conversión a Markdown, con una
+     * diferencia clave: aquí SÍ se conservan los saltos de página. pdftotext
+     * inserta un carácter de avance de página (form-feed, "\f", 0x0C) entre
+     * página y página; el conversor a Markdown lo borra después, pero en este
+     * punto todavía está, y es justo lo que permite saber dónde termina cada una.
+     *
+     * Lo usa RegulacionPaginadorService para averiguar en qué página aparece
+     * cada artículo. Devuelve null si pdftotext no está disponible o falla, para
+     * que el llamador lo trate como "no se pudo paginar" sin romperse.
+     *
+     * @return list<string>|null  texto por página, o null si no se pudo extraer
+     */
+    public function extraerTextoPorPagina(string $rutaAbsoluta): ?array
+    {
+        $texto = $this->extraerPdfConPdftotext($rutaAbsoluta);
+        if ($texto === null) {
+            return null;
+        }
+
+        // "\f" (0x0C) es el separador de página que pone pdftotext. Partir por él
+        // da un arreglo con el texto de cada página en su orden original.
+        return explode("\f", $texto);
+    }
+
+    /**
+     * Extrae las tablas-catálogo (pares artículo→clase) de un PDF con el script
+     * Python (pdfplumber). Recupera lo que pdftotext destruye: el Catálogo de
+     * Infracciones del Bando sale aplastado como "65 D" perdido entre pies de
+     * página; esto lo devuelve como pares limpios.
+     *
+     * Es una MEJORA, no un requisito. Si Python no está, el script falla, o el PDF
+     * no trae tablas, devuelve [] y el sistema sigue exactamente como hoy — la
+     * conversión no depende de esto.
+     *
+     * @return list<array{articulo: string, clase: string}>  pares de todas las tablas
+     */
+    public function extraerTablasCatalogo(string $rutaPdf): array
+    {
+        $salida = $this->ejecutarScriptTablas($rutaPdf);
+
+        if ($salida === null) {
+            return [];
+        }
+
+        return $this->parsearTablasCatalogo($salida);
+    }
+
+    /**
+     * Corre el script Python sobre el PDF y devuelve su stdout (JSON), o null si ni
+     * siquiera se pudo ejecutar (Python ausente, script no encontrado). El script
+     * SIEMPRE imprime JSON —incluso al fallar, con ok:false—, así que un fallo
+     * interno del script NO da null aquí: da un JSON que parsearTablasCatalogo lee.
+     */
+    private function ejecutarScriptTablas(string $rutaPdf): ?string
+    {
+        exec('command -v python3 2>/dev/null', $donde, $codigo);
+        if ($codigo !== 0 || empty($donde)) {
+            return null;
+        }
+
+        $script = base_path('scripts/extraer_tablas.py');
+        if (! is_file($script)) {
+            return null;
+        }
+
+        $comando = 'python3 '
+                 . escapeshellarg($script) . ' '
+                 . escapeshellarg($rutaPdf) . ' 2>/dev/null';
+
+        exec($comando, $lineas, $codigo);
+
+        $salida = trim(implode("\n", (array) $lineas));
+
+        return $salida !== '' ? $salida : null;
+    }
+
+    /**
+     * Convierte el JSON del script en una lista plana de pares {articulo, clase}.
+     * Aplana todas las tablas en un solo listado y descarta filas cuyo primer campo
+     * no sea un número de artículo (defensa extra ante ruido residual del script).
+     *
+     * Es pública porque es la parte con lógica —y por tanto la que se prueba—; la
+     * ejecución del script es plomería, igual que el exec de pdftotext.
+     *
+     * @return list<array{articulo: string, clase: string}>
+     */
+    public function parsearTablasCatalogo(string $json): array
+    {
+        $datos = json_decode($json, true);
+
+        if (! is_array($datos) || empty($datos['ok']) || empty($datos['tablas'])) {
+            return [];
+        }
+
+        $pares = [];
+
+        foreach ($datos['tablas'] as $tabla) {
+            foreach (($tabla['filas'] ?? []) as $fila) {
+                $articulo = trim((string) ($fila[0] ?? ''));
+                $clase    = trim((string) ($fila[1] ?? ''));
+
+                if ($articulo !== '' && $clase !== '' && ctype_digit($articulo)) {
+                    $pares[] = ['articulo' => $articulo, 'clase' => $clase];
+                }
+            }
+        }
+
+        return $pares;
     }
 
     private function extraerTextoWord(string $ruta, string $extension): string

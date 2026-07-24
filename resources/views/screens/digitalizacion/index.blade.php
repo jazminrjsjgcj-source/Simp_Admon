@@ -79,7 +79,7 @@
                 </span>
               </td>
               <td style="font-size:12px;color:var(--muted)">
-                {{ $t->dependencia->nombre ?? '—' }}
+                {{ $t->dependencia->nombre ?? '' }}
               </td>
               <td>
                 @php

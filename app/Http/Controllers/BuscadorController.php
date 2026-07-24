@@ -6,6 +6,7 @@ use App\Models\Regulacion;
 use App\Models\RegulacionNodo;
 use App\Services\BuscadorService;
 use App\Services\BusquedaLogService;
+use App\Services\ConsultaDatosDesdeTextoService;
 use App\Services\LegalArticleResolverService;
 use Illuminate\Http\Request;
 
@@ -27,6 +28,7 @@ class BuscadorController extends Controller
         private BuscadorService $buscador,
         private BusquedaLogService $log,
         private LegalArticleResolverService $resolutorArticulo,
+        private ConsultaDatosDesdeTextoService $consultaDatos,
     ) {}
 
     /**
@@ -36,6 +38,10 @@ class BuscadorController extends Controller
     {
         $consulta       = $request->input('q', '');
         $forzarCompleto = $request->boolean('todos');
+
+        // "Ver leyes de otras jurisdicciones": apaga el filtro de jurisdicción. Por defecto NO.
+        // Lo que entre vendrá marcado (fuera_de_jurisdiccion) y el asistente lo advierte.
+        $incluirOtrasJurisdicciones = $request->boolean('otras_jurisdicciones');
 
         // regulacion_id puede venir como array de checkboxes (regulacion_id[])
         // o como valor único (compatibilidad hacia atrás).
@@ -61,13 +67,14 @@ class BuscadorController extends Controller
 
         $resultados         = collect();
         $respuestaDestacada = null;
+        $respuestaDatos     = null;
         $modo               = 'completo';
         $tiempo             = 0;
         $busquedaLogId      = null;
 
         if (trim($consulta) !== '') {
             $inicio    = microtime(true);
-            $respuesta = $this->buscador->buscar($consulta, $forzarCompleto, $regulacionIds, $tiposSeleccionados);
+            $respuesta = $this->buscador->buscar($consulta, $forzarCompleto, $regulacionIds, $tiposSeleccionados, $incluirOtrasJurisdicciones);
             $tiempo    = round((microtime(true) - $inicio) * 1000);
 
             $resultados         = $respuesta['resultados'];
@@ -84,6 +91,11 @@ class BuscadorController extends Controller
                 tiempoMs:        (int) $tiempo,
                 tieneDestacada:  $respuestaDestacada !== null,
             );
+
+            // Pregunta de datos ("¿cuántos trámites en borrador?"): si aplica, se
+            // resuelve con conteo/lista/agrupado en vez de búsqueda de texto.
+            // Devuelve null (y no muestra nada) si no aplica, no hay permiso o falla.
+            $respuestaDatos = $this->consultaDatos->responder($consulta, $request->user());
         }
 
         $regulaciones = Regulacion::query()
@@ -95,16 +107,23 @@ class BuscadorController extends Controller
             ? $regulaciones->whereIn('id', $regulacionIds)->values()
             : null;
 
+        // Últimas búsquedas del usuario, para la columna lateral. Es una comodidad:
+        // si falla, el servicio devuelve [] y la columna sale vacía.
+        $busquedasRecientes = $this->log->recientes($request->user()?->id);
+
         return view('screens.buscar', compact(
             'consulta',
+            'busquedasRecientes',
             'resultados',
             'respuestaDestacada',
+            'respuestaDatos',
             'modo',
             'tiempo',
             'regulaciones',
             'regulacionIds',
             'regulacionesFiltro',
             'tiposSeleccionados',
+            'incluirOtrasJurisdicciones',
             'busquedaLogId',
         ));
     }

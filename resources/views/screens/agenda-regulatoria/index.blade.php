@@ -68,7 +68,7 @@
           <td>@dato($p->folio)</td>
           <td><strong>{{ Str::limit($p->nombre, 60) }}</strong><br><small>{{ $p->created_at->format('d/m/Y') }}</small></td>
           @if($verDependencia)<td>@dato($p->dependencia->nombre)</td>@endif
-          <td>{{ $p->fecha_tentativa ? \Carbon\Carbon::parse($p->fecha_tentativa)->format('d/m/Y') : '—' }}</td>
+          <td>{{ $p->fecha_tentativa ? \Carbon\Carbon::parse($p->fecha_tentativa)->format('d/m/Y') : '' }}</td>
           <td><x-badge-estatus :estatus="$p->determinacion_air" /></td>
           <td><x-badge-estatus :estatus="$p->estatus" /></td>
           <td class="table-action-cell">

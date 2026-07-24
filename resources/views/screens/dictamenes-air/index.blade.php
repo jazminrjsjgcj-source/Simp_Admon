@@ -41,9 +41,9 @@
           <tbody>
             @foreach($airsPendientes as $air)
               <tr>
-                <td><code>{{ $air->folio ?? '—' }}</code></td>
+                <td><code>{{ $air->folio ?? '' }}</code></td>
                 <td><strong>{{ Str::limit($air->propuesta->nombre ?? 'Sin propuesta', 50) }}</strong></td>
-                <td>{{ $air->propuesta->dependencia->nombre ?? '—' }}</td>
+                <td>{{ $air->propuesta->dependencia->nombre ?? '' }}</td>
                 <td>{{ $air->updated_at->format('d/m/Y') }}</td>
                 <td class="table-action-cell">
                   <div class="table-actions">
@@ -91,7 +91,7 @@
             @foreach($exencionesPendientes as $exencion)
               <tr>
                 <td><strong>{{ Str::limit($exencion->propuesta->nombre ?? 'Sin propuesta', 50) }}</strong></td>
-                <td>{{ $exencion->propuesta->dependencia->nombre ?? '—' }}</td>
+                <td>{{ $exencion->propuesta->dependencia->nombre ?? '' }}</td>
                 <td>{{ Str::limit($exencion->fraccionesTexto(), 40) }}</td>
                 <td>{{ $exencion->updated_at->format('d/m/Y') }}</td>
                 <td class="table-action-cell">

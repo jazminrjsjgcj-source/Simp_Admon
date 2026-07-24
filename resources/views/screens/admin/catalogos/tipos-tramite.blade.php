@@ -32,8 +32,8 @@
             <tr>
               <td style="color:#9ca3af;font-size:12px">{{ $tipo->orden }}</td>
               <td><strong>{{ $tipo->nombre }}</strong></td>
-              <td style="color:#6b7280;font-size:13px">{{ $tipo->descripcion ?? '—' }}</td>
-              <td>{{ $tipo->tramites_count ?? '—' }}</td>
+              <td style="color:#6b7280;font-size:13px">{{ $tipo->descripcion ?? '' }}</td>
+              <td>{{ $tipo->tramites_count ?? '' }}</td>
               <td><span class="badge {{ $tipo->activo ? 'success-b' : '' }}">{{ $tipo->activo ? 'Activo' : 'Inactivo' }}</span></td>
               <td class="table-action-cell">
                 <div class="table-actions">

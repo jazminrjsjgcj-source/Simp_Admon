@@ -300,32 +300,147 @@
 }
 
 /* ===========================================
-   Carrusel de Actividad General (dashboard)
-   Cinta horizontal que se desliza sola en bucle infinito. La cinta tiene el
-   contenido duplicado; la animación la mueve -50% (un set completo) y al
-   reiniciar el segundo set queda en la posición del primero, así el bucle no
-   tiene salto. Se pausa al pasar el mouse para poder leer. No clickeable.
+   Paneles laterales del dashboard (actividad, pendientes)
+
+   Antes era una cinta horizontal que se deslizaba sola bajo el saludo. Ahora es
+   un panel pegado al borde derecho de la ventana, con una PESTAÑA tipo lengüeta
+   de folder que sobresale hacia la izquierda.
+
+   Va con position:fixed, así que se SUPERPONE al contenido: al abrirlo o cerrarlo
+   el dashboard no se recoloca. Cerrado (estado por defecto) se desplaza hacia la
+   derecha justo el ancho del cuerpo, de modo que solo asoma la pestaña.
+
+   Solo aparece en el dashboard porque el marcado vive únicamente en esa vista.
    =========================================== */
-.actividad-carrusel {
-  overflow: hidden;
-  position: relative;
-  padding: 4px 0 8px;
-  margin-bottom: 18px;
-}
-.actividad-cinta {
+.panel-lateral {
+  --ancho-panel: 330px;
+  position: fixed;
+  top: 96px;                     /* por debajo de la barra superior */
+  right: 0;
+  z-index: 60;
   display: flex;
-  align-items: stretch;
-  gap: 20px;
-  width: max-content;
-  animation: actividadScroll 90s linear infinite;
+  align-items: flex-start;
+  /* Cerrado: se corre a la derecha el ancho del cuerpo; solo queda la pestaña. */
+  transform: translateX(var(--ancho-panel));
+  transition: transform .25s ease;
 }
-.actividad-carrusel:hover .actividad-cinta { animation-play-state: paused; }
-@keyframes actividadScroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+.panel-lateral.abierto { transform: translateX(0); }
+
+/* La pestaña: texto en vertical, leyéndose de abajo hacia arriba. */
+.panel-pestana {
+  /* Texto en vertical, leyéndose de arriba hacia abajo. */
+  writing-mode: vertical-rl;
+  background: var(--primary-container);
+  color: #fff;
+  border: 0;
+  border-radius: 12px 0 0 12px;
+  /* Se monta 1px sobre el panel para que no quede costura entre ambos. */
+  margin-right: -1px;
+  position: relative;
+  z-index: 1;
+  padding: 16px 9px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  white-space: nowrap;
+  /* Sombra solo hacia la izquierda: del lado del panel no debe haber separación. */
+  box-shadow: -5px 0 14px rgba(117, 0, 56, .20);
 }
-@media (prefers-reduced-motion: reduce) {
-  .actividad-cinta { animation: none; flex-wrap: wrap; }
+.panel-pestana:hover { filter: brightness(1.08); }
+
+.panel-lateral-cuerpo {
+  width: var(--ancho-panel);
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--surface-high);
+  border-right: 0;
+  /* LOMO guinda del alto completo del panel. La pestaña (también guinda) nace de
+     él, así que por arriba y por abajo la franja continúa en vez de cortarse: es
+     lo que hacía que las uniones se vieran como una etiqueta pegada encima. */
+  border-left: 8px solid var(--primary-container);
+  /* Izquierda RECTA: es el canto contra el que encaja la pestaña. Si se redondea,
+     queda un escalón y la pestaña parece pegada encima en vez de formar parte. */
+  border-radius: 0;
+  box-shadow: -6px 0 24px rgba(0, 0, 0, .10);
+  overflow: hidden;
+}
+
+/* La cabecera lleva el MISMO guinda que la pestaña: así ambas forman una sola
+   pieza continua y no se ve la franja clara donde se tocaban. */
+.panel-lateral-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--surface-high);
+}
+.panel-lateral-head h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+}
+.panel-cerrar {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.panel-cerrar:hover { color: var(--text); }
+
+/* Lista en vertical, con scroll propio si hay muchos eventos. */
+.actividad-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+}
+/* Dentro del panel la tarjeta ocupa todo el ancho (en la cinta medía 220px fijos). */
+.actividad-lista .actividad-tarjeta { flex: 0 0 auto; width: 100%; }
+
+/* Cada panel se ancla a una altura distinta para que sus pestañas no se solapen.
+   Arriba va "Acciones rápidas", que existe en TODOS los módulos; debajo, la de
+   actividad, que solo aparece en el dashboard. */
+.panel-lateral--acciones  { top: 96px; }
+/* Actividad (solo dashboard) e historial (solo fichas) nunca coinciden en la
+   misma pantalla, así que comparten altura sin estorbarse. */
+.panel-lateral--actividad { top: 272px; }
+.panel-lateral--historial { top: 272px; --ancho-panel: 380px; }
+
+/* Cuerpo con scroll propio cuando el contenido es largo. */
+.panel-lateral-scroll {
+  overflow-y: auto;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+/* Dentro del panel las tarjetas van planas: el panel ya aporta el relieve. */
+.panel-lateral-scroll .card { box-shadow: none; }
+
+/* Contenido del dashboard más estrecho y centrado: así los KPIs y las tarjetas
+   comparten eje con el saludo y la caja de búsqueda, y la pantalla se lee limpia. */
+.dash-centrado { width: min(100%, 1080px); }
+
+@media (max-width: 900px) {
+  /* En pantallas chicas las pestañas se juntan un poco más. */
+  .panel-lateral--actividad,
+  .panel-lateral--historial { top: 240px; }
+}
+
+/* En pantallas chicas el panel abarca casi todo el ancho disponible. */
+@media (max-width: 640px) {
+  .panel-lateral { --ancho-panel: 84vw; top: 76px; }
 }
 
 /* ----- Tarjeta de actividad: opción 3 — blanco con cabecera guinda sólida -----
@@ -430,3 +545,80 @@ table td:last-child .btn { flex-shrink: 0; }
 /* #36: Encabezados de tabla en propuesta regulatoria */
 .propuesta-tabla th,
 .impacto-tabla th { white-space: normal; word-break: break-word; min-width: 80px; font-size: 11px; }
+
+/* ===========================================
+   Bienvenida del dashboard: saludo + caja de búsqueda
+
+   El dashboard es el punto de entrada, así que aquí van el saludo por hora y la
+   caja de búsqueda. La caja reutiliza .buscar-input-wrap / .buscar-input de
+   15-buscador.css (esa hoja se carga en todas las páginas), de modo que se ve
+   idéntica a la del buscador sin duplicar estilos.
+   =========================================== */
+/* La bienvenida arranca más abajo, no pegada a la barra superior.
+   El saludo y el buscador son la entrada al sistema y ganan al respirar; el resto
+   del tablero baja con ellos. El valor es proporcional a la altura de la ventana
+   —con un mínimo y un máximo— para que en una pantalla corta no empuje todo fuera
+   de la vista. */
+.dash-bienvenida {
+  text-align: center;
+  padding-top: clamp(40px, 22vh, 190px);
+  margin: 0 0 40px;
+}
+
+@media (max-width: 900px) {
+  .dash-bienvenida { padding-top: 28px; margin-bottom: 26px; }
+}
+/* El titular alterna entre el saludo y la pregunta.
+   Las dos frases ocupan la MISMA celda de la rejilla, así que se superponen sin
+   que el bloque cambie de alto al turnarse —si se movieran, todo el tablero daría
+   un salto cada pocos segundos—. La altura queda fijada por la frase más larga. */
+.dash-saludo {
+  display: grid;
+  margin: 0;
+  font-size: clamp(26px, 3.6vw, 36px);
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -.01em;
+}
+.dash-saludo > span {
+  grid-area: 1 / 1;
+  animation: dashSaludoAlterna 9s infinite;
+}
+/* La segunda frase entra cuando sale la primera: medio ciclo de desfase. */
+.dash-saludo > span:last-child { animation-name: dashSaludoAlternaB; }
+
+@keyframes dashSaludoAlterna {
+  0%, 40%   { opacity: 1; transform: translateY(0); }
+  47%, 93%  { opacity: 0; transform: translateY(-8px); }
+  100%      { opacity: 1; transform: translateY(0); }
+}
+@keyframes dashSaludoAlternaB {
+  0%, 40%   { opacity: 0; transform: translateY(8px); }
+  47%, 93%  { opacity: 1; transform: translateY(0); }
+  100%      { opacity: 0; transform: translateY(8px); }
+}
+
+/* Quien haya pedido menos movimiento en su sistema ve solo el saludo, quieto. */
+@media (prefers-reduced-motion: reduce) {
+  .dash-saludo > span { animation: none; }
+  .dash-saludo > span:last-child { display: none; }
+}
+
+.dash-saludo-sub {
+  margin: 4px auto 0;
+  max-width: 620px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.dash-buscador {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.dash-buscador .buscar-input-wrap { flex: 1 1 auto; }
+
+@media (max-width: 640px) {
+  .dash-buscador { flex-direction: column; align-items: stretch; }
+}

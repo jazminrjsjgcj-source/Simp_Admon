@@ -505,7 +505,7 @@
                 <input name="responsable" type="text" value="{{ auth()->user()->name }}" placeholder="Usuario enlace">
               </x-field-help>
             <x-field-help label="Sujeto obligado">
-                <input type="text" value="{{ auth()->user()->dependencia->nombre ?? '—' }}" readonly class="u-input-readonly">
+                <input type="text" value="{{ auth()->user()->dependencia->nombre ?? '' }}" readonly class="u-input-readonly">
               </x-field-help>
             <x-field-help label="Fecha de inicio">
                 <input name="fecha_inicio" type="date">

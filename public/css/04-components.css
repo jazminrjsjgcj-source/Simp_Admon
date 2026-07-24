@@ -178,7 +178,22 @@ button.btn-outline,
   background: var(--primary-container);
   color: var(--surface);
 }
-.field { display: grid; gap: 6px; min-width: 0; }
+/* Un campo es la etiqueta MÁS su control: van juntos, con poco aire entre ellos.
+   El aire grande va entre un campo y el siguiente, que son preguntas distintas.
+   Sin esa separación —que es lo que había— la etiqueta parecía pertenecer al campo
+   de arriba y las preguntas se leían amontonadas.
+
+   Se usa margin-bottom y no margin-top: dentro de una rejilla de dos columnas, un
+   margen superior en el segundo campo lo desalinearía del primero. */
+.field { display: grid; gap: 5px; min-width: 0; }
+.field:not(:last-child) { margin-bottom: 16px; }
+
+/* Salvo cuando el contenedor ya reparte el espacio con su propio `gap`: ahí el
+   margen se sumaría al hueco de la rejilla y quedaría el doble de aire. */
+.wizard-fields > .field,
+.grid > .field,
+.split-fields > .field,
+.flujo-grid-2 > .field { margin-bottom: 0; }
 .field label { font-size: 11px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .field input, .field select, .field textarea { width: 100%; border: 1px solid var(--surface-high); border-radius: var(--radius); background: white; min-height: 40px; padding: 0 12px; outline-color: var(--primary); color: var(--text); }
 .field textarea { padding-top: 12px; padding-bottom: 12px; resize: vertical; }

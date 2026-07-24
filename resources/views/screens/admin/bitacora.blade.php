@@ -32,9 +32,9 @@
         <tr>
           <td style="white-space:nowrap">{{ \Carbon\Carbon::parse($m->created_at)->format('d/m/Y H:i') }}</td>
           <td>{{ $m->usuario_nombre ?? 'Sistema' }}</td>
-          <td><span class="badge">{{ ucfirst(str_replace('_',' ',$m->modulo ?? '—')) }}</span></td>
-          <td><span class="badge {{ match($m->tipo??''){'created'=>'success-b','deleted'=>'danger-b','updated'=>'',default=>''} }}">{{ ucfirst($m->tipo ?? '—') }}</span></td>
-          <td>{{ $m->accion ?? '—' }}</td>
+          <td><span class="badge">{{ ucfirst(str_replace('_',' ',$m->modulo ?? '')) }}</span></td>
+          <td><span class="badge {{ match($m->tipo??''){'created'=>'success-b','deleted'=>'danger-b','updated'=>'',default=>''} }}">{{ ucfirst($m->tipo ?? '') }}</span></td>
+          <td>{{ $m->accion ?? '' }}</td>
           <td style="font-size:11px;color:#667085;max-width:320px">
             @if($m->detalle)
               @foreach(explode(' | ', $m->detalle) as $cambio)
@@ -44,7 +44,7 @@
               <span style="color:#ccc">—</span>
             @endif
           </td>
-          <td style="font-size:11px;color:#667085">{{ $m->ip_address ?? '—' }}</td>
+          <td style="font-size:11px;color:#667085">{{ $m->ip_address ?? '' }}</td>
         </tr>
       @empty
         <tr><td colspan="7" class="u-text-center cal-empty-state">No hay movimientos registrados.</td></tr>

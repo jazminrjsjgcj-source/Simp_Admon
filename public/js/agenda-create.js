@@ -288,6 +288,15 @@
           }
         });
 
+        // Reflejar el nombre en la cabecera del bloque "trámite elegido". Así, cuando la
+        // precarga viene de la URL (?tramite_id=X, sin el nombre a mano), la cabecera se
+        // llena igual desde el detalle. En la búsqueda normal ya venía puesto; esto lo
+        // deja consistente por ambos caminos.
+        var etiquetaNombre = document.getElementById('tramiteElegidoNombre');
+        if (etiquetaNombre && d.nombre_oficial) {
+          etiquetaNombre.textContent = d.nombre_oficial + (d.homoclave ? ' (' + d.homoclave + ')' : '');
+        }
+
         // Si el trámite tiene áreas participantes, mostrar su detalle (el
         // oninput no se dispara al asignar el valor por JS, así que lo forzamos).
         if (d.num_areas != null && parseInt(d.num_areas) > 0 && typeof toggleAreasDetalle === 'function') {
@@ -521,6 +530,18 @@
     if (elegido) elegido.style.display = '';
     var nombre = document.getElementById('tramiteElegidoNombre');
     if (nombre) nombre.textContent = 'Trámite #' + idRetorno + ' (recién creado)';
+
+    // Si además viene ?tipo=X en la URL (p. ej. desde el aviso "el sujeto quiere
+    // digitalizar", que manda tipo=ambas), se preselecciona ese alcance. El flujo de
+    // retorno tras crear un trámite NO lleva ?tipo, así que no se ve afectado.
+    var tipoUrl = new URLSearchParams(window.location.search).get('tipo');
+    if (tipoUrl) {
+      var opcAlcance = document.querySelector('.wz-opt[data-alcance="' + tipoUrl + '"]');
+      if (opcAlcance && typeof window.elegirAlcance === 'function') {
+        window.elegirAlcance(opcAlcance);
+      }
+    }
+
     // Ir directo al paso 3 (Alcance), saltando la selección.
     mostrar(3);
   }

@@ -188,18 +188,13 @@ class AgendaService
     /**
      * Si la acción tiene fecha compromiso, crea su evento de calendario.
      *
-     * Correcciones aplicadas:
+     * Dos adaptaciones al esquema de calendario_eventos:
      *
-     * - Bug #22: 'titulo' usaba $accion->descripcion completa. La columna
-     *   titulo de calendario_eventos es VARCHAR(500) y la descripcion puede
-     *   ser texto legal de miles de caracteres → Data too long (SQLSTATE 22001).
-     *   Se trunca a 200 caracteres con Str::limit().
+     * - El título se trunca a 200 caracteres: la columna admite 500 y la
+     *   descripción de una acción puede ser texto legal de miles.
      *
-     * - Bug #24/#26: 'tipo' pasaba $accion->tipo directamente. El ENUM de
-     *   calendario_eventos es ('simplificacion','digitalizacion','regulatoria');
-     *   la acción de agenda puede tener tipo 'ambas' (migración 000800),
-     *   que no existe en ese ENUM → Data truncated (SQLSTATE 01000).
-     *   Se normaliza 'ambas' → 'simplificacion' como categoría primaria de SyD.
+     * - El tipo 'ambas' que admite una acción de agenda no existe en el ENUM del
+     *   calendario, así que se traduce a 'simplificacion', su categoría primaria.
      */
     private function crearEventoSiHayFecha(AccionAgenda $accion): void
     {

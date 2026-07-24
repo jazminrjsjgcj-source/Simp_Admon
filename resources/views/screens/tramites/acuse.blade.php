@@ -139,7 +139,7 @@
       <div class="acuse-grid">
         <div class="acuse-field"><span class="label">Homoclave:</span><span class="value">{{ $tramite->homoclave ?? 'Sin folio' }}</span></div>
         <div class="acuse-field"><span class="label">Estatus:</span><span class="value">{{ ucfirst(str_replace('_', ' ', $tramite->estatus)) }}</span></div>
-        <div class="acuse-field"><span class="label">Dependencia:</span><span class="value">{{ $tramite->dependencia->nombre ?? '—' }}</span></div>
+        <div class="acuse-field"><span class="label">Dependencia:</span><span class="value">{{ $tramite->dependencia->nombre ?? '' }}</span></div>
         <div class="acuse-field"><span class="label">Fecha de registro:</span><span class="value">{{ $tramite->created_at->format('d/m/Y H:i') }}</span></div>
       </div>
       <div class="acuse-grid single" style="margin-top:6px">
@@ -154,7 +154,7 @@
         <div class="acuse-field"><span class="label">Dirigido a:</span><span class="value">{{ ucfirst($tramite->dirigido_a ?? 'Ambas') }}</span></div>
         <div class="acuse-field"><span class="label">Volumen anual:</span><span class="value">{{ number_format($tramite->volumen_anual ?? 0) }}</span></div>
         <div class="acuse-field"><span class="label">Plazo resolución:</span><span class="value">@plazo($tramite->plazo_resolucion_cantidad, $tramite->plazo_resolucion_unidad)</span></div>
-        <div class="acuse-field"><span class="label">Digitalización:</span><span class="value">{{ $tramite->nivel_digitalizacion ?? '—' }} / 5</span></div>
+        <div class="acuse-field"><span class="label">Digitalización:</span><span class="value">{{ $tramite->nivel_digitalizacion ?? '' }} / 5</span></div>
       </div>
       @if($tramite->objetivo)
         <div class="acuse-grid single" style="margin-top:6px">
@@ -194,7 +194,7 @@
             <tr>
               <td>{{ $i + 1 }}</td>
               <td>{{ $r->nombre }}</td>
-              <td>{{ $r->tipo ?? '—' }}</td>
+              <td>{{ $r->tipo ?? '' }}</td>
               <td>{{ $r->tiene_costo ? '$' . number_format($r->costo_requisito ?? 0, 2) : 'Sin costo' }}</td>
             </tr>
           @endforeach
@@ -213,7 +213,7 @@
           <div class="acuse-firma-item">
             <div class="firma-tipo">{{ $firma->tipoLegible() }}</div>
             <div class="firma-dato">
-              {{ $firma->firmante_nombre ?? $firma->firmante->name ?? '—' }}
+              {{ $firma->firmante_nombre ?? $firma->firmante->name ?? '' }}
               {{ $firma->firmante_cargo ? ' — ' . $firma->firmante_cargo : '' }}
             </div>
             <div class="firma-dato">{{ $firma->fecha?->format('d/m/Y H:i') }}</div>

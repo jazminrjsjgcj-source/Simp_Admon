@@ -42,6 +42,12 @@ Route::middleware(['auth'])->group(function () {
     // Buscador global — accesible para todos los roles sin restricción
     Route::get('buscar', [App\Http\Controllers\BuscadorController::class, 'index'])->name('buscar');
 
+    // Tours guiados: tour.js avisa por aquí cuando alguien llega al último paso,
+    // para no volver a lanzarle ese recorrido automáticamente. Sin restricción de
+    // rol porque cada usuario solo puede marcar lo suyo (usa $request->user()).
+    Route::post('tours/completado', [App\Http\Controllers\TourController::class, 'completado'])
+        ->name('tours.completado');
+
     // Artículo completo en JSON, para el modal de lectura del buscador.
     // {nodo} puede ser el id de una fracción o inciso — el controlador sube
     // a su artículo padre usando LegalArticleResolverService.
@@ -66,6 +72,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('digitalizacion/{tramite}/reingenieria', [App\Http\Controllers\DigitalizacionController::class, 'guardarReingenieria'])->name('digitalizacion.reingenieria.guardar');
     Route::get('digitalizacion/{tramite}/reingenieria/{reingenieria}/editar', [App\Http\Controllers\DigitalizacionController::class, 'editarReingenieria'])->name('digitalizacion.reingenieria.editar');
     Route::put('digitalizacion/{tramite}/reingenieria/{reingenieria}', [App\Http\Controllers\DigitalizacionController::class, 'actualizarReingenieria'])->name('digitalizacion.reingenieria.actualizar');
+
+    // Flujo detallado del proceso: fases, participantes, actividades y sus rutas.
+    // Es el paso que completa lo que el trámite ya tenía capturado.
+    Route::get('digitalizacion/reingenieria/{reingenieria}/flujo',  [App\Http\Controllers\DigitalizacionController::class, 'editarFlujo'])->name('digitalizacion.flujo.editar');
+    Route::put('digitalizacion/reingenieria/{reingenieria}/flujo',  [App\Http\Controllers\DigitalizacionController::class, 'guardarFlujo'])->name('digitalizacion.flujo.guardar');
+    Route::get('digitalizacion/reingenieria/{reingenieria}/diagrama',[App\Http\Controllers\DigitalizacionController::class, 'diagramaFlujo'])->name('digitalizacion.flujo.diagrama');
     Route::post('digitalizacion/{tramite}/reingenieria/{reingenieria}/enviar-firma', [App\Http\Controllers\DigitalizacionController::class, 'enviarAFirma'])->name('digitalizacion.reingenieria.enviarFirma');
     Route::post('digitalizacion/{tramite}/reingenieria/nueva-version', [App\Http\Controllers\DigitalizacionController::class, 'crearNuevaVersion'])->name('digitalizacion.reingenieria.nuevaVersion');
 
@@ -80,6 +92,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('tramites/{tramite}/flujo/observar', [App\Http\Controllers\FlujoController::class, 'observar'])->name('flujo.observar');
 
     // Trámites
+    // Cargar una ficha (Reporte Catálogo) para precargar el alta. Va ANTES del
+    // resource para que POST /tramites/cargar-ficha no lo capture store().
+    Route::post('tramites/cargar-ficha', [TramiteController::class, 'cargarFicha'])->name('tramites.cargar-ficha');
     Route::resource('tramites', TramiteController::class);
     Route::get('tramites/{tramite}/acuse', [TramiteController::class, 'acuse'])->name('tramites.acuse');
     Route::post('tramites/{tramite}/estatus', [TramiteController::class, 'actualizarEstatus'])->name('tramites.actualizar.estatus');
@@ -93,9 +108,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('agenda/{agenda}/hito/{hito}/rechazar',  [AgendaController::class, 'rechazarHito'])->name('agenda.hito.rechazar');
 
     // Exportación Excel de la Agenda SyD (instrumento oficial ATDT).
-    // Disponibles solo para revisora y admin. La vista oculta los botones a otros roles.
-    Route::get('agenda-exportar/simplificacion', [AgendaController::class, 'exportarSimp'])->name('agenda.exportar.simp');
-    Route::get('agenda-exportar/digitalizacion', [AgendaController::class, 'exportarDig'])->name('agenda.exportar.dig');
+    //
+    // Estas descargas traen las acciones de TODAS las dependencias, no solo las de
+    // quien pulsa el botón, así que el rol se comprueba aquí, en el servidor.
+    // Ocultar el botón en la vista no protege nada: la URL se escribe a mano.
+    Route::middleware('role:revisora,admin')->group(function () {
+        Route::get('agenda-exportar/simplificacion', [AgendaController::class, 'exportarSimp'])->name('agenda.exportar.simp');
+        Route::get('agenda-exportar/digitalizacion', [AgendaController::class, 'exportarDig'])->name('agenda.exportar.dig');
+    });
 
     // Agenda Regulatoria
     Route::get('agenda-regulatoria', [AgendaRegulatoriaController::class, 'index'])->name('agenda-regulatoria.index');
@@ -165,6 +185,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('revision')->group(function () {
         Route::post('{tipo}/{id}/observar',      [RevisionController::class, 'observar'])->name('revision.observar');
         Route::post('observaciones/{observacion}/atendida', [RevisionController::class, 'marcarAtendida'])->name('revision.atendida');
+        Route::post('observaciones/{observacion}/validar', [RevisionController::class, 'validar'])->name('revision.validar');
         Route::post('{tipo}/{id}/aprobar',       [RevisionController::class, 'aprobar'])->name('revision.aprobar');
     });
 

@@ -11,7 +11,7 @@
     @foreach($obsSeccion as $obs)
       <div class="obs-inline-item-detalle obs-inline-{{ $obs->estatus ?? 'pendiente' }}">
         <div class="obs-inline-meta">
-          <span class="obs-inline-autor">{{ $obs->realizadaPor->name ?? '—' }}</span>
+          <span class="obs-inline-autor">{{ $obs->realizadaPor->name ?? '' }}</span>
           <span class="obs-inline-fecha">{{ \Carbon\Carbon::parse($obs->created_at)->format('d/m/Y H:i') }}</span>
           <span class="obs-badge obs-badge-{{ $obs->estatus ?? 'pendiente' }}">{{ $obs->estatusLegible() }}</span>
         </div>

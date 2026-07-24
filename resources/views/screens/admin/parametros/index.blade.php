@@ -34,7 +34,7 @@
             <td><code>{{ $p->clave }}</code></td>
             <td><strong>{{ number_format($p->valor, 4) }}</strong></td>
             <td>{{ $p->unidad }}</td>
-            <td><small class="help-small">{{ $p->fuente ?? '—' }}</small></td>
+            <td><small class="help-small">{{ $p->fuente ?? '' }}</small></td>
             <td>
               @if($p->activo)
                 <span class="chip chip-success">Activo</span>
@@ -45,7 +45,7 @@
             <td>
               <small class="help-small">
                 {{ $p->updated_at->format('d/m/Y') }}<br>
-                {{ $p->actualizadoPor->name ?? '—' }}
+                {{ $p->actualizadoPor->name ?? '' }}
               </small>
             </td>
             <td>

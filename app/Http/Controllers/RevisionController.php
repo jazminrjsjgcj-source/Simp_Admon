@@ -66,6 +66,22 @@ class RevisionController extends Controller
         return back()->with('success', 'Observación registrada.');
     }
 
+    public function validar(Request $request, Observacion $observacion)
+    {
+        // Validar (confirmar que la subsanación quedó bien) lo hace quien puede APROBAR
+        // el registro observado: el revisor. El permiso se resuelve por el tipo del
+        // registro al que cuelga la observación.
+        $tipo = $this->revision->tipoDe($observacion->observable);
+
+        if (!$request->user()->tienePermiso($this->revision->permisoAprobar($tipo))) {
+            abort(403, 'No tiene permiso para validar observaciones de este registro.');
+        }
+
+        $this->revision->validarObservacion($observacion, $request->user());
+
+        return back()->with('success', 'Observación validada.');
+    }
+
     public function marcarAtendida(Request $request, Observacion $observacion)
     {
         $user = $request->user();
@@ -99,10 +115,14 @@ class RevisionController extends Controller
         }
 
         $registro = $this->revision->resolverRegistro($tipo, $id);
-        $aprobado = $this->revision->aprobar($registro);
+
+        // Si quedan observaciones pendientes, el revisor puede aprobar por encima
+        // justificando (se sobreseen). Sin justificación y con pendientes, no aprueba.
+        $justificacion = $request->input('justificacion_sobreseimiento');
+        $aprobado = $this->revision->aprobar($registro, $request->user(), $justificacion);
 
         if (!$aprobado) {
-            return back()->with('error', 'No se puede aprobar: hay observaciones pendientes por atender.');
+            return back()->with('error', 'Hay observaciones pendientes. Para aprobar por encima de ellas, indica una justificación.');
         }
 
         // Avisar a los participantes: el registro pasó a firma.

@@ -28,7 +28,7 @@
       @forelse($topes as $nodo)
         <tr>
           <td>{{ $nodo->etiquetaTipo() }}</td>
-          <td>{{ $nodo->numero ?? '—' }}</td>
+          <td>{{ $nodo->numero ?? '' }}</td>
           <td>{{ \Illuminate\Support\Str::limit($nodo->texto, 100) ?: '(sin texto)' }}</td>
           <td>{{ $nodo->deleted_at->format('d/m/Y H:i') }}</td>
           <td class="table-action-cell">

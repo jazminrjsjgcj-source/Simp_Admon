@@ -98,3 +98,94 @@ a:hover { text-decoration: none; }
 .card-actions-center,
 .form-actions-center,
 .section-actions-center { justify-content: center; }
+
+/* ===========================================
+   Barra de desplazamiento
+
+   Sin esto cada sistema pinta la suya: gris de Windows, delgada de macOS, otra en
+   Linux. La del menú lateral se veía especialmente fuera de lugar, porque es una
+   barra clara sobre fondo guinda.
+
+   Se declara de dos formas porque ningún navegador entiende las dos: la propiedad
+   estándar `scrollbar-color` (Firefox y Chrome reciente) y los seudoelementos
+   -webkit- (Chrome, Edge y Safari). Donde no se entienda ninguna, se ve la del
+   sistema, que es un detalle estético y no rompe nada.
+   =========================================== */
+
+/* Contenido general: gris discreto sobre el fondo de la página. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-high) transparent;
+}
+
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-high);
+  border-radius: 999px;
+  /* El borde transparente deja aire alrededor: la barra se ve más fina sin
+     reducir la zona en la que se puede agarrar con el ratón. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--muted-light); background-clip: content-box; }
+
+/* Menú lateral: fondo guinda, así que la barra va en claro translúcido. */
+.sidebar,
+.sidebar * {
+  scrollbar-color: rgba(255, 255, 255, .35) transparent;
+}
+.sidebar::-webkit-scrollbar-thumb,
+.sidebar *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, .35);
+  background-clip: content-box;
+}
+.sidebar::-webkit-scrollbar-thumb:hover,
+.sidebar *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, .55);
+  background-clip: content-box;
+}
+
+/* Paneles laterales y modales: el mismo gris del contenido, con pista visible para
+   que se note que hay más contenido debajo. */
+.panel-lateral-scroll::-webkit-scrollbar-track,
+.modal-body::-webkit-scrollbar-track {
+  background: var(--surface-low, #f3f4f6);
+  border-radius: 999px;
+}
+
+/* ── Detalles que el sistema pinta por su cuenta ───────────────────────
+   Selección de texto, cursor de escritura y controles nativos sueltos. Son
+   pequeños, pero son los que delatan que una pantalla no está terminada. */
+
+::selection {
+  background: var(--primary-fixed, #ffd9e1);
+  color: var(--primary);
+}
+
+input, textarea, select {
+  caret-color: var(--primary);
+}
+
+/* Barras de progreso y controles deslizantes, allí donde se usen. */
+progress,
+input[type="range"] {
+  accent-color: var(--primary);
+}
+
+/* El icono de calendario y de reloj de los campos de fecha y hora no se puede
+   redibujar, pero sí teñir con la marca. */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  /* Lleva el gris del sistema al guinda de la paleta. */
+  filter: invert(13%) sepia(72%) saturate(3200%) hue-rotate(315deg) brightness(85%) contrast(105%);
+}
+
+/* ── Ocultar de verdad ─────────────────────────────────────────────────
+   El atributo `hidden` funciona porque el navegador le aplica display:none, pero
+   cualquier regla propia con la misma especificidad lo gana: `.field` declara
+   display:grid, así que un campo marcado como oculto seguía viéndose —y podía
+   rellenarse con datos que no correspondían—. Esta regla cierra ese hueco para
+   todo el sistema. */
+[hidden] { display: none !important; }

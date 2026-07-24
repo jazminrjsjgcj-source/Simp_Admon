@@ -28,6 +28,17 @@ class Regulacion extends Model
      * los campos de conversión a Markdown y el índice JSON. folio lo asigna
      * GeneraFolio. Reconstruido desde las migraciones de regulaciones.
      */
+    /**
+     * Versión del pipeline de estructuración (estructurador → detector → extractor de
+     * tablas). SÚBELA A MANO cuando cambies ese código de forma que el contenido
+     * estructurado cambie: las leyes con pipeline_version menor quedan marcadas como
+     * "desactualizadas" (estaDesactualizada), para no repetir el fallo silencioso de
+     * cambiar código y olvidar re-estructurar.
+     *
+     * El Job de estructuración estampa este número al terminar con éxito.
+     */
+    public const PIPELINE_VERSION = 1;
+
     protected $fillable = [
         'nombre',
         'tipo',
@@ -62,6 +73,17 @@ class Regulacion extends Model
         'regulacion_derogada',
         'indice',
         'estructurada',
+
+        // Jurisdicción: de dónde es la ley, para que el buscador no mezcle derecho
+        // de otro estado o municipio. Null mientras no se haya clasificado.
+        'ambito',
+        'estado',
+        'municipio',
+
+        // Con qué versión del pipeline se estructuró, y cuándo. Detecta leyes que
+        // quedaron con contexto viejo tras un cambio de código (ver PIPELINE_VERSION).
+        'pipeline_version',
+        'estructurado_en',
     ];
 
     /** Prefijo de tipo para el folio: LPZ-REG-... */
@@ -80,6 +102,17 @@ class Regulacion extends Model
             if (empty($regulacion->folio)) {
                 $regulacion->load('dependencia');
                 $regulacion->folio = $regulacion->generarFolio();
+            }
+
+            // Jurisdicción por defecto: toda ley nueva nace como MUNICIPAL de esta
+            // instalación. Es lo abrumadoramente común; una federal o estatal se corrige
+            // después a mano. Con esto ninguna ley nace sin ámbito, y el buscador puede
+            // excluir lo NULL con seguridad, sin ocultar leyes legítimas por un dato
+            // faltante. Solo se aplica si no se fijó un ámbito explícito al crear.
+            if ($regulacion->ambito === null) {
+                $regulacion->ambito    = 'municipal';
+                $regulacion->estado    = config('punta.jurisdiccion.estado');
+                $regulacion->municipio = config('punta.jurisdiccion.municipio');
             }
         });
     }
@@ -155,6 +188,8 @@ class Regulacion extends Model
         'deroga_otra'       => 'boolean',
         'indice'            => 'array',
         'estructurada'      => 'boolean',
+        'pipeline_version'  => 'integer',
+        'estructurado_en'   => 'datetime',
     ];
 
     // ========== Relaciones ==========
@@ -173,6 +208,28 @@ class Regulacion extends Model
     public function nodosRaiz()
     {
         return $this->hasMany(RegulacionNodo::class)->whereNull('parent_id')->orderBy('orden');
+    }
+
+    /**
+     * ¿Se estructuró con una versión del pipeline anterior a la vigente?
+     *
+     * NULL cuenta como desactualizada: es una ley que se estructuró antes de que
+     * existiera este registro (o que nunca se estructuró bien), así que no sabemos
+     * con qué código se hizo, y lo seguro es tratarla como "conviene rehacer".
+     */
+    public function estaDesactualizada(): bool
+    {
+        return $this->pipeline_version === null
+            || $this->pipeline_version < self::PIPELINE_VERSION;
+    }
+
+    /** Leyes que conviene re-estructurar: versión de pipeline vieja o desconocida. */
+    public function scopeDesactualizadas($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('pipeline_version')
+              ->orWhere('pipeline_version', '<', self::PIPELINE_VERSION);
+        });
     }
 
     /**

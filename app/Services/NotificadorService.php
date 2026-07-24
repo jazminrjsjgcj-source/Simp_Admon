@@ -164,6 +164,38 @@ class NotificadorService
         }
     }
 
+    /**
+     * Un trámite quedó firmado por enlace y sujeto obligado (reingeniería DIRECTA,
+     * no venida de agenda). Avisa a los ENLACES de la dependencia del trámite para que
+     * inicien la agenda de Simplificación y Digitalización (SyD).
+     *
+     * El aviso lleva directo al alta de agenda con el trámite precargado y el tipo en
+     * "ambas" (SyD). No reusa enviar() porque ese apunta la URL al detalle del registro,
+     * y aquí la URL es el formulario de agenda, no el trámite.
+     *
+     * Se dispara SIEMPRE que se completan las dos firmas, sin importar quién puso la
+     * última. Los enlaces salen de la dependencia del TRÁMITE (no de la reingeniería).
+     */
+    public function sujetoQuiereDigitalizar(Tramite $tramite): void
+    {
+        $enlaces = $this->porRolYDependencia(User::ROL_ENLACE, $tramite)
+            ->filter()
+            ->unique('id')
+            ->values();
+
+        if ($enlaces->isEmpty()) {
+            return;
+        }
+
+        Notification::send($enlaces, new AvisoPunta(
+            icono:   'ti-file-check',
+            titulo:  'Trámite listo para digitalizar',
+            mensaje: 'El sujeto obligado quiere digitalizar "' . $this->nombre($tramite) . '". '
+                   . 'Inicia tu agenda de Simplificación y Digitalización para empezar.',
+            url:     route('agenda.create', ['tramite_id' => $tramite->id, 'tipo' => 'ambas']),
+        ));
+    }
+
     /* ----------------------------------------------------------------------
      | Resolución de destinatarios
      |----------------------------------------------------------------------*/

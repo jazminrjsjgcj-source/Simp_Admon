@@ -76,9 +76,9 @@
       <tr><td class="label">Nombre</td><td class="value">{{ $tramite->nombre_oficial }}</td></tr>
       <tr><td class="label">Naturaleza</td><td class="value">{{ $tramite->naturalezaLegible() }}</td></tr>
       <tr><td class="label">Tipo</td><td class="value">{{ $tramite->tipoLegible() }}</td></tr>
-      <tr><td class="label">Dependencia</td><td class="value">{{ $tramite->dependencia->nombre ?? '—' }}</td></tr>
-      <tr><td class="label">Unidad administrativa</td><td class="value">{{ $tramite->unidad->nombre ?? '—' }}</td></tr>
-      <tr><td class="label">Homoclave</td><td class="value">{{ $tramite->homoclave ?? '—' }}</td></tr>
+      <tr><td class="label">Dependencia</td><td class="value">{{ $tramite->dependencia->nombre ?? '' }}</td></tr>
+      <tr><td class="label">Unidad administrativa</td><td class="value">{{ $tramite->unidad->nombre ?? '' }}</td></tr>
+      <tr><td class="label">Homoclave</td><td class="value">{{ $tramite->homoclave ?? '' }}</td></tr>
     </table>
   </div>
 
@@ -115,7 +115,7 @@
             <h4>Firma del Enlace</h4>
             @if($firmaEnlace)
               <div class="sig-field"><span>Nombre:</span> <strong>{{ $firmaEnlace->firmante_nombre }}</strong></div>
-              <div class="sig-field"><span>Cargo:</span> <strong>{{ $firmaEnlace->firmante_cargo ?? '—' }}</strong></div>
+              <div class="sig-field"><span>Cargo:</span> <strong>{{ $firmaEnlace->firmante_cargo ?? '' }}</strong></div>
               <div class="sig-field"><span>Fecha:</span> <strong>{{ $firmaEnlace->fecha->format('d/m/Y H:i') }}</strong></div>
               <div class="sig-hash">Hash: {{ $firmaEnlace->hash_acuse }}</div>
             @else
@@ -128,7 +128,7 @@
             <h4>Firma del Sujeto Obligado</h4>
             @if($firmaSujeto)
               <div class="sig-field"><span>Nombre:</span> <strong>{{ $firmaSujeto->firmante_nombre }}</strong></div>
-              <div class="sig-field"><span>Cargo:</span> <strong>{{ $firmaSujeto->firmante_cargo ?? '—' }}</strong></div>
+              <div class="sig-field"><span>Cargo:</span> <strong>{{ $firmaSujeto->firmante_cargo ?? '' }}</strong></div>
               <div class="sig-field"><span>Fecha:</span> <strong>{{ $firmaSujeto->fecha->format('d/m/Y H:i') }}</strong></div>
               <div class="sig-hash">Hash: {{ $firmaSujeto->hash_acuse }}</div>
             @else
@@ -147,8 +147,8 @@
     @endif
     <div class="verification-data">
       <p><strong>Folio:</strong> {{ $folio }}</p>
-      <p><strong>Hash de reingeniería:</strong> <span class="hash">{{ $reingenieria->hash_reingenieria ?? '—' }}</span></p>
-      <p><strong>Hash del diagrama:</strong> <span class="hash">{{ $diagrama->hash_diagrama ?? '—' }}</span></p>
+      <p><strong>Hash de reingeniería:</strong> <span class="hash">{{ $reingenieria->hash_reingenieria ?? '' }}</span></p>
+      <p><strong>Hash del diagrama:</strong> <span class="hash">{{ $diagrama->hash_diagrama ?? '' }}</span></p>
       <p><strong>Hash del PDF:</strong> <span class="hash">{{ $hashPdf }}</span></p>
       <p><strong>Fecha de emisión:</strong> {{ $fechaEmision->format('d/m/Y H:i:s') }}</p>
     </div>

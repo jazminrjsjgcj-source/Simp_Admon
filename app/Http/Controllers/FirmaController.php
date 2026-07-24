@@ -211,6 +211,16 @@ class FirmaController extends Controller
                     'hash_reingenieria'  => hash('sha256', json_encode($modelo->flujo_to_be)),
                     'firmado_en'         => now(),
                 ]);
+
+                // Reingeniería DIRECTA (no venida de agenda): al quedar firmada por enlace
+                // y sujeto, se avisa a los enlaces de la dependencia para que inicien la
+                // agenda SyD. Las que vienen de agenda ya las maneja la rama de AccionAgenda
+                // (vincularDesdeAgenda), así que aquí se filtra por esDirecta() para no
+                // disparar los dos flujos a la vez.
+                if ($modelo->esDirecta() && $modelo->tramite) {
+                    app(\App\Services\NotificadorService::class)
+                        ->sujetoQuiereDigitalizar($modelo->tramite);
+                }
             }
         }
 

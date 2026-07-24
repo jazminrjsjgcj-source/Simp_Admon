@@ -21,7 +21,12 @@
   <link rel="stylesheet" href="{{ asset('css/13-regulaciones.css') }}?v={{ filemtime(public_path('css/13-regulaciones.css')) }}">
   <link rel="stylesheet" href="{{ asset('css/14-lector-regulacion.css') }}?v={{ filemtime(public_path('css/14-lector-regulacion.css')) }}">
   <link rel="stylesheet" href="{{ asset('css/15-buscador.css') }}?v={{ filemtime(public_path('css/15-buscador.css')) }}">
+  <link rel="stylesheet" href="{{ asset('css/15-buscador-asistente.css') }}?v={{ filemtime(public_path('css/15-buscador-asistente.css')) }}">
   <link rel="stylesheet" href="{{ asset('css/16-paginacion.css') }}?v={{ filemtime(public_path('css/16-paginacion.css')) }}">
+  {{-- Iconos de línea (subconjunto local de Tabler). Sin esto, las 43 etiquetas
+       <i class="ti ti-*"> de la app se renderizan vacías: no había ninguna
+       librería de iconos cargada. --}}
+  <link rel="stylesheet" href="{{ asset('css/17-iconos.css') }}?v={{ filemtime(public_path('css/17-iconos.css')) }}">
   <style>
     .nav a { border:0; background:transparent; color:white; min-height:46px; border-radius:8px;
       display:flex; align-items:center; gap:12px; padding:0 14px; font-size:12px; line-height:1.1;
@@ -74,11 +79,13 @@
 </head>
 <body>
 <div class="app" id="systemApp">
+  {{-- Restaura el estado colapsado del menu ANTES de pintar, para evitar parpadeo. --}}
+  <script>try{if(localStorage.getItem('punta-sidebar-collapsed')==='1'){document.getElementById('systemApp').classList.add('sidebar-collapsed');}}catch(e){}</script>
 
   <aside class="sidebar">
     <div class="brand">
-      @if(file_exists(public_path('img/logo/logo.png')))
-        <img src="{{ asset('img/logo/logo.png') }}" alt="Logo" class="brand-logo" style="object-fit:contain;padding:8px">
+      @if(file_exists(public_path('img/logo-punta.png')))
+        <img src="{{ asset('img/logo-punta.png') }}" alt="Logo" class="brand-logo" style="object-fit:contain;padding:8px">
       @else
         <div class="brand-logo">P</div>
       @endif
@@ -88,21 +95,21 @@
     <nav class="nav">
       @php
         $navItems = [
-          ['label'=>'Dashboard',         'route'=>'dashboard',               'permiso'=>null],
-          ['label'=>'Buscador',          'route'=>'buscar',                  'permiso'=>null],
-          ['label'=>'Trámites y Servicios','route'=>'tramites.index',           'permiso'=>'tramites.ver'],
-          ['label'=>'Agenda SyD',         'route'=>'agenda.index',             'permiso'=>'agenda.ver'],
-          ['label'=>'Agenda Regulatoria', 'route'=>'agenda-regulatoria.index', 'permiso'=>'agenda_regulatoria.ver'],
-          ['label'=>'Dictámenes AIR',     'route'=>'dictamenes-air.index',     'permiso'=>'agenda_regulatoria.aprobar'],
-          ['label'=>'Regulaciones',       'route'=>'regulaciones.index',       'permiso'=>'regulaciones.ver'],
-          ['label'=>'Biblioteca Digital',  'route'=>'digitalizacion.dashboard', 'permiso'=>'digitalizacion.ver'],
-          ['label'=>'Calendario',         'route'=>'calendario',               'permiso'=>'calendario.ver'],
-          ['label'=>'Firmas',             'route'=>'firmas.index',             'permiso'=>'firmas.firmar'],
+          ['label'=>'Dashboard',         'route'=>'dashboard',               'permiso'=>null, 'icon'=>'dashboard'],
+          ['label'=>'Buscador',          'route'=>'buscar',                  'permiso'=>null, 'icon'=>'search'],
+          ['label'=>'Trámites y Servicios','route'=>'tramites.index',           'permiso'=>'tramites.ver', 'icon'=>'tramites'],
+          ['label'=>'Agenda SyD',         'route'=>'agenda.index',             'permiso'=>'agenda.ver', 'icon'=>'checklist'],
+          ['label'=>'Agenda Regulatoria', 'route'=>'agenda-regulatoria.index', 'permiso'=>'agenda_regulatoria.ver', 'icon'=>'calendar-check'],
+          ['label'=>'Dictámenes AIR',     'route'=>'dictamenes-air.index',     'permiso'=>'agenda_regulatoria.aprobar', 'icon'=>'report'],
+          ['label'=>'Regulaciones',       'route'=>'regulaciones.index',       'permiso'=>'regulaciones.ver', 'icon'=>'book'],
+          ['label'=>'Biblioteca Digital',  'route'=>'digitalizacion.dashboard', 'permiso'=>'digitalizacion.ver', 'icon'=>'dashboard'],
+          ['label'=>'Calendario',         'route'=>'calendario',               'permiso'=>'calendario.ver', 'icon'=>'calendar'],
+          ['label'=>'Firmas',             'route'=>'firmas.index',             'permiso'=>'firmas.firmar', 'icon'=>'signature'],
           ['separador' => true],
-          ['label'=>'Configuración',      'route'=>'admin.configuracion',      'permiso'=>'_admin'],
-          ['label'=>'Usuarios',           'route'=>'admin.usuarios.index',     'permiso'=>'_admin'],
-          ['label'=>'Periodos',           'route'=>'admin.periodos',           'permiso'=>'_admin'],
-          ['label'=>'Bitácora',           'route'=>'admin.bitacora',           'permiso'=>'_admin'],
+          ['label'=>'Configuración',      'route'=>'admin.configuracion',      'permiso'=>'_admin', 'icon'=>'settings'],
+          ['label'=>'Usuarios',           'route'=>'admin.usuarios.index',     'permiso'=>'_admin', 'icon'=>'users'],
+          ['label'=>'Periodos',           'route'=>'admin.periodos',           'permiso'=>'_admin', 'icon'=>'clock'],
+          ['label'=>'Bitácora',           'route'=>'admin.bitacora',           'permiso'=>'_admin', 'icon'=>'history'],
         ];
       @endphp
       @foreach($navItems as $item)
@@ -112,7 +119,9 @@
           @endif
         @elseif($item['permiso'] === null || ($item['permiso'] === '_admin' && auth()->user()->rol === 'admin') || ($item['permiso'] !== '_admin' && auth()->user()->tienePermiso($item['permiso'])))
           <a href="{{ route($item['route']) }}"
-             class="{{ request()->routeIs($item['route'].'*') ? 'active' : '' }}">
+             class="{{ request()->routeIs($item['route'].'*') ? 'active' : '' }}"
+             title="{{ $item['label'] }}">
+            @include('partials.nav-icon', ['name' => $item['icon'] ?? ''])
             <span class="nowrap">{{ $item['label'] }}</span>
           </a>
         @endif
@@ -129,6 +138,12 @@
 
   <div class="main">
     <header class="topbar">
+      <button type="button" class="nav-toggle" onclick="toggleSidebar()"
+        aria-label="Mostrar u ocultar menú" title="Mostrar u ocultar menú">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+        </svg>
+      </button>
       <div class="topbar-spacer"></div>
       {{-- $periodosActivos viene del View::composer en AppServiceProvider --}}
       @if($periodosActivos->isNotEmpty())
@@ -174,6 +189,45 @@
       @yield('content')
     </main>
   </div>
+
+  {{-- ACCIONES RÁPIDAS: pestaña lateral disponible en TODOS los módulos.
+       Antes estos accesos vivían solo en el cuerpo del dashboard, así que para
+       dar de alta algo había que volver al inicio. Aquí acompañan al usuario
+       esté donde esté, sin ocupar espacio: solo asoma la pestaña.
+
+       Se mantiene la misma condición que tenían en el dashboard (rol enlace),
+       para no dar accesos a quien antes no los veía. --}}
+  @auth
+    @if(auth()->user()->rol === 'enlace')
+      <aside class="panel-lateral panel-lateral--acciones" id="panelAcciones" aria-label="Acciones rápidas">
+        <button type="button" class="panel-pestana" onclick="togglePanelLateral('panelAcciones')"
+          aria-controls="panelAcciones" title="Mostrar u ocultar las acciones rápidas">
+          Acciones rápidas
+        </button>
+
+        <div class="panel-lateral-cuerpo">
+          <div class="panel-lateral-head">
+            <h3>Acciones rápidas</h3>
+            <button type="button" class="panel-cerrar" onclick="togglePanelLateral('panelAcciones')" aria-label="Cerrar">&times;</button>
+          </div>
+          <div class="panel-lateral-scroll">
+            <a href="{{ route('tramites.create') }}" class="card quick-card kpi-link">
+              <strong>Nuevo Trámite o Servicio</strong>
+              <span>Registrar trámite o servicio municipal</span>
+            </a>
+            <a href="{{ route('agenda.create') }}" class="card quick-card kpi-link">
+              <strong>Registrar Acción</strong>
+              <span>Simplificación y digitalización</span>
+            </a>
+            <a href="{{ route('propuestas.create') }}" class="card quick-card kpi-link">
+              <strong>Nueva Propuesta</strong>
+              <span>Agenda regulatoria</span>
+            </a>
+          </div>
+        </div>
+      </aside>
+    @endif
+  @endauth
 
 </div>
 
@@ -249,6 +303,16 @@
      al entrar. El borrador se oculta donde no aplica (trámite desde agenda). --}}
 <script src="{{ asset('js/wizard-borrador.js') }}?v={{ filemtime(public_path('js/wizard-borrador.js')) }}"></script>
 <script>
+// Colapsa o muestra el menu lateral y recuerda la eleccion (localStorage).
+function toggleSidebar() {
+  var app = document.getElementById('systemApp');
+  app.classList.toggle('sidebar-collapsed');
+  try {
+    localStorage.setItem('punta-sidebar-collapsed',
+      app.classList.contains('sidebar-collapsed') ? '1' : '0');
+  } catch (e) {}
+}
+
 function confirmDelete(action, title, text) {
   document.getElementById('deleteModalForm').action = action;
   if (title) document.getElementById('deleteModalTitle').textContent = title;
@@ -283,11 +347,46 @@ document.addEventListener('keydown', function(e) {
   }
 });
 </script>
+
+{{-- Paneles laterales (acciones rápidas, actividad...): abrir/cerrar y recordar
+     la elección. Solo uno abierto a la vez, porque comparten el borde derecho. --}}
+<script>
+  function togglePanelLateral(id) {
+    var panel = document.getElementById(id);
+    if (!panel) return;
+    var abriendo = !panel.classList.contains('abierto');
+
+    // Cerrar cualquier otro panel abierto: se superpondrían entre sí.
+    document.querySelectorAll('.panel-lateral.abierto').forEach(function (otro) {
+      otro.classList.remove('abierto');
+      try { localStorage.setItem('punta-panel-' + otro.id, '0'); } catch (e) {}
+    });
+
+    if (abriendo) panel.classList.add('abierto');
+    try { localStorage.setItem('punta-panel-' + id, abriendo ? '1' : '0'); } catch (e) {}
+  }
+
+  // Restaurar el que estuviera abierto. Por defecto todos cerrados, para no tapar
+  // la pantalla sin que el usuario lo pida.
+  document.querySelectorAll('.panel-lateral').forEach(function (panel) {
+    try {
+      if (localStorage.getItem('punta-panel-' + panel.id) === '1') {
+        panel.classList.add('abierto');
+      }
+    } catch (e) {}
+  });
+</script>
+
 @stack('scripts')
   @if(file_exists(public_path('js/test-llenado-tramite.js')))
   <script src="{{ asset('js/test-llenado-tramite.js') }}?v={{ filemtime(public_path('js/test-llenado-tramite.js')) }}"></script>
   @endif
 <script src="{{ asset('js/anti-duplicado.js') }}?v={{ filemtime(public_path('js/anti-duplicado.js')) }}"></script>
+
+  {{-- Tour guiado. El partial decide solo si esta pantalla tiene recorrido para
+       el rol del usuario; si no lo tiene, no imprime nada. --}}
+  @include('partials.tour')
+
   <script src="{{ asset('js/validacion-inputs.js') }}?v={{ filemtime(public_path('js/validacion-inputs.js')) }}" defer></script>
 </body>
 </html>

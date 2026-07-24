@@ -340,7 +340,15 @@ class User extends Authenticatable
      */
     public function esDeSuDependencia($registro): bool
     {
-        $depId = $registro->dependencia_id ?? null;
+        // La dependencia del registro: la propia si la tiene (trámites, acciones de
+        // agenda, propuestas), o la de su TRÁMITE si no —el caso de la reingeniería, que
+        // no guarda dependencia_id propio pero pertenece a la dependencia de su trámite—.
+        // Sin este fallback, esDeSuDependencia(reingeniería) siempre daba false y ni el
+        // enlace ni el sujeto podían firmarla (solo el admin pasaba el filtro).
+        $depId = $registro->dependencia_id
+            ?? $registro->tramite?->dependencia_id
+            ?? null;
+
         return $depId && $depId === $this->dependencia_id;
     }
 

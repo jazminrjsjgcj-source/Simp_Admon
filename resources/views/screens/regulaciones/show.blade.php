@@ -108,11 +108,11 @@
         </div>
         <div>
           <span class="label-meta">Publicación</span>
-          <strong>{{ $regulacion->fecha_publicacion?->format('d/m/Y') ?? '—' }}</strong>
+          <strong>{{ $regulacion->fecha_publicacion?->format('d/m/Y') ?? '' }}</strong>
         </div>
         <div>
           <span class="label-meta">Vigente hasta</span>
-          <strong>{{ $regulacion->fecha_vigencia?->format('d/m/Y') ?? '—' }}</strong>
+          <strong>{{ $regulacion->fecha_vigencia?->format('d/m/Y') ?? '' }}</strong>
         </div>
       </div>
 

@@ -40,9 +40,9 @@
               $firmasActivas = $t->firmas->where('estatus', 'activa');
             @endphp
             <tr>
-              <td><code>{{ $t->homoclave ?? '—' }}</code></td>
+              <td><code>{{ $t->homoclave ?? '' }}</code></td>
               <td><strong>{{ $t->nombre_oficial }}</strong></td>
-              <td>{{ $t->dependencia->nombre ?? '—' }}</td>
+              <td>{{ $t->dependencia->nombre ?? '' }}</td>
               <td>
                 @if($t->estatus === 'completado')
                   <span class="chip chip-success">Firmado</span>

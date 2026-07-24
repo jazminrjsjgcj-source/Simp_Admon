@@ -37,7 +37,7 @@
             <tr>
               <td>{{ \Carbon\Carbon::parse($m->created_at)->format('d/m/Y H:i') }}</td>
               <td><strong>{{ ucfirst(str_replace('_', ' ', $m->accion)) }}</strong></td>
-              <td>{{ $m->usuario_afectado ?? '—' }}</td>
+              <td>{{ $m->usuario_afectado ?? '' }}</td>
               <td>
                 @if($m->rol_nombre)
                   <span class="chip chip-gray">{{ $m->rol_nombre }}</span>
@@ -46,8 +46,8 @@
                   <code class="help-small">{{ $m->permiso_codigo }}</code>
                 @endif
               </td>
-              <td>{{ $m->ejecutor_nombre ?? '—' }}</td>
-              <td class="help-small">{{ $m->ip_address ?? '—' }}</td>
+              <td>{{ $m->ejecutor_nombre ?? '' }}</td>
+              <td class="help-small">{{ $m->ip_address ?? '' }}</td>
             </tr>
           @endforeach
         </tbody>

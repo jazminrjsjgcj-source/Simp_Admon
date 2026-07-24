@@ -74,6 +74,15 @@ class ActualizacionPorIdSeguraTest extends TestCase
             . 'Y NO era un riesgo teórico: estos datos son, según el propio docblock del servicio, '
             . 'las "training labels" de un futuro modelo de ranking. Un buscador entrenado con votos '
             . 'manipulados es un buscador envenenado, y nadie sabría por qué se volvió raro.',
+
+        'app/Services/RegulacionPaginadorService.php' =>
+            'propagarADescendientes: el update escribe la página en fracciones e incisos. Los ids '
+            . 'salen de $regulacion->nodos()->get(), es decir, de la PROPIA regulación que se está '
+            . 'paginando: nunca del request. El usuario no elige qué nodo se toca, ni siquiera '
+            . 'dispara esto desde un formulario (corre en el job de estructuración o en el comando '
+            . 'regulaciones:paginar). Además el único campo que escribe es `pagina`, un dato de '
+            . 'navegación derivado del PDF, no contenido normativo: en el peor caso un enlace '
+            . 'abriría el documento en la hoja equivocada.',
     ];
 
     /**

@@ -6,6 +6,7 @@ use App\Models\AccionAgenda;
 use Illuminate\Database\Eloquent\Collection;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx as WriterXlsx;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -36,6 +37,12 @@ class AgendaExportService
 
     /** Última fila que puede traer datos de ejemplo a limpiar antes de escribir. */
     private const FILA_LIMITE_LIMPIEZA = 1000;
+
+    /** Las 23 columnas oficiales de la hoja de captura (A-W). */
+    private const COLUMNAS = [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
+        'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+    ];
 
     public function exportarSimp(Collection $acciones): StreamedResponse
     {
@@ -104,12 +111,24 @@ class AgendaExportService
      * Borra los datos de ejemplo que la plantilla trae de fábrica (filas 5 en
      * adelante), conservando el formato de las celdas. No elimina filas para no
      * romper combinaciones ni estilos: solo vacía el contenido de A:W.
+     *
+     * Solo se vacían las celdas que YA existen. Escribir en una celda inexistente
+     * la crea: setCellValue() llama por dentro a getCell(), que instancia la celda
+     * aunque el valor sea null. Como cada celda de PhpSpreadsheet cuesta ~1 KB,
+     * recorrer A5:W1000 a ciegas añadía ~22 800 celdas vacías y ~23 MB al libro
+     * sin borrar absolutamente nada, y era lo que agotaba la memoria del proceso.
      */
-    private function limpiarFilasEjemplo($hoja): void
+    private function limpiarFilasEjemplo(Worksheet $hoja): void
     {
-        for ($fila = self::FILA_INICIO; $fila <= self::FILA_LIMITE_LIMPIEZA; $fila++) {
-            foreach (range('A', 'W') as $col) {
-                $hoja->setCellValue("{$col}{$fila}", null);
+        $ultimaFila = min($hoja->getHighestRow(), self::FILA_LIMITE_LIMPIEZA);
+
+        for ($fila = self::FILA_INICIO; $fila <= $ultimaFila; $fila++) {
+            foreach (self::COLUMNAS as $col) {
+                $coordenada = $col . $fila;
+
+                if ($hoja->cellExists($coordenada)) {
+                    $hoja->getCell($coordenada)->setValue(null);
+                }
             }
         }
     }
@@ -118,7 +137,7 @@ class AgendaExportService
      * Escribe una fila por acción desde la fila 5, mapeando cada acción y su
      * trámite a las 23 columnas oficiales (A-W).
      */
-    private function escribirAcciones($hoja, Collection $acciones, string $tipo): void
+    private function escribirAcciones(Worksheet $hoja, Collection $acciones, string $tipo): void
     {
         $fila = self::FILA_INICIO;
         $num  = 1;
@@ -261,7 +280,41 @@ class AgendaExportService
     {
         return new StreamedResponse(function () use ($spreadsheet) {
             $writer = new WriterXlsx($spreadsheet);
-            $writer->save('php://output');
+
+            // NO recalcular las fórmulas de la plantilla al guardar.
+            //
+            // Por defecto el writer reevalúa TODAS las fórmulas del libro con el motor
+            // de cálculo de PhpSpreadsheet, aunque el archivo ya traiga el resultado
+            // guardado. La plantilla de digitalización tiene en la hoja "1.2 Calculadora
+            // de nivel de dig", celda D4, un IF anidado de varios niveles que ese motor
+            // no sabe resolver: lanza "Formula Error: An unexpected error occurred" y
+            // tumba la descarga entera. La fórmula es de la plantilla oficial, en una
+            // hoja que este servicio ni siquiera toca.
+            //
+            // Con el precálculo desactivado, las fórmulas se copian tal cual y el writer
+            // marca el libro con fullCalcOnLoad="1", así que Excel las recalcula al
+            // abrirlo. El usuario ve los valores correctos y, de paso, guardar es mucho
+            // más rápido.
+            $writer->setPreCalculateFormulas(false);
+
+            try {
+                $writer->save('php://output');
+            } finally {
+                // El libro ya no hace falta. Soltarlo libera las ~32 000 celdas de la
+                // plantilla en vez de dejarlas vivas mientras exista la respuesta:
+                // disconnectWorksheets() rompe las referencias circulares entre el libro
+                // y sus hojas, sin las cuales el recolector de basura de PHP no puede
+                // liberar nada aunque ya nadie use el objeto.
+                //
+                // Va en un finally para que también se libere si save() falla. Antes, una
+                // excepción a mitad de escritura se llevaba por delante esta línea y
+                // dejaba el libro colgado en memoria.
+                //
+                // OJO: después de esto $spreadsheet queda inservible. Hoy nadie lo
+                // reutiliza (no sale de generarDesdePlantilla() ni se guarda en ninguna
+                // propiedad), pero si algún día se cachean descargas, hay que revisarlo.
+                $spreadsheet->disconnectWorksheets();
+            }
         }, 200, [
             'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition' => 'attachment; filename="' . $nombreArchivo . '"',

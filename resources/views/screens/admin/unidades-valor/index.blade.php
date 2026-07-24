@@ -51,7 +51,7 @@
                   @if(!$u->vigencia_inicio && !$u->vigencia_fin) Sin fechas @endif
                 </small>
               </td>
-              <td><small class="help-small">{{ $u->fuente ?? '—' }}</small></td>
+              <td><small class="help-small">{{ $u->fuente ?? '' }}</small></td>
               <td>
                 @if($u->activo)
                   <span class="chip chip-success">Activo</span>

@@ -83,7 +83,7 @@
           <td>{{ $t->homoclave ?? 'Sin folio' }}</td>
           <td><strong>{{ $t->nombre_oficial }}</strong><br><small>{{ $t->tipoLegible() }} · {{ $t->created_at->format('d/m/Y') }}</small></td>
           <td><span class="badge {{ $t->esServicio() ? 'badge-info' : 'badge-default' }}">{{ $t->naturalezaLegible() }}</span></td>
-          @if($verDependencia)<td>{{ $t->dependencia->nombre ?? '—' }}</td>@endif
+          @if($verDependencia)<td>{{ $t->dependencia->nombre ?? '' }}</td>@endif
           <td><x-badge-estatus :estatus="$t->estatus" /></td>
           <td class="table-action-cell">
             <div class="table-actions">

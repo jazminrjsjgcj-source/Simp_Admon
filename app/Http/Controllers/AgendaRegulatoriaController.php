@@ -105,7 +105,7 @@ class AgendaRegulatoriaController extends Controller
         // borrador y exige todo el sustento al enviar a revisión (antes solo se pedía
         // el nombre y se podía enviar una propuesta prácticamente vacía).
 
-        // Bug #10/#11: cuando el usuario elige "Otro" en el select de tipo,
+        // Cuando el usuario elige "Otro" en el select de tipo,
         // el texto personalizado viaja en tipo_regulacion_otro. Si se guarda
         // el literal "Otro", el dato específico se pierde y al regresar a
         // editar el campo aparece vacío ("Otro" no coincide con ninguna opción
@@ -182,8 +182,8 @@ class AgendaRegulatoriaController extends Controller
         $puedeObservar = request()->user()->tienePermiso('agenda_regulatoria.observar');
         $revisores = collect();
         if ($puedeObservar) {
-            // Bug #51: excluir al propio usuario — no puede dirigirse
-            // observaciones a sí mismo (misma protección que TramiteController).
+            // Excluir al propio usuario — no puede dirigirse
+            // observaciones a sí mismo.
             $revisores = User::where('activo', true)
                 ->where('dependencia_id', $propuesta->dependencia_id)
                 ->where('id', '!=', request()->user()->id)
@@ -204,7 +204,12 @@ class AgendaRegulatoriaController extends Controller
     public function edit(PropuestaRegulatoria $propuesta)
     {
         $user = request()->user();
-        if (!$user->isRol(User::ROL_ADMIN) && !$user->esDeSuDependencia($propuesta)) {
+        // Editar exige el permiso agenda_regulatoria.editar Y ser de la dependencia (o
+        // admin). Solo el enlace edita; jurídico, revisora, sujeto y digitalizador
+        // revisan/aprueban/observan pero no editan. Antes bastaba con la dependencia, así
+        // que esos roles podían editar sin permiso.
+        if (!$user->isRol(User::ROL_ADMIN)
+            && (!$user->tienePermiso('agenda_regulatoria.editar') || !$user->esDeSuDependencia($propuesta))) {
             return redirect()->route('propuestas.show', $propuesta)
                 ->with('error', 'Solo puede editar propuestas de su dependencia.');
         }
@@ -228,7 +233,10 @@ class AgendaRegulatoriaController extends Controller
 
     public function update(Request $request, PropuestaRegulatoria $propuesta)
     {
-        if (!$request->user()->isRol(User::ROL_ADMIN) && !$request->user()->esDeSuDependencia($propuesta)) {
+        $user = $request->user();
+        // Mismo criterio que edit(): permiso agenda_regulatoria.editar Y dependencia (o admin).
+        if (!$user->isRol(User::ROL_ADMIN)
+            && (!$user->tienePermiso('agenda_regulatoria.editar') || !$user->esDeSuDependencia($propuesta))) {
             abort(403, 'No tiene permiso para editar esta propuesta.');
         }
 
@@ -237,7 +245,7 @@ class AgendaRegulatoriaController extends Controller
             'dependencia_id' => 'nullable|exists:dependencias,id',
         ]);
 
-        // Bug #10/#11: misma lógica que en store() — si el tipo es "Otro",
+        // Misma lógica que en store() — si el tipo es "Otro",
         // guardar el texto personalizado en lugar del literal.
         $tipoRegulacion = $request->tipo_regulacion;
         if ($tipoRegulacion === 'Otro' && $request->filled('tipo_regulacion_otro')) {
@@ -444,7 +452,7 @@ class AgendaRegulatoriaController extends Controller
             $datos[$campo] = $request->input($campo);
         }
 
-        // Bug #6: el paso 5 incluye <x-citar-regulacion> que envía las citas
+        // El paso 5 incluye <x-citar-regulacion> que envía las citas
         // como citas[0][regulacion_id] y citas[0][articulo_fraccion]. Antes
         // de este fix, esos datos se descartaban silenciosamente porque el
         // controlador no los leía. Se guardan en el mismo JSON de justificacion

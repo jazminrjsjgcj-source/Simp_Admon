@@ -29,6 +29,9 @@ class Observacion extends Model
         'destinatario_id',
         'atendida',
         'estatus',
+        'resuelta_por',            // quién validó o sobreseyó la observación
+        'motivo_sobreseimiento',   // justificación cuando se aprueba por encima
+        'resuelta_en',             // cuándo se validó/sobreseyó
     ];
 
     /** Estatus rico de una observación (corrección #18). */
@@ -37,18 +40,21 @@ class Observacion extends Model
     public const ESTATUS_ATENDIDA    = 'atendida';
     public const ESTATUS_REABIERTA   = 'reabierta';
     public const ESTATUS_VALIDADA    = 'validada';
+    public const ESTATUS_SOBRESEIDA  = 'sobreseida';
 
     /**
-     * Estados en que una observación sigue "viva" (sin cerrar): la revisora
-     * aún no la ha validado. 'validada' es el cierre, por eso no está aquí.
-     * 'atendida' SÍ cuenta como viva: el enlace ya corrigió, pero la revisora
-     * debe dar el visto bueno final. Fuente de verdad única para todo el
-     * sistema (scope pendientes, Tramite, config/flujos.php).
+     * Estados "vivos": una observación así todavía BLOQUEA la aprobación del registro.
+     *
+     * 'atendida' NO está aquí a propósito: cuando el enlace subsana y marca la
+     * observación como atendida, deja de bloquear (opción 1a — el flujo ágil funciona
+     * sin exigir que el revisor valide primero). El revisor puede, opcionalmente,
+     * sellarla como 'validada' para dejar constancia de que revisó la subsanación.
+     * 'sobreseida' tampoco está: es una observación que el revisor decidió saltar al
+     * aprobar por encima, con justificación. Ni 'validada' ni 'sobreseida' bloquean.
      */
     public const ESTATUS_VIVOS = [
         self::ESTATUS_PENDIENTE,
         self::ESTATUS_EN_ATENCION,
-        self::ESTATUS_ATENDIDA,
         self::ESTATUS_REABIERTA,
     ];
 
@@ -62,7 +68,8 @@ class Observacion extends Model
     ];
 
     protected $casts = [
-        'atendida' => 'boolean',
+        'atendida'    => 'boolean',
+        'resuelta_en' => 'datetime',
     ];
 
     // ========== Relaciones ==========
@@ -70,6 +77,7 @@ class Observacion extends Model
     public function observable()    { return $this->morphTo(); }
     public function realizadaPor()  { return $this->belongsTo(User::class, 'realizada_por'); }
     public function destinatario()  { return $this->belongsTo(User::class, 'destinatario_id'); }
+    public function resueltaPor()   { return $this->belongsTo(User::class, 'resuelta_por'); }
 
     // ========== Scopes ==========
 

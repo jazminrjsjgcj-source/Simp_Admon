@@ -31,7 +31,7 @@
           <tr>
             <td><strong>{{ $u->name }}</strong></td>
             <td>{{ $u->email }}</td>
-            <td>{{ $u->dependencia->nombre ?? '—' }}</td>
+            <td>{{ $u->dependencia->nombre ?? '' }}</td>
             <td>
               @forelse($u->roles as $r)
                 <span class="chip chip-success">{{ $r->nombre }}</span>

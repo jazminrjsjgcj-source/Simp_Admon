@@ -254,8 +254,8 @@ $sabotajes = [
     [
         'bug'     => 'Un usuario puede votar mil veces el mismo resultado',
         'archivo' => 'app/Services/BusquedaLogService.php',
-        'buscar'  => "DB::table('busqueda_feedback')->updateOrInsert(",
-        'romper'  => "DB::table('busqueda_feedback')->insert( // SABOTAJE",
+        'buscar'  => "\$yaVoto = DB::table('busqueda_feedback')->where(\$claves)->exists();",
+        'romper'  => '$yaVoto = false; // SABOTAJE',
         'prueba'  => 'BusquedaLogSeguridadTest',
         'porque'  => 'El candado de propiedad impide votar en búsquedas ajenas. Este impide INFLAR LAS '
                    . 'PROPIAS: sin él, basta con hacer UNA búsqueda y votarla diez mil veces con un bucle. '
@@ -274,6 +274,77 @@ $sabotajes = [
                    . 'Y ahí no aparece la palabra "patrimonio". El modelo tenía la respuesta delante y no podía '
                    . 'verla. Es el mismo bug del buscador, repetido un nivel más arriba: le dábamos la página '
                    . 'arrancada del libro. Se comprueba leyendo respuestas reales, no con una prueba.',
+    ],
+
+    [
+        'bug'     => 'Los catálogos no se congelan al firmar',
+        'archivo' => 'app/Models/Concerns/CongelaCatalogos.php',
+        'buscar'  => "\$this->forceFill(['catalogos_al_firmar' => \$foto])->saveQuietly();",
+        'romper'  => '// SABOTAJE: no se guarda la foto',
+        'prueba'  => 'CatalogosCongeladosTest',
+        'porque'  => 'Un trámite firmado debe seguir mostrando los nombres que tenía AL FIRMARSE. Si '
+                   . 'alguien renombra la dependencia después, el documento firmado no puede cambiar de '
+                   . 'contenido por su cuenta: sería alterar un acto jurídico ya consumado. Sin la foto, '
+                   . 'los acuses impresos y la pantalla dejan de coincidir, y nadie se entera.',
+    ],
+
+    [
+        'bug'     => 'El filtro por tipo del buscador se ignora',
+        'archivo' => 'app/Services/BuscadorService.php',
+        'buscar'  => '$incluir = fn (string $tipo) => $tipos === null || in_array($tipo, $tipos);',
+        'romper'  => '$incluir = fn (string $tipo) => true; // SABOTAJE',
+        'prueba'  => 'BuscadorFiltrosTest',
+        'porque'  => 'El ciudadano marca "solo Requisitos" y el buscador le devuelve todo igualmente. No '
+                   . 'da ningún error: simplemente el filtro que acaba de pulsar no sirve para nada, y él '
+                   . 'no tiene forma de saberlo.',
+    ],
+
+    [
+        'bug'     => 'Cualquiera puede crear trámites (se cae el control de permisos)',
+        'archivo' => 'app/Http/Controllers/TramiteController.php',
+        'buscar'  => "if (!auth()->user()->tienePermiso('tramites.crear')) {",
+        'romper'  => 'if (false) { // SABOTAJE',
+        'prueba'  => 'RolSujetoYJuridicoTest',
+        'porque'  => 'La puerta se queda abierta. Un jurídico o un sujeto obligado —que solo deben revisar '
+                   . 'y firmar— podrían crear trámites. Y OJO CON ESTE: es el caso que ya señalamos al '
+                   . 'principio de la sesión. Las pruebas de rol comprueban que la REGLA existe '
+                   . '(tienePermiso devuelve false), no que la PUERTA la aplique. Si sale NO LO CAZÓ, ese '
+                   . 'es exactamente el agujero: se prueba la ley, no el portero.',
+    ],
+
+    [
+        'bug'     => 'El filtro de palabras deja la búsqueda VACÍA',
+        'archivo' => 'app/Services/BuscadorService.php',
+        'buscar'  => 'return $utiles !== [] ? $utiles : $palabras;',
+        'romper'  => 'return $utiles; // SABOTAJE',
+        'prueba'  => 'BuscadorEntiendePreguntasTest',
+        'porque'  => 'Si TODAS las palabras de la consulta son demasiado comunes, el filtro las tira todas '
+                   . 'y la búsqueda se queda sin nada que buscar. Devuelve cero resultados sin dar ningún '
+                   . 'error. El respaldo (devolver las originales) existe porque más vale un AND con ruido '
+                   . 'que una consulta vacía.',
+    ],
+
+    [
+        'bug'     => 'La respuesta destacada del buscador deja de construirse',
+        'archivo' => 'app/Services/FeaturedAnswerService.php',
+        'buscar'  => "if (\$intencion !== SearchIntentDetector::DEFINICION) {",
+        'romper'  => 'if (true) { // SABOTAJE',
+        'prueba'  => 'BuscadorFiltrosTest',
+        'porque'  => 'El diccionario curado y las definiciones extraídas del articulado dejan de usarse. '
+                   . 'Y el asistente de IA las SUSTITUYE en silencio: una definición que una persona curó '
+                   . 'a mano queda reemplazada por texto redactado por un modelo, sin que nadie lo note. '
+                   . 'La respuesta seguirá saliendo. Solo que ya no será la oficial.',
+    ],
+
+    [
+        'bug'     => 'El costo de espera vuelve a ser calculable siempre (aunque falten datos)',
+        'archivo' => 'app/Services/CostoBurocraticoService.php',
+        'buscar'  => "'resolucion_calculable' => \$costos['resolucion_calculable'],",
+        'romper'  => "'resolucion_calculable' => true, // SABOTAJE",
+        'prueba'  => 'AvisosEnLaFichaTest',
+        'porque'  => 'El snapshot dice que el número es de fiar cuando no lo es. La ficha pinta un $0.00 '
+                   . 'indistinguible del de un trámite que se resuelve en el acto, y el CBT sale '
+                   . 'subestimado sin que nada lo advierta. Un cero que parece un dato.',
     ],
 ];
 
@@ -323,7 +394,22 @@ foreach ($sabotajes as $i => $s) {
     $original = file_get_contents($ruta);
 
     if (! str_contains($original, $s['buscar'])) {
-        echo "      ⚠  No encuentro el código a sabotear. El archivo cambió, o no copiaste el arreglo.\n\n";
+        // ── ESTO NO ES "NO LO CAZÓ". ES "NO PUDE ROMPERLO". ──
+        //
+        // Y la diferencia es TODO. Un "NO LO CAZÓ" significa que tus pruebas tienen un agujero.
+        // Un "NO SE PUDO SABOTEAR" significa que EL SABOTEADOR está roto: buscaba una línea que
+        // ya no existe, no rompió nada, y la prueba pasó tan tranquila.
+        //
+        // Si los dos casos se informaran igual, el saboteador estaría MINTIENDO sobre la
+        // cobertura de las pruebas. Diría "tienes un agujero" cuando lo que hay es una línea
+        // renombrada.
+        //
+        // Una herramienta de diagnóstico que no distingue "el sistema falla" de "yo fallé" es
+        // peor que no tenerla: da confianza en una lectura falsa.
+        echo "      ⚠  NO PUDE SABOTEARLO. No encuentro esa línea en el archivo.\n";
+        echo "         Esto NO significa que las pruebas tengan un agujero: significa que este\n";
+        echo "         sabotaje está desactualizado. La línea cambió de nombre, o el arreglo no\n";
+        echo "         se copió. Actualiza el sabotaje o copia el archivo.\n\n";
         $resultados[] = [$s['bug'], 'NO SE PUDO SABOTEAR', $s['prueba']];
         continue;
     }
@@ -379,6 +465,15 @@ $total = count($resultados);
 echo "\n";
 echo "  {$cazados} de {$total} bugs cazados por las pruebas.\n\n";
 
+$noSabotables = count(array_filter($resultados, fn ($r) => $r[1] === 'NO SE PUDO SABOTEAR'));
+
+if ($noSabotables > 0) {
+    echo "  ⚠  {$noSabotables} sabotaje(s) NO SE PUDIERON APLICAR.\n\n";
+    echo "     Eso NO es un agujero en las pruebas: es el saboteador desactualizado. Buscaba\n";
+    echo "     líneas que ya no existen. Arréglalo antes de fiarte del resto del informe —\n";
+    echo "     esos sabotajes no probaron NADA.\n\n";
+}
+
 if ($cazados === $total) {
     echo "  Todos los bugs que arreglamos volverían a saltar si alguien los reintroduce.\n";
     echo "  Eso es lo único que una suite de pruebas puede prometer de verdad.\n\n";
@@ -392,7 +487,14 @@ if ($cazados === $total) {
 echo "──────────────────────────────────────────────────────────────────────\n";
 echo "  LOS PUNTOS CIEGOS QUE HAY QUE ACEPTAR\n";
 echo "──────────────────────────────────────────────────────────────────────\n\n";
-echo "  1) EL IMPORT DEL AIR. Ese sabotaje SALDRÁ COMO 'NO LO CAZÓ', y es correcto.\n\n";
+echo "  1) EL SABOTAJE DE LOS PERMISOS (crear trámites). Si sale NO LO CAZÓ, NO es un fallo\n";
+echo "     del saboteador: es EL AGUJERO. Las pruebas de rol (RolAdminTest, RolRevisoraTest)\n";
+echo "     comprueban que tienePermiso() devuelve false. NO comprueban que el CONTROLADOR\n";
+echo "     llame a tienePermiso().\n\n";
+echo "     Prueban la LEY, no el PORTERO. Y un portero que no mira la ley deja pasar a todos.\n\n";
+echo "     Si ese sabotaje no se caza, hay que escribir pruebas HTTP: pedir la página como un\n";
+echo "     jurídico y comprobar que recibe un 403. Es la única forma de probar una puerta.\n\n";
+echo "  2) EL IMPORT DEL AIR. Ese sabotaje SALDRÁ COMO 'NO LO CAZÓ', y es correcto.\n\n";
 echo "     Sin el `use`, PHP interpreta la clase como una que no existe, y `instanceof`\n";
 echo "     contra una clase inexistente devuelve false SIN LANZAR NINGÚN ERROR. La rama\n";
 echo "     nunca se ejecuta, en silencio.\n\n";
@@ -400,7 +502,11 @@ echo "     Ninguna prueba puede cazarlo, porque esa rama tampoco es alcanzable h
 echo "     resolverModelo() no acepta el tipo 'air'. El día que se retome ese módulo,\n";
 echo "     habrá que escribir la prueba Y quitar este sabotaje de la lista.\n\n";
 echo "     Está aquí para que no se olvide que el agujero existe.\n\n";
-echo "  2) EL CANDADO DE CONCURRENCIA. Ningún sabotaje puede cazar que se quite el\n";
+echo "  3) EL CONTEXTO QUE VE EL MODELO. El sabotaje que se lo quita puede salir como NO\n";
+echo "     CAZADO, y es un punto ciego conocido: las pruebas del asistente usan Http::fake(),\n";
+echo "     así que simulan la respuesta del modelo. No pueden saber si el modelo ENTENDIÓ el\n";
+echo "     contexto. Eso solo se comprueba leyendo respuestas reales.\n\n";
+echo "  4) EL CANDADO DE CONCURRENCIA. Ningún sabotaje puede cazar que se quite el\n";
 echo "     lockForUpdate()\n";
 echo "  del Contador o del PeriodoService.\n\n";
 echo "  PHPUnit corre en un solo proceso, secuencial. Nunca hay dos peticiones de\n";

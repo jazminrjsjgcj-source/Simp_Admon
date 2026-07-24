@@ -20,27 +20,54 @@
   .panorama-modulo-body { padding: 0 16px 16px; display: none; }
   .panorama-modulo-body.abierto { display: block; }
 </style>
-<div class="page-wide">
+<div class="page-wide dash-centrado">
 
-  {{-- Saludo --}}
-  <div class="screen-head">
-    <div>
-      <h2>Hola, {{ ucfirst($rol) }}</h2>
-      <p>@php
-        echo [
-          'enlace'  => 'Carga trámites, solicita regulaciones, registra acciones de agenda y atiende observaciones de tu dependencia.',
-          'sujeto'  => 'Revisa, observa y firma los trámites de tu dependencia.',
-          'revisora'=> 'Revisa los trámites enviados por los enlaces y registra observaciones.',
-          'juridico'=> 'Registra y gestiona las normativas del sistema PUNTA.',
-          'admin'   => 'Gestiona los usuarios, roles y accesos del sistema PUNTA.',
-        ][$rol] ?? 'Bienvenido al sistema PUNTA.';
-      @endphp</p>
-    </div>
+  {{-- Saludo + buscador.
+       La caja de búsqueda vive AQUÍ: el dashboard es el punto de entrada, y
+       /buscar quedó como la pantalla de resultados. Al enviar, navega a /buscar
+       con la consulta, así que no duplica lógica: es el mismo formulario GET.
+       Reutiliza las clases de 15-buscador.css (se carga en todas las páginas)
+       para que la caja se vea igual que en el buscador. --}}
+  @php
+    // now() usa la zona horaria de la app (config/app.php).
+    $hora = now()->hour;
+    $saludo = $hora < 12 ? 'Buenos días' : ($hora < 19 ? 'Buenas tardes' : 'Buenas noches');
+    $primerNombre = explode(' ', trim(auth()->user()->name))[0] ?? '';
+    $fraseRol = [
+      'enlace'  => 'Carga trámites, solicita regulaciones, registra acciones de agenda y atiende observaciones de tu dependencia.',
+      'sujeto'  => 'Revisa, observa y firma los trámites de tu dependencia.',
+      'revisora'=> 'Revisa los trámites enviados por los enlaces y registra observaciones.',
+      'juridico'=> 'Registra y gestiona las normativas del sistema PUNTA.',
+      'admin'   => 'Gestiona los usuarios, roles y accesos del sistema PUNTA.',
+    ][$rol] ?? 'Bienvenido al sistema PUNTA.';
+  @endphp
+
+  <div class="dash-bienvenida">
+    {{-- El titular alterna entre el saludo y la pregunta. Las dos frases están en
+         el marcado y se turnan con una animación de CSS: así no hace falta
+         JavaScript y quien use lector de pantalla escucha ambas. --}}
+    <h2 class="dash-saludo">
+      <span>{{ $saludo }}{{ $primerNombre !== '' ? ', ' . $primerNombre : '' }}</span>
+      <span>¿En qué te puedo ayudar?</span>
+    </h2>
+    <p class="dash-saludo-sub">{{ $fraseRol }}</p>
+
+    <form method="GET" action="{{ route('buscar') }}" class="dash-buscador" autocomplete="off">
+      <div class="buscar-input-wrap">
+        <i class="ti ti-search buscar-icono"></i>
+        <input type="search" name="q" class="buscar-input"
+          placeholder="Ej. ¿quién emite licencias?, requisitos construcción, plazo uso de suelo...">
+      </div>
+      <button type="submit" class="btn" style="flex-shrink:0">Buscar</button>
+    </form>
   </div>
 
-  {{-- Actividad general: carrusel de transparencia. Va arriba del dashboard,
-       inmediatamente bajo el saludo, sin card ni encabezado — solo la cinta
-       deslizándose en bucle lento. Solo lo ven enlace, sujeto y jurídico. --}}
+  {{-- Actividad general: panel lateral tipo pestaña de folder.
+       Vive pegado al borde derecho de la ventana y SE SUPERPONE al contenido, así
+       que no descoloca nada del dashboard. Cerrado deja ver solo la pestaña; al
+       pulsarla se despliega la lista en vertical. La elección se recuerda.
+       Solo existe en esta vista, así que solo aparece en el dashboard.
+       Lo ven enlace, sujeto y jurídico. --}}
   @if(in_array($rol, ['enlace','sujeto','juridico']) && isset($actividadGeneral) && $actividadGeneral->count())
     @php
       // Iconos SVG por tipo de módulo (trazos simples, coherentes con el sistema).
@@ -52,10 +79,22 @@
         'registro'  => '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
       ];
     @endphp
-    <div class="actividad-carrusel">
-      {{-- La cinta se repite dos veces para que el bucle sea continuo. --}}
-      <div class="actividad-cinta">
-        @foreach($actividadGeneral->concat($actividadGeneral) as $evento)
+    <aside class="panel-lateral panel-lateral--actividad" id="panelActividad" aria-label="Actividad reciente">
+      {{-- Pestaña tipo lengüeta de folder: sobresale hacia la izquierda y es lo
+           único visible cuando el panel está cerrado. --}}
+      <button type="button" class="panel-pestana" onclick="togglePanelLateral('panelActividad')"
+        aria-controls="panelActividad" title="Mostrar u ocultar la actividad reciente">
+        Actividad reciente
+      </button>
+
+      <div class="panel-lateral-cuerpo">
+        <div class="panel-lateral-head">
+          <h3>Actividad reciente</h3>
+          <button type="button" class="panel-cerrar" onclick="togglePanelLateral('panelActividad')" aria-label="Cerrar">&times;</button>
+        </div>
+        <div class="actividad-lista">
+          {{-- Sin duplicar la lista: eso hacía falta solo para el bucle horizontal. --}}
+          @foreach($actividadGeneral as $evento)
           <div class="actividad-tarjeta">
             <div class="actividad-tarjeta-head">
               <span class="actividad-icono">
@@ -70,9 +109,12 @@
               <span>{{ $evento->fecha_relativa }}</span>
             </div>
           </div>
-        @endforeach
+          @endforeach
+        </div>
       </div>
-    </div>
+    </aside>
+
+
   @endif
 
   {{-- KPIs — el filtro de cada tarjeta viene de $kpiTipos (definido en el controlador) --}}
@@ -173,26 +215,14 @@
     SOLO los KPIs (con el activo marcado) y el panel de resultados — todo lo demás
     desaparece hasta que desactive el filtro.
   --}}
+  {{-- Bloque secundario del dashboard: pendientes por módulo.
+       El JS de los KPIs lo oculta mientras hay un filtro activo y lo restaura al
+       limpiarlo, por eso va envuelto en #dashSecondaryContent. --}}
   <div id="dashSecondaryContent">
   @php $verDependencia = auth()->user()->veVariasDependencias(); @endphp
 
-  {{-- Accesos rápidos --}}
-  @if($rol === 'enlace')
-    <div class="grid quick">
-      <a href="{{ route('tramites.create') }}" class="card quick-card kpi-link">
-        <strong>Nuevo Trámite o Servicio</strong>
-        <span>Registrar trámite o servicio municipal</span>
-      </a>
-      <a href="{{ route('agenda.create') }}" class="card quick-card kpi-link">
-        <strong>Registrar Acción</strong>
-        <span>Simplificación y digitalización</span>
-      </a>
-      <a href="{{ route('propuestas.create') }}" class="card quick-card kpi-link">
-        <strong>Nueva Propuesta</strong>
-        <span>Agenda regulatoria</span>
-      </a>
-    </div>
-  @endif
+  {{-- Los accesos rápidos se movieron al layout, a la pestaña "Acciones rápidas",
+       para poder usarlos desde cualquier módulo y no solo desde el dashboard. --}}
 
   {{-- Pendientes: Trámites --}}
   @if($pendientesTramites->count())
@@ -302,7 +332,7 @@
         <tr>
           <td>{{ $p->folio ?? 'REG-' . str_pad($p->id,3,'0',STR_PAD_LEFT) }}</td>
           <td><strong>{{ Str::limit($p->nombre,50) }}</strong></td>
-          <td>{{ $p->tipo_regulacion ?? '—' }}</td>
+          <td>{{ $p->tipo_regulacion ?? '' }}</td>
           <td><x-badge-estatus :estatus="$p->estatus ?? 'borrador'" /></td>
           <td class="table-action-cell"><div class="table-actions">
             {{-- Ver: siempre disponible --}}
@@ -412,6 +442,7 @@
   </div>{{-- /#dashSecondaryContent (Bug #B8) --}}
 
 </div>
+
 @endsection
 
 @push('scripts')

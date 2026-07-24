@@ -251,8 +251,8 @@ class AirController extends Controller
 
     private function autorizarAccesoAir(PropuestaRegulatoria $propuesta, $user): void
     {
-        // Bug 60: la revisora tiene rol transversal — revisa AIR de TODAS
-        // las dependencias, no solo la suya. Antes solo pasaba admin.
+        // La revisora tiene rol transversal — revisa AIR de TODAS
+        // las dependencias, no solo la suya.
         if ($user->isAnyRol([User::ROL_ADMIN, User::ROL_REVISORA])) {
             return;
         }

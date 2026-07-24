@@ -178,7 +178,11 @@ class AsistenteRespuestaService
         $maxFuentes = (int) config('punta.asistente.max_fuentes', 8);
         $maxChars   = (int) config('punta.asistente.max_caracteres_por_fuente', 800);
 
-        return $resultados
+        // Se guarda en $fuentes (en vez de devolver directamente aquí) para que el
+        // resultado pase por inyectarContextoPermanente() antes de salir: es ahí donde
+        // se añaden los artículos-catálogo (la escala y las clases) que evitan la cita
+        // falsa. Devolver aquí dejaba esa inyección como código muerto.
+        $fuentes = $resultados
             ->take($maxFuentes)
             ->values()
             ->map(function ($r, $i) use ($maxChars) {
@@ -214,10 +218,23 @@ class AsistenteRespuestaService
                     'contexto'      => $this->contextoDelNodo($r),
 
                     'fuente'        => $r['subtitulo']            ?? null,
-                    'articulo'      => $r['titulo']               ?? null,
+
+                    // La cita COMPLETA, con el artículo padre si el nodo es una fracción o un inciso.
+                    // Ver citaCompleta(): "Fracción I" a secas no se puede encontrar en una ley.
+                    'articulo'      => $this->citaCompleta($r),
                     'fraccion'      => null,
                     'regulacion_id' => $r['meta']['regulacion_id'] ?? null,
                     'url'           => $r['url']                  ?? null,
+
+                    // Página del PDF original y enlace directo a ella. Viajan desde el
+                    // resultado para que las fuentes citadas se puedan abrir en el
+                    // documento oficial, en el punto exacto, y no solo en el articulado.
+                    'pagina'        => $r['meta']['pagina']  ?? null,
+                    'pdf_url'       => $r['meta']['pdf_url'] ?? null,
+
+                    // Viaja desde el resultado del buscador para que la red dura de
+                    // armarRespuesta() pueda avisar si el modelo usa una ley de otra jurisdicción.
+                    'fuera_de_jurisdiccion' => $r['fuera_de_jurisdiccion'] ?? false,
                 ];
             })
             // Una fuente sin texto no sirve de nada: el modelo no puede redactar a partir de un
@@ -225,6 +242,145 @@ class AsistenteRespuestaService
             ->filter(fn ($f) => $f['texto'] !== '')
             ->values()
             ->all();
+
+        return $this->inyectarContextoPermanente($fuentes);
+    }
+
+    /**
+     * Añade los artículos-CATÁLOGO de una regulación cuando alguna de sus fuentes ya está presente.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * POR QUÉ EL ASISTENTE INVENTABA LA CIFRA EQUIVOCADA
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * Ante "cuánto es la multa por obstruir la banqueta", el buscador encuentra el artículo 65 del
+     * Bando (la conducta: "poner obstáculos en banquetas sin permiso") pero NO los artículos 104 y
+     * 105 —la escala de clases y el catálogo—, porque esos no mencionan "banqueta".
+     *
+     * Sin esos dos, el asistente tenía la conducta pero no la tabla que la convierte en cifra. Y
+     * rellenaba el hueco con lo que sí tenía a mano: el artículo 154 de la Ley de Hacienda (multas
+     * de TRÁNSITO). Daba 3 UMA donde la ley marca 31-100, con una cita que sonaba autorizada. El
+     * peor error posible: equivocado y con fundamento equivocado, dicho con confianza.
+     *
+     * ── Qué hace este método ──
+     *
+     * Mira qué regulaciones aparecen entre las fuentes que trajo el buscador. Para cada una, añade
+     * sus artículos marcados con `tipo_referencia` (el catálogo de clases del Bando), si no
+     * estaban ya. Así el asistente recibe las TRES piezas de la cadena —conducta + catálogo +
+     * escala— y arma la respuesta correcta sin inventar nada.
+     *
+     * El marcado lo pone la IA al cargar la ley (DetectorCatalogosService), no una regla fija: por
+     * eso funciona con cualquier ley de cualquier jurisdicción.
+     *
+     * ── Por qué no rompe las demás respuestas ──
+     *
+     *   · Solo se inyecta el catálogo de una regulación SI esa regulación ya está entre las
+     *     fuentes. Una búsqueda de la Ley de Hacienda no arrastra el catálogo del Bando.
+     *   · Casi ningún nodo lleva etiqueta (índice parcial), así que la consulta es mínima.
+     *   · Si el catálogo ya venía entre las fuentes, no se duplica.
+     *
+     * @param  array<int, array<string, mixed>>  $fuentes
+     * @return array<int, array<string, mixed>>
+     */
+    private function inyectarContextoPermanente(array $fuentes): array
+    {
+        if ($fuentes === []) {
+            return $fuentes;
+        }
+
+        $regulacionesPresentes = collect($fuentes)
+            ->pluck('regulacion_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($regulacionesPresentes->isEmpty()) {
+            return $fuentes;
+        }
+
+        // Artículos de referencia de esas regulaciones. El índice parcial hace esta consulta
+        // instantánea: casi ninguna fila lleva etiqueta.
+        $catalogos = \App\Models\RegulacionNodo::query()
+            ->whereIn('regulacion_id', $regulacionesPresentes)
+            ->whereNotNull('tipo_referencia')
+            ->with('hijos:id,parent_id,texto,orden')
+            ->get();
+
+        if ($catalogos->isEmpty()) {
+            return $fuentes;
+        }
+
+        // Qué artículos-catálogo ya venían, para no duplicar. Se compara por regulación + cita.
+        $yaPresentes = collect($fuentes)
+            ->map(fn ($f) => ($f['regulacion_id'] ?? '') . ':' . ($f['articulo'] ?? ''))
+            ->all();
+
+        // Qué regulaciones presentes son de otra jurisdicción, para heredar la marca a
+        // sus artículos-catálogo inyectados: comparten ley, así que comparten jurisdicción.
+        $fueraPorRegulacion = collect($fuentes)
+            ->filter(fn ($f) => $f['fuera_de_jurisdiccion'] ?? false)
+            ->pluck('regulacion_id')
+            ->flip();
+
+        $n = count($fuentes);
+
+        foreach ($catalogos as $nodo) {
+            $cita  = trim(($nodo->tipo === RegulacionNodo::TIPO_ARTICULO ? 'Artículo ' : '') . $nodo->numero);
+            $clave = $nodo->regulacion_id . ':' . $cita;
+
+            if (in_array($clave, $yaPresentes, true)) {
+                continue; // ya lo trajo el buscador
+            }
+
+            $fuentes[] = [
+                'n'             => ++$n,
+                'tipo'          => $nodo->tipo,
+                'titulo'        => $cita,
+                'subtitulo'     => optional($nodo->regulacion)->nombre ?? '',
+                'texto'         => $this->textoConCatalogoCompleto($nodo),
+                'contexto'      => $nodo->contexto,
+                'fuente'        => optional($nodo->regulacion)->nombre ?? null,
+                'articulo'      => $cita,
+                'fraccion'      => null,
+                'regulacion_id' => $nodo->regulacion_id,
+                'url'           => null,
+
+                // Mismo enlace al PDF que arma el buscador: la ruta de vista previa
+                // más el fragmento #page=N. Sin página guardada se abre en la primera.
+                'pagina'        => $nodo->pagina,
+                'pdf_url'       => $nodo->regulacion_id
+                    ? route('regulaciones.preview', $nodo->regulacion_id)
+                        . ($nodo->pagina ? '#page=' . $nodo->pagina : '')
+                    : null,
+                'fuera_de_jurisdiccion' => $fueraPorRegulacion->has($nodo->regulacion_id),
+            ];
+        }
+
+        return $fuentes;
+    }
+
+    /**
+     * El texto de un nodo-catálogo PARA EL PROMPT, incluyendo sus hijos.
+     *
+     * Por qué los hijos: la sustancia de una escala vive en ellos. El artículo 104
+     * del Bando solo dice en su texto propio "…se clasifican de la siguiente manera:";
+     * las cuantías ("Clase D: Multa de 31 a 100 UMA") están en los incisos hijos. Sin
+     * ellos, el asistente ve la clase pero no el monto, y no puede cuantificar la
+     * multa —justo el hueco del caso de la banqueta—. Es el mismo principio que ya usa
+     * el detector para clasificar (texto con hijos).
+     */
+    private function textoConCatalogoCompleto($nodo): string
+    {
+        $partes = [trim((string) $nodo->texto)];
+
+        foreach ($nodo->hijos->sortBy('orden') as $hijo) {
+            $t = trim((string) $hijo->texto);
+            if ($t !== '') {
+                $partes[] = $t;
+            }
+        }
+
+        return Str::limit(implode("\n", array_filter($partes)), 1500);
     }
 
     /**
@@ -323,6 +479,97 @@ class AsistenteRespuestaService
         $contexto = RegulacionNodo::whereKey($nodoId)->value('contexto');
 
         return ! empty($contexto) ? trim((string) $contexto) : null;
+    }
+
+    /**
+     * La cita COMPLETA de un nodo: con su artículo padre si hace falta.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * POR QUÉ "FRACCIÓN I" NO ES UNA CITA
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * El buscador etiqueta cada nodo con su tipo y su número: "Artículo 31", "Fracción I",
+     * "Inciso e". Para una lista de resultados es suficiente: el usuario hace clic y lo ve.
+     *
+     * Pero como CITA de una respuesta legal, no vale nada:
+     *
+     *     "Ley de Hacienda, Fracción I"
+     *
+     * Hay DECENAS de "Fracción I" en una ley. El ciudadano lee eso y NO PUEDE ENCONTRARLA.
+     *
+     * ── Y eso rompe lo único que sostiene todo este servicio ──
+     *
+     * La cita es lo que separa una respuesta REDACTADA de una respuesta INVENTADA. Es lo que
+     * permite al ciudadano comprobar que el 2 al millar existe de verdad, y al Ayuntamiento
+     * defenderlo si alguien lo discute.
+     *
+     * Si la cita no se puede seguir, el ciudadano solo tiene LA PALABRA DEL MODELO. Que es
+     * exactamente lo que este servicio existe para evitar.
+     *
+     *     UNA CITA QUE NO SE PUEDE COMPROBAR NO ES UNA CITA.
+     *
+     * ── Qué hace ──
+     *
+     * Sube por el árbol hasta encontrar el artículo del que cuelga el nodo:
+     *
+     *     "Fracción I"   →   "Artículo 31, Fracción I"      ✓ comprobable
+     *     "Inciso e"     →   "Artículo 88, Inciso e"        ✓ comprobable
+     *     "Artículo 65"  →   "Artículo 65"                  (ya lo era)
+     *
+     * ── Y si no encuentra artículo padre ──
+     *
+     * Devuelve la etiqueta tal cual. Un párrafo suelto no cuelga de ningún artículo, y forzar una
+     * cita inventada sería peor que dar una incompleta.
+     */
+    private function citaCompleta(array $resultado): ?string
+    {
+        $etiqueta = $resultado['titulo'] ?? null;
+        $nodoId   = $resultado['meta']['nodo_id'] ?? null;
+
+        if ($etiqueta === null || $nodoId === null) {
+            return $etiqueta;
+        }
+
+        // Si ya ES un artículo, no hay nada que anteponer.
+        if (($resultado['meta']['tipo_nodo'] ?? null) === RegulacionNodo::TIPO_ARTICULO) {
+            return $etiqueta;
+        }
+
+        $articulo = $this->articuloPadre($nodoId);
+
+        return $articulo !== null
+            ? "Artículo {$articulo}, {$etiqueta}"
+            : $etiqueta;
+    }
+
+    /**
+     * Sube por el árbol hasta el artículo del que cuelga un nodo. Null si no hay ninguno.
+     *
+     * El límite de vueltas es una red contra un ciclo en parent_id. No debería existir —esto es
+     * un árbol, no un grafo— pero un bucle infinito aquí colgaría la búsqueda de un ciudadano sin
+     * dar ningún error, y eso es peor que una cita incompleta.
+     */
+    private function articuloPadre(int $nodoId): ?string
+    {
+        $actual  = RegulacionNodo::whereKey($nodoId)->first(['parent_id']);
+        $vueltas = 0;
+
+        while ($actual?->parent_id !== null && $vueltas++ < 10) {
+            $padre = RegulacionNodo::whereKey($actual->parent_id)
+                ->first(['id', 'parent_id', 'tipo', 'numero']);
+
+            if (! $padre) {
+                return null;
+            }
+
+            if ($padre->tipo === RegulacionNodo::TIPO_ARTICULO) {
+                return $padre->numero;
+            }
+
+            $actual = $padre;
+        }
+
+        return null;
     }
 
     private function claveDeCache(string $consulta, array $fuentes): string
@@ -534,6 +781,51 @@ class AsistenteRespuestaService
            Y en el campo "fuentes" del JSON pones el 23, que es la etiqueta interna.
 
         Los dos números son distintos y sirven para cosas distintas. No los mezcles jamás.
+
+        ══════════════════════════════════════════════════════════════════
+        CADA MULTA, PEGADA A SU CONDUCTA. SUPUESTOS DISTINTOS, SEPARADOS.
+        ══════════════════════════════════════════════════════════════════
+
+        A veces las fuentes traen VARIOS artículos que aplican a SITUACIONES DISTINTAS. No los
+        encadenes con "además" como si fueran una sola respuesta: eso confunde. Sepáralos, y pega
+        cada cifra a la conducta que le corresponde.
+
+        Ejemplo real de este sistema. A "¿cuánto es la multa por obstruir la banqueta?" llegan dos
+        artículos que hablan de cosas distintas:
+
+          · El artículo 65 del Bando sanciona PONER OBSTÁCULOS en la banqueta. El catálogo lo pone
+            en Clase D, y la escala dice que la Clase D es de 31 a 100 UMA.
+          · El artículo 154 de la Ley de Hacienda sanciona obstruir el paso a un peatón CON UN
+            VEHÍCULO (materia de tránsito): 3 UMA.
+
+        Son supuestos DISTINTOS, no un "además". Respuesta correcta:
+
+          "Depende de qué situación sea. Si pusiste obstáculos en la banqueta, es el artículo 65
+           del Bando: infracción Clase D, con multa de 31 a 100 UMA. Caso distinto: si obstruiste
+           el paso a un peatón con un vehículo, eso es el artículo 154 de la Ley de Hacienda, con
+           multa de 3 UMA."
+
+        Fíjate: cada multa va JUNTO a su conducta. El 3 UMA no queda suelto en medio, y el 65 no
+        arranca sin su cifra. Y los dos casos se presentan como alternativas ("depende", "caso
+        distinto"), no como una suma.
+
+        Esto NO es deducir: las dos cosas —que el 65 es Clase D, y que la Clase D es de 31 a 100
+        UMA— están LITERALMENTE en las fuentes (el catálogo y la escala). Solo las presentas en
+        orden. Si alguna de esas piezas NO estuviera en las fuentes, no la inventes.
+
+        ══════════════════════════════════════════════════════════════════
+        FUENTES DE OTRA JURISDICCIÓN
+        ══════════════════════════════════════════════════════════════════
+
+        Algunas fuentes pueden venir marcadas con "⚠ [FUERA DE JURISDICCIÓN]" en su cabecera. Son
+        leyes de OTRO estado o municipio, que probablemente NO le apliquen a esta persona.
+
+        Si respondes usando una fuente marcada así, tienes que ADVERTIRLO con claridad: empieza
+        diciendo que esa disposición es de otra jurisdicción y podría no aplicarle. NUNCA la cites
+        como si fuera la ley local.
+
+        Si tienes una fuente local (sin la marca) que responde lo mismo, prefiere esa y no uses la
+        de otra jurisdicción.
         TXT;
     }
 
@@ -544,10 +836,20 @@ class AsistenteRespuestaService
             // ("Artículo 65", "Inciso e"), sin anteponerle nada. El buscador ya la construye
             // completa: anteponer "artículo" produce cosas como "artículo Inciso e", que no
             // existen.
-            $cabecera = "[{$f['n']}] " . ($f['titulo'] ?: $f['tipo']);
+            // Se le da al modelo la cita COMPLETA ("Artículo 31, Fracción I"), no la etiqueta
+            // suelta. Si el modelo ve "Fracción I", eso es lo que escribirá — y una cita que el
+            // ciudadano no puede encontrar no sirve de nada.
+            $cabecera = "[{$f['n']}] " . ($f['articulo'] ?: $f['titulo'] ?: $f['tipo']);
 
             if (! empty($f['fuente'])) {
                 $cabecera .= ' · ' . $f['fuente'];
+            }
+
+            // Marca visible para el modelo: esta fuente es de OTRA jurisdicción (otro estado o
+            // municipio). Llega solo cuando el ciudadano pidió "ver todo". El prompt le dice qué
+            // hacer con ella; la garantía dura está en armarRespuesta().
+            if (! empty($f['fuera_de_jurisdiccion'])) {
+                $cabecera .= ' ⚠ [FUERA DE JURISDICCIÓN]';
             }
 
             // ── EL CONTEXTO: dónde vive este artículo dentro de la ley ──
@@ -721,9 +1023,26 @@ class AsistenteRespuestaService
 
         $principal = $usadas->first();
 
+        // ── RED DURA: el aviso de jurisdicción, por código ──
+        //
+        // Si la respuesta se apoya en una fuente de otra jurisdicción, se antepone el aviso AQUÍ,
+        // sin depender de que el modelo obedeciera el prompt. El prompt es la capa blanda; esta es
+        // la garantía. Se marca además la respuesta para que la vista pueda pintarla distinta.
+        $usaOtraJurisdiccion = $usadas->contains(fn ($f) => $f['fuera_de_jurisdiccion'] ?? false);
+
+        if ($usaOtraJurisdiccion) {
+            $texto = 'Aviso: parte de esta respuesta se basa en una disposición de otra '
+                   . 'jurisdicción (otro estado o municipio) que podría no aplicarte. Verifícalo '
+                   . 'antes de actuar. ' . trim($texto);
+        }
+
         return [
             'termino'    => null, // no es una definición de un término: es una respuesta
             'definicion' => trim($texto),
+
+            // Marca que la respuesta usa al menos una fuente de otra jurisdicción, para que la
+            // vista pueda señalarlo visualmente además del aviso ya incrustado en el texto.
+            'fuera_de_jurisdiccion' => $usaOtraJurisdiccion,
 
             // La cita de la fuente principal. Sin esto, la respuesta no se puede publicar.
             'fuente'        => $principal['fuente']        ?? $principal['titulo'] ?? null,
@@ -744,11 +1063,19 @@ class AsistenteRespuestaService
                 : 'No se encontró una respuesta directa. Esto es lo que sí dicen las regulaciones '
                   . 'sobre el tema, sin deducir nada.',
 
+            // Las fuentes adicionales llevan la MISMA cita completa. Si la principal dice
+            // "Artículo 31, Fracción I" y las de abajo dicen "Fracción III" a secas, el ciudadano
+            // solo puede comprobar una de cinco.
             'definiciones_adicionales' => $usadas->skip(1)->map(fn ($f) => [
                 'fuente'        => $f['fuente'] ?? $f['titulo'],
                 'articulo'      => $f['articulo'],
                 'fraccion'      => $f['fraccion'],
                 'regulacion_id' => $f['regulacion_id'],
+
+                // Para que cada fuente citada se pueda abrir en el PDF oficial, en la
+                // página donde está: comprobar una cita no debería costar una búsqueda.
+                'pagina'        => $f['pagina']  ?? null,
+                'pdf_url'       => $f['pdf_url'] ?? null,
             ])->values()->toArray(),
         ];
     }

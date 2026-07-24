@@ -80,14 +80,53 @@ class RevisionService
      * Aprueba un registro. Solo permite aprobar si todas las observaciones
      * activas están marcadas como atendidas.
      */
-    public function aprobar(Model $registro): bool
+    public function aprobar(Model $registro, ?User $aprobador = null, ?string $justificacion = null): bool
     {
         if ($this->tieneObservacionesPendientes($registro)) {
-            return false;
+            // Hay observaciones vivas. El aprobador (revisor/admin) puede aprobar por
+            // encima SI justifica; entonces esas observaciones quedan SOBRESEÍDAS con el
+            // motivo y quién lo decidió (no se borran: quedan trazables). Sin
+            // justificación, no se aprueba.
+            if ($justificacion === null || trim($justificacion) === '') {
+                return false;
+            }
+
+            $registro->observaciones()->pendientes()->update([
+                'estatus'               => Observacion::ESTATUS_SOBRESEIDA,
+                'resuelta_por'          => $aprobador?->id,
+                'motivo_sobreseimiento' => $justificacion,
+                'resuelta_en'           => now(),
+            ]);
         }
 
         $registro->update(['estatus' => $this->estatusAprobado($registro)]);
         return true;
+    }
+
+    /**
+     * Sella una observación como VALIDADA: el revisor confirma que la subsanación del
+     * enlace quedó bien. Es el cierre "positivo" (distinto del sobreseimiento, que es
+     * saltarse una observación sin resolver). Opcional: como 'atendida' ya no bloquea,
+     * validar deja constancia pero no es obligatorio para aprobar.
+     */
+    public function validarObservacion(Observacion $observacion, ?User $revisor = null): void
+    {
+        $observacion->update([
+            'estatus'      => Observacion::ESTATUS_VALIDADA,
+            'resuelta_por' => $revisor?->id,
+            'resuelta_en'  => now(),
+        ]);
+    }
+
+    /** El tipo (string) de un registro observable — inverso de resolverRegistro(). */
+    public function tipoDe(Model $registro): string
+    {
+        return match (true) {
+            $registro instanceof Tramite               => self::TIPO_TRAMITE,
+            $registro instanceof AccionAgenda           => self::TIPO_AGENDA,
+            $registro instanceof PropuestaRegulatoria   => self::TIPO_PROPUESTA_REGULATORIA,
+            default                                     => abort(404, 'Tipo de registro no soportado.'),
+        };
     }
 
     public function tieneObservacionesPendientes(Model $registro): bool

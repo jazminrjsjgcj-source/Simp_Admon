@@ -58,7 +58,7 @@
                     <span class="text-muted-sm">—</span>
                   @endif
                 </td>
-                <td class="help-small">{{ $m->ip_address ?? '—' }}</td>
+                <td class="help-small">{{ $m->ip_address ?? '' }}</td>
               </tr>
             @endforeach
           </tbody>

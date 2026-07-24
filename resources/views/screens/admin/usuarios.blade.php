@@ -19,7 +19,7 @@
             @endforeach
           @endif
         </td>
-        <td>{{ $u->dependencia->nombre ?? '—' }}</td>
+        <td>{{ $u->dependencia->nombre ?? '' }}</td>
         <td><span class="badge {{ $u->activo?'success-b':'danger-b' }}">{{ $u->activo?'Activo':'Inactivo' }}</span></td>
         <td class="table-action-cell"><div class="table-actions">
           <a href="{{ route('admin.usuarios.edit',$u) }}" class="btn table-action-btn btn-outline">Editar</a>

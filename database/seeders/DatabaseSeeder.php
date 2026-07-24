@@ -118,5 +118,18 @@ class DatabaseSeeder extends Seeder
 
         // ACL: poblar roles, permisos y migrar usuarios existentes
         $this->call(AclSeeder::class);
+
+        // Tesauro jurídico: la traducción entre lo que dice el ciudadano y lo que
+        // dice la ley (permiso → derecho, licencia, autorizacion, cuota).
+        //
+        // Hasta ahora este seeder NO lo llamaba nadie: solo se mencionaba dentro de
+        // dos mensajes de error de `php artisan tesauro:probar`, pidiéndole a un
+        // humano que lo corriera a mano. Es decir, el tesauro existía únicamente si
+        // alguien se acordaba. Si no, el buscador seguía respondiendo sin errores y
+        // sin encontrar nada, que es el peor modo de fallo posible.
+        //
+        // Es idempotente (updateOrInsert por termino_ciudadano), así que correrlo de
+        // más no duplica ni rompe nada.
+        $this->call(TesauroJuridicoSeeder::class);
     }
 }

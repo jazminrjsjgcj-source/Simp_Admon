@@ -42,10 +42,10 @@
         <tbody>
           @foreach($impactos as $imp)
             <tr>
-              <td>{{ $imp->tramite->nombre_oficial ?? '—' }}</td>
+              <td>{{ $imp->tramite->nombre_oficial ?? '' }}</td>
               <td>{{ $imp->requisito->nombre ?? 'Registro en general' }}</td>
-              <td>{{ $imp->articulo_fraccion ?? '—' }}</td>
-              <td>{{ $imp->descripcion ?? '—' }}</td>
+              <td>{{ $imp->articulo_fraccion ?? '' }}</td>
+              <td>{{ $imp->descripcion ?? '' }}</td>
               @if($modoEdicion)
                 <td class="table-action-cell">
                   <form method="POST"

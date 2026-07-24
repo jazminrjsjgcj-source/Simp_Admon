@@ -12,7 +12,11 @@ use App\Models\Dependencia;
 use App\Models\SujetoObligado;
 use App\Models\Tramite;
 use App\Models\User;
+use App\Services\LectorFichaTramiteService;
+use App\Services\MapeadorFichaTramiteService;
+use App\Services\ResolverCatalogosFichaService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class TramiteController extends Controller
 {
@@ -244,7 +248,66 @@ class TramiteController extends Controller
 
         $tiposServicio = config('punta.tipos_servicio', []);
 
-        return view('screens.tramites.create', compact('dependencias', 'tramites', 'misUnidades', 'unidadAutoId', 'tiposServicio'));
+        // Datos precargados desde una ficha subida (los flashea cargarFicha()).
+        // null en un alta normal; la vista solo precarga si viene algo.
+        $precarga = session('precarga');
+
+        return view('screens.tramites.create', compact('dependencias', 'tramites', 'misUnidades', 'unidadAutoId', 'tiposServicio', 'precarga'));
+    }
+
+    /**
+     * Sube una ficha (Reporte Catálogo de Trámites y Servicios) y PRECARGA con
+     * ella el formulario de alta.
+     *
+     * NO crea el trámite: lee la ficha, mapea sus datos a los campos del
+     * formulario y redirige a create() ya precargado, para que el usuario revise,
+     * complete los huecos y guarde con el flujo normal.
+     */
+    public function cargarFicha(
+        Request $request,
+        LectorFichaTramiteService $lector,
+        ResolverCatalogosFichaService $resolver,
+        MapeadorFichaTramiteService $mapeador,
+    ) {
+        if (! auth()->user()->tienePermiso('tramites.crear')) {
+            abort(403, 'No tiene permiso para crear trámites.');
+        }
+
+        $request->validate([
+            'ficha' => 'required|file|mimes:pdf|max:10240', // hasta 10 MB
+        ]);
+
+        // Se guarda un temporal, se lee y se borra enseguida: la ficha no se conserva.
+        $rutaRel = $request->file('ficha')->store('fichas-tmp');
+
+        try {
+            $ficha = $lector->leer(Storage::path($rutaRel));
+        } finally {
+            Storage::delete($rutaRel);
+        }
+
+        if ($ficha === null) {
+            return redirect()->route('tramites.create')
+                ->with('error', 'No se pudo leer la ficha. Verifique que sea el PDF del Reporte Catálogo.');
+        }
+
+        $catalogos = $resolver->resolver($ficha);
+        $precarga  = $mapeador->mapear($ficha, $catalogos);
+
+        $aviso = 'Formulario precargado desde la ficha. Revise los datos y complete lo que falte antes de guardar.';
+
+        // Si el módulo de la ficha no casó con ninguna dependencia/unidad del
+        // catálogo, el select queda en blanco (no se adivina). Se le dice al
+        // usuario QUÉ decía la ficha para que pueda elegir sin abrir el PDF.
+        if ($catalogos['dependencia_id'] === null && ! empty($ficha['modulo']['nombre'])) {
+            $aviso .= ' La ficha indica el módulo "' . $ficha['modulo']['nombre']
+                . '", que no está en el catálogo: seleccione la dependencia que corresponda.';
+        }
+
+        return redirect()->route('tramites.create')
+            ->withInput($precarga['escalares'])  // los old('campo') de la vista se precargan solos
+            ->with('precarga', $precarga)         // para requisitos y resaltado
+            ->with('info', $aviso);
     }
 
     public function store(TramiteRequest $request)

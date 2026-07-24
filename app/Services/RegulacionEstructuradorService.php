@@ -419,17 +419,54 @@ class RegulacionEstructuradorService
             return [RegulacionNodo::TIPO_ARTICULO, trim($m[1]), trim($m[2])];
         }
 
+        // ══════════════════════════════════════════════════════════════════
+        // ANTES DE NADA: ¿ES UNA CITA DENTRO DE UN ARTÍCULO?
+        // ══════════════════════════════════════════════════════════════════
+        //
+        // Una ley se cita a sí misma constantemente, y el PDF viene con saltos de línea DUROS
+        // (cada renglón maquetado es una línea del markdown). Así que un renglón puede empezar,
+        // por pura casualidad, con lo que parece un encabezado:
+        //
+        //     ...las fracciones III, IV, V y VI al artículo 151; un Capítulo I-BIS al
+        //     Título Quinto denominado ¨Venta o explotación de bienes muebles e inmuebles del
+        //     └──────┬──────┘
+        //      empieza la línea. Y no es un título: es media frase de un transitorio.
+        //
+        // El detector miraba solo el principio de la línea, y promovía esa cita a TÍTULO. Y ese
+        // título fantasma se tragaba como hijos todos los artículos que vinieran detrás — con lo
+        // que el contexto heredado (el que usa el buscador para saber de qué capítulo habla cada
+        // artículo) quedaba contaminado.
+        //
+        // ── Lo que los separa ──
+        //
+        // Los doce títulos REALES de la Ley de Hacienda están SOLOS en su línea; el nombre va en
+        // la línea siguiente, en mayúsculas. Las citas continúan con MINÚSCULA:
+        //
+        //     TÍTULO DÉCIMO PRIMERO              → encabezado. Lo que sigue es mayúscula.
+        //     Título Quinto denominado ¨Venta…   → cita.       "denominado" es minúscula.
+        //     Titulo Séptimo de la presente Ley  → cita.       "de" es minúscula.
+        //
+        // No es una regla nueva: es exactamente la que ya usaba el nivel 2 de aquí abajo
+        // ("empieza con minúscula → es prosa dentro de un artículo → se rechaza"). Lo único que
+        // pasaba es que el nivel 1 no la aplicaba.
+        //
+        // El artículo NO entra en esta guardia, a propósito: su detección es deliberadamente
+        // permisiva y está razonada más arriba.
+        if ($this->esCitaEnProsa($limpio)) {
+            return null;
+        }
+
         // ── Título ───────────────────────────────────────────────────────
         // Nivel 1: identificador reconocible (romano o palabra ordinal/especial).
         // Captura solo el identificador en `numero` y el nombre descriptivo en `texto`.
         // Ejemplo: "TÍTULO I — Disposiciones Generales" → numero="I", texto="Disposiciones Generales"
         if (preg_match(
             '/^t[íi]tulo\s+' .
-            '(primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nico|preliminar|final|general|[IVXLCDM]+\b)' .
+            '(' . self::ORDINALES . '|preliminar|final|general|[IVXLCDM]+\b)' .
             '[\s.\-–—]*(.*)$/iu',
             $limpio, $m
         )) {
-            return [RegulacionNodo::TIPO_TITULO, mb_strtoupper(trim($m[1])), trim($m[2])];
+            return [RegulacionNodo::TIPO_TITULO, $this->normalizarNumero($m[1]), trim($m[2])];
         }
 
         // Nivel 2: título sin identificador estándar (p. ej. "TÍTULO DE LA RESPONSABILIDAD").
@@ -448,11 +485,11 @@ class RegulacionEstructuradorService
         // Misma estrategia de dos niveles que el título.
         if (preg_match(
             '/^cap[íi]tulo\s+' .
-            '(primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nico|[IVXLCDM]+\b)' .
+            '(' . self::ORDINALES . '|[IVXLCDM]+\b)' .
             '[\s.\-–—]*(.*)$/iu',
             $limpio, $m
         )) {
-            return [RegulacionNodo::TIPO_CAPITULO, mb_strtoupper(trim($m[1])), trim($m[2])];
+            return [RegulacionNodo::TIPO_CAPITULO, $this->normalizarNumero($m[1]), trim($m[2])];
         }
         if (preg_match('/^cap[íi]tulo\s+(.+)$/iu', $limpio, $m)) {
             $id = trim($m[1]);
@@ -464,11 +501,11 @@ class RegulacionEstructuradorService
         // ── Sección ──────────────────────────────────────────────────────
         if (preg_match(
             '/^secci[óo]n\s+' .
-            '(primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|[uú]nica?|[IVXLCDM]+\b)' .
+            '(' . self::ORDINALES . '|[IVXLCDM]+\b)' .
             '[\s.\-–—]*(.*)$/iu',
             $limpio, $m
         )) {
-            return [RegulacionNodo::TIPO_SECCION, mb_strtoupper(trim($m[1])), trim($m[2])];
+            return [RegulacionNodo::TIPO_SECCION, $this->normalizarNumero($m[1]), trim($m[2])];
         }
         if (preg_match('/^secci[óo]n\s+(.+)$/iu', $limpio, $m)) {
             $id = trim($m[1]);
@@ -482,6 +519,108 @@ class RegulacionEstructuradorService
         }
 
         return null;
+    }
+
+    /**
+     * Los ordinales en palabras, INCLUIDOS LOS COMPUESTOS.
+     *
+     * ══════════════════════════════════════════════════════════════════════
+     * POR QUÉ LOS COMPUESTOS VAN LOS PRIMEROS
+     * ══════════════════════════════════════════════════════════════════════
+     *
+     * La Ley de Hacienda de La Paz NO dice "undécimo". Dice DÉCIMO PRIMERO, en dos palabras:
+     *
+     *     TÍTULO DÉCIMO            (línea 4570 del markdown)
+     *     TÍTULO DÉCIMO PRIMERO    (línea 4671)
+     *     TÍTULO DÉCIMO SEGUNDO    (línea 4707)
+     *
+     * Y una alternancia en PCRE es VORAZ POR LA IZQUIERDA: prueba las alternativas en orden y se
+     * queda con la primera que casa. Si "décimo" va antes que "décimo primero", nunca se llega a
+     * la segunda.
+     *
+     * Con la lista anterior, "TÍTULO DÉCIMO PRIMERO" se partía así:
+     *
+     *     TÍTULO DÉCIMO PRIMERO
+     *            └─┬──┘ └──┬──┘
+     *           numero   NOMBRE del título      ← "PRIMERO" se guardaba como nombre
+     *
+     * Y el efecto grave no era el nombre raro: era que quedaban TRES títulos numerados DÉCIMO. Los
+     * artículos del Décimo Primero y del Décimo Segundo colgaban del contenedor equivocado, y eso
+     * contamina el CONTEXTO HEREDADO — que es justo lo que el buscador usa para saber de qué habla
+     * cada artículo.
+     *
+     * Por eso los compuestos van al principio de la lista. El orden no es estético: es la
+     * diferencia entre reconocerlos y no reconocerlos.
+     */
+    private const ORDINALES =
+        // Compuestos PRIMERO: "décimo primero", "vigésimo segundo"...
+        '(?:d[eé]cim[oa]|vig[eé]sim[oa]|trig[eé]sim[oa])[\s\-]+' .
+        '(?:primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa])' .
+        // Simples después.
+        '|primer[oa]|segund[oa]|tercer[oa]|cuart[oa]|quint[oa]|sext[oa]|s[eé]ptim[oa]|octav[oa]|noven[oa]' .
+        '|d[eé]cim[oa]|und[eé]cim[oa]|duod[eé]cim[oa]|vig[eé]sim[oa]|trig[eé]sim[oa]|[uú]nic[oa]';
+
+    /**
+     * ¿Esta línea es una CITA dentro de la prosa de un artículo, y no un encabezado?
+     *
+     * Una ley se cita a sí misma sin parar, y el PDF trae saltos de línea duros. Resultado: hay
+     * renglones que EMPIEZAN con lo que parece un encabezado y no lo son.
+     *
+     *     ENCABEZADO                          CITA EN PROSA
+     *     ──────────────────────              ──────────────────────────────────────────
+     *     TÍTULO DÉCIMO PRIMERO               Título Quinto denominado ¨Venta o explotación…
+     *     CAPÍTULO I DEL OBJETO               Titulo Séptimo de la presente Ley y demás…
+     *                                                        └── minúscula
+     *
+     * La regla: si después del identificador viene una palabra en MINÚSCULA, es prosa.
+     *
+     * ── Lo que esta regla NO acepta, y hay que saberlo ──
+     *
+     * Un encabezado escrito "TÍTULO PRIMERO de las disposiciones generales" se rechazaría. Se
+     * revisaron los veinte markdown cargados y NO existe ni uno con esa forma: todos ponen el
+     * nombre en la línea siguiente, en mayúsculas.
+     *
+     * Y si algún día aparece, el fallo sería VISIBLE (falta un título) en vez de SILENCIOSO
+     * (títulos inventados que se llevan artículos ajenos). El segundo es infinitamente peor:
+     * nadie lo ve hasta que el buscador responde citando el capítulo equivocado.
+     */
+    private function esCitaEnProsa(string $linea): bool
+    {
+        // ── OJO CON LA INSENSIBILIDAD A MAYÚSCULAS: VA SOLO EN LA PRIMERA PARTE ──
+        //
+        // El grupo (?i: ... ) hace insensible SOLO la palabra clave, para que case con "TÍTULO",
+        // "Título" y "Titulo" — el PDF trae las tres formas, con tilde y sin ella.
+        //
+        // El resto del patrón sigue siendo SENSIBLE a mayúsculas, y TIENE que serlo:
+        //
+        //     \p{Ll}  →  una letra MINÚSCULA de verdad (Unicode).
+        //
+        // Es lo ÚNICO que distingue una cita de un encabezado. Poner el modificador /i al patrón
+        // entero lo rompe todo: en modo insensible, [a-z] casa TAMBIÉN con mayúsculas, así que
+        // "TÍTULO DÉCIMO PRIMERO" se tomaría por una cita y se rechazaría el título de verdad.
+        //
+        // Y sin la 'i' en ninguna parte —el primer intento— la guardia no dispara NUNCA contra
+        // "Título Quinto denominado…", porque la T es mayúscula. Los dos extremos fallan. El punto
+        // medio es este: insensible en la palabra, sensible en la minúscula que la delata.
+        //
+        // \p{Ll} en vez de una lista [a-záéíóúñü]: una lista de acentos siempre se deja alguno
+        // fuera (¿ü? ¿ï?), y el fallo sería silencioso.
+        return (bool) preg_match(
+            '/^(?i:t[íi]tulo|cap[íi]tulo|secci[óo]n)\s+\S+\s+\p{Ll}/u',
+            $linea
+        );
+    }
+
+    /**
+     * El identificador de un contenedor, en mayúsculas y con los espacios colapsados.
+     *
+     * "Décimo  Primero" → "DÉCIMO PRIMERO". El colapso importa porque el número es parte de la
+     * IDENTIDAD del nodo: dos espacios de más crearían un contenedor distinto del que ya existe, y
+     * los artículos se repartirían entre los dos sin que nadie lo notara.
+     */
+    private function normalizarNumero(string $numero): string
+    {
+        return mb_strtoupper(preg_replace('/\s+/u', ' ', trim($numero)));
     }
 
     /** Fracción: "I. texto", "II.- texto", "XIV.texto", "I.-Accidente", "I." */
@@ -835,11 +974,42 @@ class RegulacionEstructuradorService
      */
     private function rellenarContexto(Regulacion $regulacion): void
     {
+        // ══════════════════════════════════════════════════════════════════
+        // EXPERIMENTO EN CURSO: ¿la fracción debe heredar su ARTÍCULO?
+        // ══════════════════════════════════════════════════════════════════
+        //
+        // Durante meses el contexto heredó SOLO de los contenedores estructurales (título,
+        // capítulo, sección). El artículo quedaba fuera, y eso dejó huérfano el caso
+        // extension-via-publica: la fracción VII TER no heredaba la palabra "ocupación" del
+        // encabezado del art. 88, y la búsqueda no la encontraba.
+        //
+        // Este flag mete el ARTÍCULO en la herencia, para MEDIR si ayuda o estorba. Es un
+        // experimento reversible: si buscador:evaluar baja tras reestructurar, se pone en false y
+        // se vuelve al comportamiento anterior con UNA línea.
+        //
+        // El riesgo conocido: el texto de un artículo es largo (el art. 88 tiene decenas de
+        // fracciones). Heredarlo entero infla la densidad de palabras genéricas en TODA fracción,
+        // que es justo lo que hundió a espectaculos-calculo. Por eso, aunque se herede el artículo,
+        // su etiqueta se RECORTA a las primeras palabras (donde vive el encabezado con la palabra
+        // clave), no el cuerpo completo.
+        $heredarArticulo = true;
+
         $estructurales = [
             RegulacionNodo::TIPO_TITULO,
             RegulacionNodo::TIPO_CAPITULO,
             RegulacionNodo::TIPO_SECCION,
         ];
+
+        if ($heredarArticulo) {
+            $estructurales[] = RegulacionNodo::TIPO_ARTICULO;
+        }
+
+        // Cuánto texto de un ancestro-artículo se hereda como contexto. Un capítulo tiene título
+        // corto y entra entero; un artículo tiene cuerpo largo y hay que cortarlo, o cada fracción
+        // se llena de ruido. 160 caracteres cubren de sobra el encabezado ("Artículo 88.- Por la
+        // expedición de permisos para el uso u ocupación de las vías públicas...") sin arrastrar
+        // las fracciones que vienen debajo.
+        $maxCharsArticulo = 160;
 
         // Todo el árbol en memoria, de una sola consulta. Un articulado tiene miles de nodos pero
         // son filas pequeñas; subir por parent_id con una consulta por nodo sería un N+1 de manual.
@@ -865,7 +1035,14 @@ class RegulacionEstructuradorService
                 }
 
                 if (in_array($padre->tipo, $estructurales, true)) {
-                    $etiqueta = trim(($padre->numero ? $padre->numero . ' ' : '') . ($padre->texto ?? ''));
+                    $texto = (string) ($padre->texto ?? '');
+
+                    // El artículo se recorta; los estructurales (títulos cortos) entran enteros.
+                    if ($padre->tipo === RegulacionNodo::TIPO_ARTICULO && mb_strlen($texto) > $maxCharsArticulo) {
+                        $texto = mb_substr($texto, 0, $maxCharsArticulo);
+                    }
+
+                    $etiqueta = trim(($padre->numero ? $padre->numero . ' ' : '') . $texto);
 
                     if ($etiqueta !== '') {
                         array_unshift($ancestros, $etiqueta);

@@ -8,31 +8,18 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Consulta el diccionario de conceptos jurídico-administrativos de PUNTA
+ * Consulta el diccionario de conceptos jurídico-administrativos
  * (tabla busqueda_diccionario_juridico).
  *
- * Responsabilidad única: dado un término, decir si PUNTA lo reconoce como
- * un concepto conocido y, si es así, en qué tabla propia conviene buscarlo
- * primero. No sabe nada de cómo se detecta la intención de una pregunta
- * (eso es SearchIntentDetector) ni de cómo se arma la respuesta final
- * (eso es FeaturedAnswerService).
+ * Dado un término, dice si PUNTA lo reconoce como concepto conocido y en qué tabla
+ * propia conviene buscarlo primero. No detecta la intención de la pregunta —eso es
+ * SearchIntentDetector— ni arma la respuesta —eso es FeaturedAnswerService—.
  *
- * ── Por qué se cachea la tabla completa ──────────────────────────────
- *
- * Esta tabla casi no cambia: agregar un concepto nuevo es una excepción
- * puntual, no algo que pase seguido. Sin cachear, cada palabra de cada
- * consulta del usuario dispara una consulta idéntica a esta misma tabla
- * pequeña — con una consulta de 4 palabras, son 4 consultas repetidas a
- * los mismos datos sin que nada haya cambiado entre una y otra.
- *
- * Se cachea con Cache::rememberForever: la primera vez que se necesita,
- * se carga la tabla completa (son pocas filas, no pesa nada mantenerla en
- * memoria). Las siguientes veces, sale de caché sin tocar la base de
- * datos. Si se agrega o edita un concepto, hay que invalidar la caché
- * llamando a self::invalidarCache() — todavía no existe una pantalla de
- * administración para este catálogo, así que por ahora la invalidación es
- * manual (correr `php artisan tinker` y llamar al método, o simplemente
- * `php artisan cache:clear` después de correr el seeder de nuevo).
+ * La tabla se cachea entera y para siempre: son pocas filas y casi nunca cambian,
+ * mientras que sin caché cada palabra de cada consulta dispararía una lectura
+ * idéntica. Al añadir o editar un concepto hay que invalidarla con
+ * self::invalidarCache() o un cache:clear, porque todavía no hay pantalla de
+ * administración para este catálogo.
  */
 class LegalDictionaryService
 {

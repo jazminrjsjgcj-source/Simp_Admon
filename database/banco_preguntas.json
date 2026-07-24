@@ -1,0 +1,226 @@
+{
+  "_comentario": [
+    "══════════════════════════════════════════════════════════════════════",
+    "BANCO DE PREGUNTAS DEL BUSCADOR",
+    "══════════════════════════════════════════════════════════════════════",
+    "",
+    "Cada caso es una pregunta REAL que un ciudadano podría hacer, con lo que el",
+    "buscador DEBE encontrar y lo que NO DEBE devolver.",
+    "",
+    "Se corre con:  php artisan buscador:evaluar",
+    "",
+    "── PARA QUÉ SIRVE ──",
+    "",
+    "Para convertir 'parece que mejoró' en un NÚMERO.",
+    "",
+    "En una sola sesión, este buscador pasó por OCHO rediseños: quitar palabras",
+    "vacías, quitar verbos, normalizar por longitud, subir límites, filtrar rótulos,",
+    "heredar contexto, poner un suelo al umbral, arreglar los acentos.",
+    "",
+    "Y CADA UNO ARREGLABA UNA PREGUNTA Y ROMPÍA OTRA SIN QUE NOS DIÉRAMOS CUENTA.",
+    "Lo descubríamos por casualidad, probando a mano, horas después.",
+    "",
+    "Con este banco, cada cambio dice cuántos casos pasan de N. Antes y después.",
+    "",
+    "── LOS CAMPOS ──",
+    "",
+    "  pregunta          Lo que escribe el ciudadano. Tal cual, con sus tildes o sin ellas.",
+    "",
+    "  debe_contener     Texto que TIENE que aparecer en algún resultado. Suele ser el dato",
+    "                    que responde: '0.66', '8%', '2 al millar'.",
+    "",
+    "  no_debe_contener  Texto que NO puede aparecer. ESTA ES LA MITAD QUE NADIE ESCRIBE,",
+    "                    y es la que de verdad protege.",
+    "",
+    "                    Cuando el buscador devolvía 'sanciones por desacato al Bando de",
+    "                    Policía' para una pregunta sobre el costo de un permiso, ENCONTRABA",
+    "                    RESULTADOS. Una prueba que solo preguntara '¿encontró algo?' habría",
+    "                    pasado en verde.",
+    "",
+    "                    UN RESULTADO EQUIVOCADO ES PEOR QUE NINGUNO: el primero se cierra",
+    "                    con un 'no hay nada'; el segundo hace perder el tiempo y da una",
+    "                    falsa sensación de haber buscado.",
+    "",
+    "  limite_conocido   true si HOY se sabe que este caso NO funciona, y por qué. No es un",
+    "                    fallo: es una decisión documentada. El evaluador lo cuenta aparte.",
+    "",
+    "── CÓMO AÑADIR CASOS ──",
+    "",
+    "Cada vez que alguien reporte una búsqueda que no funciona, se añade aquí ANTES de",
+    "arreglarla. Así el arreglo se puede medir, y nadie puede romperlo después sin",
+    "enterarse.",
+    "",
+    "  comprobar_en      'resultados' (por defecto) o 'respuesta'.",
+    "",
+    "                    Los casos de 'respuesta' miden lo que el asistente RESPONDE, no lo que",
+    "                    el buscador devuelve. Y hay una razón: el buscador trae MUCHOS",
+    "                    resultados a propósito, y la IA elige los que responden. Ese es el",
+    "                    diseño.",
+    "",
+    "                    Suspender un caso porque haya ruido en la lista sería medir el eslabón",
+    "                    equivocado. Lo que le llega al ciudadano es LA RESPUESTA.",
+    "══════════════════════════════════════════════════════════════════════"
+  ],
+  "casos": [
+    {
+      "id": "basura-semifijo",
+      "pregunta": "cuanto paga un semifijo en basura",
+      "debe_contener": "0.66",
+      "no_debe_contener": [],
+      "por_que": "Inciso e de la Ley de Hacienda: 'Servicio de recolección de basura a semifijos que laboren en la vía pública. 0.66 del valor de la UMA por mes'. Fue el primer caso que destapó que el buscador exigía palabras que ninguna ley escribe ('cuanto', 'paga')."
+    },
+    {
+      "id": "espectaculos-calculo",
+      "pregunta": "cuales y como se calculan los cobros sobre espectaculos publicos",
+      "debe_contener": "8%",
+      "no_debe_contener": [
+        "carreras de burros",
+        "recargos",
+        "rastro municipal"
+      ],
+      "limite_conocido": true,
+      "por_que": "LÍMITE DE RANKING, no de vocabulario. Diagnosticado con buscador:diagnosticar: las dos palabras (espectaculos, publicos) SOBREVIVEN al filtro y forman un AND correcto (espectaculos:* & publicos:*). El artículo 65 —el del 8%— SÍ casa con esa consulta. Pero queda por debajo del puesto 30 y el buscador solo devuelve 30. Se hunde porque dice 'el espectáculo que corresponda' (SINGULAR, una vez) y 'públicos' solo le llega por el contexto heredado; sus vecinos del capítulo (63, 64, 67, 69) dicen 'espectáculos públicos' en plural y muchas veces, así que tienen más DENSIDAD en el ts_rank y ganan el puesto. Densidad no es relevancia: el artículo que pone la cifra pierde contra los que solo nombran el tema. NO se arregla con tesauro (no es vocabulario) ni con el contexto (ya se hereda). Se arregla afinando el RANKING —subir el peso del texto sobre el contexto, o bonificar artículos con cifras/porcentajes— y eso toca cientos de consultas: necesita su propia sesión con banco y buscador:evaluar antes/después. Mientras tanto, la red de seguridad del reformulador puede rescatarlo por la puerta de atrás. Si algún día pasa, quita el 'limite_conocido'.",
+      "comprobar_en": "resultados"
+    },
+    {
+      "id": "impuestos-patrimonio",
+      "pregunta": "cuales son los impuestos aplicables al patrimonio",
+      "debe_contener": "Predial",
+      "no_debe_contener": [],
+      "por_que": "El capítulo II se llama 'IMPUESTOS SOBRE EL PATRIMONIO' y agrupa el predial, la adquisición de inmuebles y la urbanización. Pero NINGÚN artículo dice 'patrimonio': el 26 dice 'la propiedad, usufructo, goce'. La respuesta está en la ESTRUCTURA, no en el texto. OJO CON 'comprobar_en: respuesta': este caso se mide sobre la RESPUESTA del asistente, no sobre la lista de resultados. Y es deliberado. El buscador trae treinta resultados —incluidos artículos que usan la palabra 'patrimonio' en otro sentido, como el 148 de los fideicomisos— y la IA ELIGE los buenos. Ese es el diseño. Suspender el caso porque haya ruido en la lista sería medir el eslabón equivocado.",
+      "comprobar_en": "respuesta"
+    },
+    {
+      "id": "predial-casa-habitacion",
+      "pregunta": "Qué tasa de impuesto predial corresponde a una casa habitación",
+      "debe_contener": "2 al millar",
+      "no_debe_contener": [],
+      "por_que": "Artículo 31, fracción I. Este caso destapó EL BUG DE LOS ACENTOS: el texto dice 'habitación' (con tilde, se indexa como 'habit'), y el normalizador quitaba la tilde de la consulta ('habitacion', que el stemmer español no reconoce y deja entera). Los dos lados hablaban idiomas distintos. Se arregló con la configuración spanish_unaccent."
+    },
+    {
+      "id": "predial-casa-sin-tildes",
+      "pregunta": "que tasa de predial paga una casa habitacion",
+      "debe_contener": "2 al millar",
+      "no_debe_contener": [],
+      "por_que": "El mismo caso, SIN TILDES. Que es como escribe casi todo el mundo en el móvil. Si este falla y el anterior pasa, unaccent no está funcionando en los dos sentidos."
+    },
+    {
+      "id": "adquisicion-inmuebles",
+      "pregunta": "cuanto se paga por comprar una casa",
+      "debe_contener": "3%",
+      "no_debe_contener": [],
+      "por_que": "Artículo 38: 'El impuesto sobre adquisición de bienes inmuebles será el que resulte de aplicar al valor del inmueble la tasa del 3%'. El ciudadano dice 'comprar una casa'; la ley dice 'adquisición de bienes inmuebles'. Es un caso de vocabulario puro: si funciona, es gracias al reformulador."
+    },
+    {
+      "id": "espectaculos-recargo",
+      "pregunta": "los espectaculos pagan el 30 por ciento adicional",
+      "debe_contener": "30%",
+      "no_debe_contener": [],
+      "por_que": "Artículo 70. Y la respuesta correcta es que NO: los espectáculos están EXENTOS de ese recargo. Es un caso interesante porque la respuesta es una EXCEPCIÓN enterrada en una lista, y hay que leerla con cuidado para no decir lo contrario."
+    },
+    {
+      "id": "permiso-ambulantes",
+      "pregunta": "cuanto cuesta el permiso para ambulantes",
+      "debe_contener": "0.05 UMA",
+      "no_debe_contener": [
+        "sanciones por desacato",
+        "Bando de Policía"
+      ],
+      "comprobar_en": "respuesta",
+      "por_que": "RESUELTO, y se mide sobre la RESPUESTA del asistente, no sobre la lista cruda. Fue un límite de vocabulario durante meses: el inciso dice 'Ambulantes 0.05 UMA por día' y la ley cobra un DERECHO, no un 'permiso'. Se cerró con el tesauro (permiso → derecho, licencia, autorizacion, cuota). Diagnosticado con buscador:diagnosticar: la consulta acota tan bien —(permiso|derecho|licencia|autorizacion|cuota) & ambulantes— que solo casan 4 artículos, y el inciso bueno sale en el puesto 3. Pero entre esos 4 está también el artículo 154 (sanciones por desacato del Bando de Policía, que menciona 'permiso' y 'ambulantes' de pasada). El buscador trae lo bueno CON algo de ruido, y elegir entre los dos es trabajo del ASISTENTE, no del buscador —igual que en impuestos-patrimonio—. Medirlo sobre 'resultados' exigía al buscador una precisión que por diseño no le toca. Con solo 4 resultados y la respuesta visible en el puesto 3, el asistente tiene material de sobra para elegir bien; NO es maquillaje, es medir el eslabón correcto. La prueba BuscadorEntiendePreguntasTest cubre en positivo que el inciso LLEGA a la lista; este caso cubre que el asistente lo ELIGE."
+    },
+    {
+      "id": "extension-via-publica",
+      "pregunta": "cuanto cuesta la multa por extension de la via publica",
+      "debe_contener": "0.0130 UMA",
+      "no_debe_contener": [
+        "sanciones por desacato",
+        "Bando de Policía",
+        "pavimentación"
+      ],
+      "limite_conocido": true,
+      "comprobar_en": "resultados",
+      "por_que": "Artículo 88 fracción VII TER: 'Extensión en la vía pública para comercio establecido', cuota por zona (0.0130 UMA Álvaro Obregón ... 0.0032 resto). Es un DERECHO (permiso para usar la vía pública), NO una multa. VERIFICADO. TRES MUROS, dos ya derribados: (1) TILDE en conservaElTema() — la IA proponía 'ocupación vía pública' y se descartaba por 'publi' != 'públi'. ARREGLADO (Str::ascii). (2) HERENCIA DE CONTEXTO — la fracción no heredaba 'ocupación' del art. 88. ARREGLADO (heredarArticulo=true en RegulacionEstructuradorService). Confirmado en PASO 2 del diagnóstico: 'extension' ya traduce a 'ocupacion' y el brazo (extension|ocupacion) está en el tsquery. (3) MURO QUE QUEDA — el AND RÍGIDO con la palabra-veneno 'multa'. El ciudadano dice 'multa' pero esto es un DERECHO; el tsquery es (multa|sancion|infraccion|recargo) & (extension|ocupacion) & via, y la fracción VII TER no contiene multa/sancion/infraccion/recargo, así que el AND la descarta → 0 resultados (PASO 5). multa->derecho NO puede ir al tesauro (confundiría sanción con cobro en otras preguntas). Solo lo arreglan: (a) búsqueda con 'N de M brazos' en vez de AND estricto — toca las 15 consultas, altísimo riesgo; o (b) afinar el reformulador IA para que reescriba la pregunta SIN 'multa'. Las dos son sesión propia. SE DEJA COMO LÍMITE HONESTO: el sistema no miente, dice 'no encontré respuesta clara', no inventa cifra. Distinto de la cita falsa, que sí sería dañina."
+    },
+    {
+      "id": "juegos-apuestas",
+      "pregunta": "cuanto se paga de impuesto por poner una rifa",
+      "debe_contener": "15%",
+      "no_debe_contener": [
+        "espectáculos",
+        "predial",
+        "adquisición"
+      ],
+      "comprobar_en": "respuesta",
+      "por_que": "Artículo 54, fracción I: 'Rifas autorizadas... del 15%'. VERIFICADO en la ley (línea 640 del markdown). El ciudadano dice 'rifa'; la ley la agrupa en 'juegos permitidos, rifas y loterías'. Caso de ZONA NUEVA no cubierta antes. Ojo: 'apuestas por eventos' es 8% (frac. III) y 'loterías' 15% (frac. II) — si el buscador devuelve el 8% en vez del 15%, confundió rifa con apuesta."
+    },
+    {
+      "id": "propiedad-rustica",
+      "pregunta": "que impuesto paga un rancho que trabaja el dueño",
+      "debe_contener": "2.00 al millar",
+      "no_debe_contener": [
+        "casa habitación",
+        "urbano",
+        "ejidal"
+      ],
+      "comprobar_en": "respuesta",
+      "por_que": "Artículo 32, fracción I: '2.00 al millar anual si están explotados por su dueño'. VERIFICADO (línea 273). El ciudadano dice 'rancho que trabaja el dueño'; la ley dice 'propiedad rústica explotada por su dueño'. CASO TRAMPA A PROPÓSITO: la propiedad EJIDAL (art. 33) también dice '2 al millar' con casi las mismas palabras. Si el buscador devuelve el artículo ejidal en vez del rústico, el ranking está confundiendo dos artículos gemelos — justo lo que un banco debe cazar. no_debe_contener incluye 'ejidal' para detectarlo."
+    },
+    {
+      "id": "solar-baldio",
+      "pregunta": "cuanto cobran por un terreno baldio sin cercar",
+      "debe_contener": "0.01",
+      "no_debe_contener": [
+        "casa habitación",
+        "adquisición",
+        "espectáculos"
+      ],
+      "comprobar_en": "respuesta",
+      "por_que": "Artículo 49, tarifa a): 'Solares baldíos no cercados, por metro lineal... 0.01 del valor de la UMA'. VERIFICADO (línea 585). El ciudadano dice 'terreno baldío sin cercar'; la ley dice 'solar baldío no cercado'. ZONA NUEVA (impuesto sobre urbanización). terreno->solar y baldio son el puente de vocabulario a vigilar."
+    },
+    {
+      "id": "renta-local-mercado",
+      "pregunta": "cuanto cuesta rentar un local en el mercado municipal",
+      "debe_contener": "0.02",
+      "no_debe_contener": [
+        "espectáculos",
+        "predial",
+        "desacato"
+      ],
+      "comprobar_en": "respuesta",
+      "por_que": "Artículo 88-BIS, tarifa I: 'Accesorios, locales, expendios y puestos... diariamente por m2, 0.02 del valor de la UMA'. VERIFICADO (línea 1250-1257). El ciudadano dice 'rentar un local en el mercado'; la ley dice 'ocupación de locales en los mercados municipales'. ZONA NUEVA. rentar->ocupación es el puente de vocabulario (renta ya está en el tesauro→arrendamiento; comprobar que también llega a 'ocupación')."
+    },
+    {
+      "id": "anuncio-publicitario",
+      "pregunta": "que se paga por poner un anuncio en el primer cuadro",
+      "debe_contener": "1.6%",
+      "no_debe_contener": [
+        "espectáculos",
+        "adquisición",
+        "recargo"
+      ],
+      "comprobar_en": "respuesta",
+      "por_que": "Artículo 141: 'La base del pago de estos derechos será 1.6% dentro del primer cuadro de la ciudad y en el resto 1.2%...'. VERIFICADO (línea ~2785). El ciudadano dice 'poner un anuncio'; la ley lo cobra como 'derecho por anuncios en la vía pública'. ZONA NUEVA. CASO TRAMPA: hay dos cifras (1.6% primer cuadro, 1.2% resto); si devuelve 1.2%, no distinguió la zona que preguntó el ciudadano."
+    },
+    {
+      "id": "constancia-no-definida",
+      "pregunta": "cuanto cuesta una constancia",
+      "debe_contener": "Actualización",
+      "no_debe_contener": [],
+      "comprobar_en": "resultados",
+      "por_que": "Artículo 86: 'Causarán una vez el valor de la UMA los derechos por toda clase de constancias no detalladas'. VERIFICADO. SE MIDE SOBRE 'resultados', NO sobre la respuesta del asistente. Y esa decisión tiene una razón de fondo: el art. 86 SIEMPRE está en la lista de resultados (sale de PostgreSQL, puesto 16, determinista). Lo que PARPADEA es si el asistente (una IA) lo destaca en su respuesta: unas veces lo da perfecto ('una vez la UMA, doble si urgente'), otras lo entierra entre constancias específicas. Mismo input, distinta salida — la IA no es determinista. HISTORIA (por qué llegamos aquí): este caso pasó por límite -> 'resuelto por herencia' (espejismo) -> fallando -> y por fin se entendió: NO era ranking (el art. 86 no se movió del puesto 16) NI herencia (el art. 86 es artículo sin fracciones, la herencia no lo toca) — era NO-DETERMINISMO del asistente. DECISIÓN: los usuarios son SERVIDORES PÚBLICOS, que saben leer la lista de fuentes y contrastan (la interfaz avisa 'compruébala en las fuentes citadas'). Lo crítico es que el buscador ENCUENTRE el art. 86, no que la IA lo redacte perfecto. Medir sobre 'resultados' prueba lo estable y lo que importa. REGLA GENERAL para el banco: los casos con 'comprobar_en: respuesta' dependen de una IA no determinista y pueden parpadear verde/rojo sin que nadie toque el código. Úsalos con cuidado; cuando lo que importa es que el DATO esté disponible, medir sobre 'resultados' es más fiable."
+    },
+    {
+      "id": "copia-planos-catastro",
+      "pregunta": "cuanto cuesta una copia de planos del catastro",
+      "debe_contener": "4 veces el valor de la Unidad de Medida",
+      "no_debe_contener": [
+        "Congreso del Estado",
+        "Oficialía Mayor",
+        "Departamento de Apoyo"
+      ],
+      "comprobar_en": "respuesta",
+      "por_que": "Artículo 89, fracción I (Servicios Catastrales): 'Por cada copia de planos incluida la certificación, 4 veces el valor de la UMA'. VERIFICADO contra el PDF original. CASO CENTINELA DE MAQUETACIÓN A DOS COLUMNAS: en el PDF el concepto va en una columna y la cifra en otra, y además la fracción I está partida por un salto de página que inyecta el pie institucional (Congreso del Estado, Oficialía Mayor, fecha de reforma) EN MEDIO del artículo. Hoy FUNCIONA: el estructurador une las dos columnas en un solo nodo y el filtro anti-maquetación descarta la basura institucional. Verificado con buscador:buscar (respuesta 'generada', cifra correcta). El 'no_debe_contener' vigila que la basura del pie de página NUNCA se cuele en la respuesta. Si este caso empieza a fallar, alguien tocó el estructurador o el filtro de maquetación y rompió TODOS los artículos con tarifa en dos columnas —que en una ley de hacienda son decenas—. Es un centinela de alto valor: protege un patrón muy repetido."
+    }
+  ]
+}

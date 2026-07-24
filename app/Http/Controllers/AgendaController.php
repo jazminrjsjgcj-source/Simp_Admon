@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\ExtraeFichaPortal;
 use App\Http\Requests\AccionAgendaRequest;
 use App\Models\AccionAgenda;
 use App\Models\Dependencia;
+use App\Models\Periodo;
 use App\Models\Tramite;
 use App\Models\User;
 use App\Services\AgendaExportService;
@@ -269,8 +270,8 @@ class AgendaController extends Controller
         $puedeObservar = request()->user()->tienePermiso('agenda.observar');
         $revisores = collect();
         if ($puedeObservar) {
-            // Bug #51: excluir al propio usuario — no puede dirigirse
-            // observaciones a sí mismo (misma protección que TramiteController).
+            // Excluir al propio usuario — no puede dirigirse
+            // observaciones a sí mismo.
             $revisores = User::where('activo', true)
                 ->where('dependencia_id', $agenda->dependencia_id)
                 ->where('id', '!=', request()->user()->id)
@@ -452,7 +453,11 @@ class AgendaController extends Controller
     public function edit(AccionAgenda $agenda)
     {
         $user = request()->user();
-        if (!$user->isRol(User::ROL_ADMIN) && !$user->esDeSuDependencia($agenda)) {
+        // Editar exige DOS cosas: tener el permiso agenda.editar Y ser de la dependencia
+        // (o admin). Antes solo se pedía la dependencia, así que un sujeto o jurídico de
+        // la dependencia —que solo tienen agenda.ver— podían editar sin permiso.
+        if (!$user->isRol(User::ROL_ADMIN)
+            && (!$user->tienePermiso('agenda.editar') || !$user->esDeSuDependencia($agenda))) {
             return redirect()->route('agenda.show', $agenda)
                 ->with('error', 'Solo puede editar acciones de su dependencia.');
         }
@@ -472,7 +477,10 @@ class AgendaController extends Controller
 
     public function update(Request $request, AccionAgenda $agenda)
     {
-        if (!$request->user()->isRol(User::ROL_ADMIN) && !$request->user()->esDeSuDependencia($agenda)) {
+        $user = $request->user();
+        // Mismo criterio que edit(): permiso agenda.editar Y dependencia (o admin).
+        if (!$user->isRol(User::ROL_ADMIN)
+            && (!$user->tienePermiso('agenda.editar') || !$user->esDeSuDependencia($agenda))) {
             abort(403, 'No tiene permiso para editar esta acción.');
         }
 
@@ -557,29 +565,48 @@ class AgendaController extends Controller
     /**
      * Exporta a Excel todas las acciones de SIMPLIFICACIÓN (Art. 23 LNETB).
      * Incluye las acciones de tipo 'simplificacion' y 'ambas'.
-     * Solo accesible a revisora y admin (la ruta lo controla por middleware).
+     *
+     * El rol se comprueba en la ruta con el middleware 'role:revisora,admin',
+     * porque la descarga abarca a todas las dependencias.
      */
     public function exportarSimp()
     {
-        $acciones = AccionAgenda::with(['dependencia', 'tramite.procesosAtencion', 'hitos', 'periodo', 'creador'])
-            ->whereIn('tipo', ['simplificacion', 'ambas'])
-            ->latest()
-            ->get();
-
-        return $this->exportService->exportarSimp($acciones);
+        return $this->exportService->exportarSimp(
+            $this->accionesDelPeriodoVigente(['simplificacion', 'ambas'])
+        );
     }
 
     /**
      * Exporta a Excel todas las acciones de DIGITALIZACIÓN (Art. 24 LNETB).
      * Incluye las acciones de tipo 'digitalizacion' y 'ambas'.
+     *
+     * Mismo control de rol que exportarSimp().
      */
     public function exportarDig()
     {
-        $acciones = AccionAgenda::with(['dependencia', 'tramite.procesosAtencion', 'hitos', 'periodo', 'creador'])
-            ->whereIn('tipo', ['digitalizacion', 'ambas'])
-            ->latest()
-            ->get();
+        return $this->exportService->exportarDig(
+            $this->accionesDelPeriodoVigente(['digitalizacion', 'ambas'])
+        );
+    }
 
-        return $this->exportService->exportarDig($acciones);
+    /**
+     * Acciones que entran en la agenda del semestre en curso, con todo lo que el
+     * servicio de exportación necesita ya precargado.
+     *
+     * El eager loading no es un adorno: escribirAcciones() lee $accion->tramite y
+     * los pasos del proceso fila por fila. Sin él, cada fila del Excel dispararía
+     * varias consultas.
+     *
+     * @param  string[]  $tipos  Tipos de acción que aplican a esa agenda.
+     */
+    private function accionesDelPeriodoVigente(array $tipos)
+    {
+        $periodo = Periodo::activo()->syd()->first();
+
+        return AccionAgenda::with(['dependencia', 'tramite.procesosAtencion', 'hitos', 'periodo', 'creador'])
+            ->whereIn('tipo', $tipos)
+            ->paraAgendaDe($periodo)
+            ->ordenPrioridadAgenda($periodo)
+            ->get();
     }
 }

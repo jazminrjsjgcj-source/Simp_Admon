@@ -45,7 +45,7 @@
 
         <div class="field">
           <label>Dependencia responsable</label>
-          <input type="text" value="{{ auth()->user()->dependencia->nombre ?? '—' }}" disabled class="u-input-disabled">
+          <input type="text" value="{{ auth()->user()->dependencia->nombre ?? '' }}" disabled class="u-input-disabled">
         </div>
 
         <div class="field">

@@ -119,6 +119,89 @@ class AccionAgenda extends Model
     public function periodo() { return $this->belongsTo(Periodo::class); }
 
     /**
+     * Acciones que deben figurar en la Agenda SyD del periodo indicado.
+     *
+     * La Agenda es un documento SEMESTRAL (art. 21 LNETB: se presenta en los
+     * primeros quince días de enero y julio), así que no puede llevar el histórico
+     * completo con los semestres mezclados. Pero tampoco es solo el semestre en
+     * curso: la ley obliga a arrastrar lo que quedó pendiente.
+     *
+     * Entran tres grupos:
+     *
+     *  1. Las del periodo en curso. El caso normal.
+     *
+     *  2. Las que no tienen periodo asignado. Son anteriores al módulo de periodos
+     *     (#12); excluirlas las borraría de un documento oficial sin que nadie se
+     *     enterara. Cuando estén migradas, esta cláusula se puede quitar.
+     *
+     *  3. Las REZAGADAS: acciones de periodos anteriores que no llegaron a
+     *     implementarse. Art. 22 LNETB: "Los proyectos [...] que no sean realizados
+     *     durante el periodo correspondiente, se contemplarán en el siguiente
+     *     semestre, teniendo prioridad", y art. 29 fr. X de los Lineamientos, que
+     *     exige considerar "las acciones pendientes del periodo inmediato anterior".
+     *
+     * Sobre qué cuenta como "no realizada": NO se mira el estatus de la acción.
+     * ESTATUS_COMPLETADO significa que el papeleo está firmado por sujeto y enlace
+     * (ver FirmaController), no que la acción se haya ejecutado. La ejecución se
+     * sigue por hitos, y un hito cuenta solo cuando estado_aprobacion = 'aprobado'
+     * (mismo criterio que HitoAgendaService::siguientePendiente y calcularPorcentaje).
+     * Una acción sin hitos tampoco tiene evidencia de implementación, así que
+     * también se arrastra.
+     *
+     * Si no se pasa periodo (null) no se filtra nada: ocurre cuando aún no hay
+     * ningún periodo SyD activo, y es preferible exportar de más que entregar un
+     * documento vacío sin avisar.
+     */
+    public function scopeParaAgendaDe($query, ?Periodo $periodo)
+    {
+        if ($periodo === null) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($periodo) {
+            $q->where('periodo_id', $periodo->id)
+              ->orWhereNull('periodo_id')
+              ->orWhere(function ($rezagadas) use ($periodo) {
+                  $rezagadas
+                      ->whereHas('periodo', fn ($p) => $p->where('fecha_inicio', '<', $periodo->fecha_inicio))
+                      ->where(function ($sinImplementar) {
+                          $sinImplementar
+                              ->whereHas('hitos', fn ($h) => $h->where('estado_aprobacion', '!=', 'aprobado'))
+                              ->orWhereDoesntHave('hitos');
+                      });
+              });
+        });
+    }
+
+    /**
+     * Orden del calendario de la Agenda: primero lo que arrastra prioridad.
+     *
+     * Art. 22 LNETB dice que las acciones no realizadas "se contemplarán en el
+     * siguiente semestre, TENIENDO PRIORIDAD". Prioridad, en un documento que es un
+     * calendario, significa ir arriba. El CASE ordena en tres bloques:
+     *
+     *   0 -> sin periodo (las heredadas, las más antiguas)
+     *   1 -> rezagadas de periodos anteriores
+     *   2 -> las del periodo en curso
+     *
+     * Dentro de cada bloque se mantiene el orden por fecha de alta descendente que
+     * ya traía la exportación.
+     */
+    public function scopeOrdenPrioridadAgenda($query, ?Periodo $periodo)
+    {
+        if ($periodo === null) {
+            return $query->latest();
+        }
+
+        return $query
+            ->orderByRaw(
+                'CASE WHEN periodo_id IS NULL THEN 0 WHEN periodo_id <> ? THEN 1 ELSE 2 END',
+                [$periodo->id]
+            )
+            ->latest();
+    }
+
+    /**
      * Prefijo de tipo del folio según el alcance de la acción:
      * simplificación → SIM, digitalización → DIG, ambas → SYD.
      * Así el folio dice qué es (LPZ-SYD-DGGD-2026-001) en vez de un AGD genérico.

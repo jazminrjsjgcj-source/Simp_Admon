@@ -31,6 +31,26 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo_pgsql pgsql pdo_mysql zip gd mbstring xml bcmath opcache
 
+# Python + pdfplumber, para EXTRAER TABLAS de PDFs.
+#
+#   pdftotext (arriba) saca el texto, pero DESTRUYE las tablas: las aplana a texto
+#   en orden de flujo y se pierde qué celda va con qué fila. El catálogo de
+#   infracciones del Bando ("artículo 65 → Clase D") quedaba ilegible.
+#
+#   pdfplumber analiza la POSICIÓN del texto y reconstruye filas y columnas. Lo
+#   usa scripts/extraer_tablas.py, invocado por RegulacionConversorService.
+#
+#   La imagen ya trae python3 (viene con LibreOffice), pero NO trae pip: por eso
+#   se instala python3-pip aquí.
+#
+#   --break-system-packages: Debian con Python 3.11+ marca el entorno como
+#   "externally managed" y bloquea pip install global. En un contenedor de un
+#   solo propósito no hay conflicto que proteger, así que se permite el install
+#   global. (La alternativa —un venv— añade complejidad sin beneficio aquí.)
+RUN apt-get update && apt-get install -y python3-pip \
+    && pip install --break-system-packages --no-cache-dir pdfplumber \
+    && rm -rf /var/lib/apt/lists/*
+
 # Composer, para instalar dependencias dentro del contenedor.
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

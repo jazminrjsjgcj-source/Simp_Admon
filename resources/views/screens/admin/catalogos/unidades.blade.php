@@ -52,7 +52,7 @@
                   <span class="badge" style="margin-left:6px;opacity:.7">Inactiva</span>
                 @endif
               </td>
-              <td>{{ $uni->dependencia?->nombre ?? '—' }}</td>
+              <td>{{ $uni->dependencia?->nombre ?? '' }}</td>
               <td>
                 <span class="badge {{ $uni->activo ? 'success-b' : '' }}">
                   {{ ($uni->activo ?? true) ? 'Activa' : 'Inactiva' }}

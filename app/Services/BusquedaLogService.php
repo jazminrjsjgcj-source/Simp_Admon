@@ -199,20 +199,63 @@ class BusquedaLogService
             //
             // updateOrInsert en vez de insert: si ya votó, se CAMBIA su voto. Es lo que un
             // usuario espera cuando pulsa "Sí" después de haber pulsado "No".
-            DB::table('busqueda_feedback')->updateOrInsert(
-                [
-                    'user_id'         => $usuarioId,
-                    'busqueda_log_id' => $busquedaLogId,
-                    'tipo_resultado'  => $tipoResultado,
-                    'resultado_id'    => $resultadoId,
-                ],
-                [
-                    'consulta'         => mb_substr($consulta, 0, 500),
-                    'titulo_resultado' => $titulo ? mb_substr($titulo, 0, 500) : null,
-                    'util'             => $util,
-                    'created_at'       => now(),
-                ]
-            );
+            // ══════════════════════════════════════════════════════════════════
+            // OJO CON updateOrInsert Y LAS COLUMNAS NOT NULL
+            // ══════════════════════════════════════════════════════════════════
+            //
+            // La primera versión de esto era un updateOrInsert(), y REVENTABA:
+            //
+            //     Not null violation: null value in column "consulta"
+            //     SQL: insert into busqueda_feedback (user_id, busqueda_log_id,
+            //                                         tipo_resultado, resultado_id)
+            //
+            // Fíjate en ese INSERT: NO LLEVA `consulta`. Y esa columna es NOT NULL.
+            //
+            // ── Por qué ──
+            //
+            // Cuando la fila no existe, updateOrInsert hace un INSERT con las claves del PRIMER
+            // array (el WHERE) y después un UPDATE con el segundo. Pero el INSERT inicial no
+            // incluye las columnas del segundo array — y si alguna es NOT NULL, explota antes de
+            // llegar al UPDATE.
+            //
+            // ── Y la consecuencia era peor que el bug ──
+            //
+            //     In failed sql transaction: current transaction is aborted
+            //
+            // Una violación de constraint en PostgreSQL ABORTA LA TRANSACCIÓN ENTERA. A partir
+            // de ahí, TODAS las consultas siguientes fallan.
+            //
+            // El try/catch se tragaba el error... pero la transacción ya estaba muerta. Un
+            // registro de feedback —una bitácora pasiva, lo menos importante del sistema— podía
+            // tumbar la petición completa de un ciudadano.
+            //
+            // ── El arreglo ──
+            //
+            // Comprobar si existe, y hacer update o insert explícitamente. Más verboso, y
+            // predecible: el INSERT lleva TODAS las columnas.
+            $claves = [
+                'user_id'         => $usuarioId,
+                'busqueda_log_id' => $busquedaLogId,
+                'tipo_resultado'  => $tipoResultado,
+                'resultado_id'    => $resultadoId,
+            ];
+
+            $datos = [
+                'consulta'         => mb_substr($consulta, 0, 500),
+                'titulo_resultado' => $titulo ? mb_substr($titulo, 0, 500) : null,
+                'util'             => $util,
+            ];
+
+            $yaVoto = DB::table('busqueda_feedback')->where($claves)->exists();
+
+            if ($yaVoto) {
+                // Cambió de opinión: se actualiza su voto, no se duplica.
+                DB::table('busqueda_feedback')->where($claves)->update($datos);
+            } else {
+                DB::table('busqueda_feedback')->insert(
+                    $claves + $datos + ['created_at' => now()]
+                );
+            }
 
             return true;
         } catch (Throwable $e) {
@@ -222,6 +265,42 @@ class BusquedaLogService
                 'id' => $resultadoId,
             ]);
             return false;
+        }
+    }
+
+    /**
+     * Últimas búsquedas DISTINTAS de un usuario, de la más reciente a la más vieja.
+     *
+     * Alimenta la columna "Búsquedas recientes" del buscador. Se agrupa por texto
+     * para no repetir la misma consulta cinco veces seguidas, y se ordena por la
+     * última vez que la hizo.
+     *
+     * Nunca lanza: si la consulta falla, la columna sale vacía y el buscador sigue
+     * funcionando igual (esto es una comodidad, no una función crítica).
+     *
+     * @return array<int, string>
+     */
+    public function recientes(?int $usuarioId, int $limite = 8): array
+    {
+        if ($usuarioId === null) {
+            return [];
+        }
+
+        try {
+            return DB::table('busqueda_log')
+                ->where('user_id', $usuarioId)
+                ->whereNotNull('consulta')
+                ->where('consulta', '<>', '')
+                ->groupBy('consulta')
+                ->orderByRaw('MAX(created_at) DESC')
+                ->limit($limite)
+                ->pluck('consulta')
+                ->all();
+        } catch (Throwable $e) {
+            Log::warning('BusquedaLog: no se pudieron leer las búsquedas recientes', [
+                'error' => $e->getMessage(),
+            ]);
+            return [];
         }
     }
 }

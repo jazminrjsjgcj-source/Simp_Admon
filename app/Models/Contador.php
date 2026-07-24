@@ -8,49 +8,22 @@ use Illuminate\Support\Facades\DB;
 /**
  * Entrega números de serie únicos y crecientes.
  *
- * ── Para qué sirve ────────────────────────────────────────────────────
+ * Cuando el sistema necesita "el siguiente número" de algo —el consecutivo de una
+ * homoclave, el de un folio— lo pide aquí en vez de calcularlo leyendo la tabla y
+ * sumando uno. La diferencia importa en concurrencia: si dos personas dan de alta a
+ * la vez, ambas leerían el mismo máximo y la segunda chocaría contra el índice
+ * único. Aquí la fila del contador se bloquea mientras se entrega el número, así que
+ * el segundo espera su turno y recibe otro.
  *
- * Cuando el sistema necesita "el siguiente número" de algo (el consecutivo de la
- * homoclave de un trámite, el consecutivo del folio de una acción de agenda), lo
- * pide aquí. Nadie más vuelve a calcularlo por su cuenta.
+ *   Contador::siguiente('tramite.homoclave');   // cada clave es una serie aparte
  *
- * ── Por qué existe ────────────────────────────────────────────────────
+ * El bloqueo solo dura mientras hay una transacción abierta, por eso siguiente()
+ * abre la suya. Si ya existe una en curso, Laravel crea un punto de guardado dentro
+ * y el bloqueo se mantiene hasta que termine la de fuera, que es lo correcto.
  *
- * Antes, cada quien averiguaba el siguiente número leyendo la tabla y sumando 1.
- * Eso tiene un problema que solo aparece cuando el sistema se usa de verdad: si
- * dos personas dan de alta un trámite en el mismo instante, las dos leen el mismo
- * máximo, las dos calculan el mismo número, y la segunda choca contra el índice
- * único. Para el usuario eso es un error 500 después de llenar el formulario.
- *
- * Aquí no se AVERIGUA el número: se PIDE. Y mientras se entrega, la fila del
- * contador queda bloqueada, así que el segundo en llegar espera su turno y recibe
- * un número distinto. Nunca dos iguales.
- *
- * ── Cómo se usa ───────────────────────────────────────────────────────
- *
- *   Contador::siguiente('tramite.homoclave');          // → 42
- *   Contador::siguiente('folio:LPZ-SIM-DGGD-2026-');   // → 1
- *
- * Cada clave es una serie independiente.
- *
- * ── Sobre las transacciones ───────────────────────────────────────────
- *
- * El bloqueo de una fila solo dura mientras hay una transacción abierta. Por eso
- * siguiente() abre la suya. Y funciona en los dos escenarios posibles:
- *
- *   - Si NO hay ninguna transacción en curso (por ejemplo, RegulacionController
- *     asignando un folio), esta abre una, entrega el número y la cierra.
- *
- *   - Si YA hay una en curso (por ejemplo, TramiteService::crear(), que envuelve
- *     todo el alta), Laravel crea un punto de guardado dentro de ella. El bloqueo
- *     se mantiene hasta que la transacción de fuera termine, que es lo correcto.
- *
- * ── Sobre los huecos en la serie ──────────────────────────────────────
- *
- * Si se pide un número y después algo falla, ese número se pierde: la serie salta
- * del 41 al 43. Es un compromiso deliberado. Un hueco en la numeración es un
- * detalle cosmético; dos documentos oficiales con el mismo identificador es un
- * problema legal. Se prefiere el hueco.
+ * Si se pide un número y luego algo falla, ese número se pierde y la serie salta.
+ * Es deliberado: un hueco en la numeración es cosmético, dos documentos oficiales
+ * con el mismo identificador es un problema legal.
  */
 class Contador extends Model
 {
