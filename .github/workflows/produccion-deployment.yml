@@ -2,7 +2,7 @@ name: Deployment a Produccion
 
 on:
   push:
-    branches: [  ]
+    branches: [ prod ]
 
 jobs:
   create-deployment-artifacts:
